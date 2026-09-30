@@ -568,7 +568,7 @@ decorate();
   }
   async function syncNow(){
     if(syncing)return;const s=await session();if(!s)return;syncing=true;
-    try{await mergeAndSync(s.user);setStatus('Cuenta conectada','ok');msg.textContent='Datos sincronizados correctamente.';setTimeout(()=>location.reload(),80)}
+    try{await mergeAndSync(s.user);setStatus('Cuenta conectada','ok');msg.textContent='Datos sincronizados correctamente.';const activeTab=document.querySelector('nav button.active')?.dataset.tab||'menuTab';try{sessionStorage.setItem('pandi_active_tab',activeTab)}catch(e){};setTimeout(()=>location.reload(),80)}
     catch(e){console.error(e);setStatus('Error de sincronización','err');msg.textContent='No se pudo sincronizar: '+(e.message||String(e));}
     finally{syncing=false}
   }
@@ -582,7 +582,7 @@ decorate();
   function cloudLoginNotice(){db.auth.getSession().then(({data})=>{if(!data.session&&navigator.onLine){msg.textContent='No estás conectado a la nube. Inicia sesión para guardar tus datos y usarlos en otro móvil.';$('authInfo').textContent='☁️ No estás conectado. Inicia sesión o crea una cuenta para sincronizar tus recetas, menús, lista y objetivos.';showAuth()}})}
   window.addEventListener('online',cloudLoginNotice);window.addEventListener('offline',()=>{msg.textContent='⚠️ Sin conexión a Internet. Puedes seguir usando tus datos locales; la nube se sincronizará al volver a estar conectado.';showAuth()});
   window.addEventListener('pandi:recipe-deleted',()=>{const n=window.__pandiDeletedRecipeName;if(n){writeLocal('recetario_deleted_recipe_names',[...new Set([...localState().deletedNames,n])]);schedule()}});
-  window.addEventListener('load',()=>setTimeout(async()=>{const s=await session();setStatus(s?'Cuenta conectada':'No conectado',s?'ok':'err');cloudLoginNotice()},500));
+  window.addEventListener('load',()=>setTimeout(async()=>{const s=await session();setStatus(s?'Cuenta conectada':'No conectado',s?'ok':'err');cloudLoginNotice();let tab=null;try{tab=sessionStorage.getItem('pandi_active_tab');sessionStorage.removeItem('pandi_active_tab')}catch(e){};if(tab){const b=document.querySelector('nav button[data-tab=\"'+tab+'\"]');if(b)b.click()}},500));
 })();
 </script>
 </body></html>
