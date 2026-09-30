@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Panda recetas</title>
 <meta name="theme-color" content="#07192d">
-<link rel="manifest" href="./manifest.json">
 <link rel="icon" type="image/png" href="./icon-192.png">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <style>
@@ -229,7 +228,33 @@ window.__newRecipe=function(){
 };
 document.addEventListener('click',function(e){
   var b=e.target.closest&&e.target.closest('#addBtn,#fab');
-  if(b){e.preventDefault();e.stopPropagation();window.__newRecipe();}
+  if(b){e.preventDefault();e.stopImmediatePropagation();setTimeout(function(){window.__newRecipe();},0);}
 },true);
+</script>
+<script>
+(function(){
+  const iconMap={'Desayuno':'🍳','Comida':'🍽️','Merienda':'☕','Cena':'🌙','A la parrilla':'🔥','A la sartén':'🍳','Al horno':'🔥','Al vapor':'♨️','Alto en proteínas':'💪','Aperitivos y entrantes':'🥟','Arroces':'🍚','Asiática':'🥢','Carne blanca':'🍗','Carne roja':'🥩','Carnes':'🥩','Ensaladas':'🥗','Fruta':'🍎','Guarnición':'🥔','Legumbres':'🫘','Pasta':'🍝','Pescado':'🐟','Pescado azul':'🔵🐟','Pescado blanco':'⚪🐟','Postres':'🍰','Salsas':'🥫','Sopas':'🍲','Verduras':'🥦','Vegetariano':'🥗','Vegano':'🌱','Huevos':'🥚','Marisco':'🦐','Frutos secos':'🥜','Lácteos':'🥛','Cereales integrales':'🌾','Guisos':'🍲','Entrante':'🥗'};
+  const defaults=['Desayuno','Comida','Merienda','Cena','A la parrilla','A la sartén','Al horno','Al vapor','Alto en proteínas','Aperitivos y entrantes','Arroces','Asiática','Carne blanca','Carne roja','Carnes','Ensaladas','Fruta','Guarnición','Legumbres','Pasta','Pescado','Pescado azul','Pescado blanco','Postres','Salsas','Sopas','Verduras','Vegetariano','Vegano','Huevos','Marisco','Frutos secos','Lácteos','Cereales integrales'];
+  const cats=()=>{try{const x=JSON.parse(localStorage.getItem('recetario_categories')||'null');return Array.isArray(x)&&x.length?x:defaults.slice()}catch(e){return defaults.slice()}};
+  const saveCats=x=>localStorage.setItem('recetario_categories',JSON.stringify([...new Set(x.filter(Boolean))]));
+  const icon=c=>iconMap[c]||'🏷️';
+  const base=editRecipe;
+  editRecipe=function(id){
+    base(id);
+    const picker=document.getElementById('catOptions'),hidden=document.getElementById('fCat'),search=document.getElementById('catSearch');
+    if(!picker||!hidden)return;
+    let list=cats(),selected=new Set(String(hidden.value||'').split(',').map(x=>x.trim()).filter(Boolean));
+    const draw=()=>{const q=norm(search.value);picker.innerHTML=list.filter(c=>!q||norm(c).includes(q)).map(c=>'<button type="button" data-cat="'+escAttr(c)+'" style="border:0;border-radius:12px;padding:10px 12px;background:'+(selected.has(c)?'var(--accent)':'#5f84bd')+';color:#fff;font:inherit;cursor:pointer">'+icon(c)+' '+esc(c)+'</button>').join('')+'<button type="button" id="manageCats" style="border:1px dashed var(--accent);border-radius:12px;padding:10px 12px;background:transparent;color:var(--accent);font:inherit;cursor:pointer">⚙️ Gestionar categorías</button>';picker.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{selected.has(b.dataset.cat)?selected.delete(b.dataset.cat):selected.add(b.dataset.cat);hidden.value=[...selected].join(', ');draw()});picker.querySelector('#manageCats').onclick=manage};
+    function manage(){
+      const box=document.createElement('div');box.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;display:flex;align-items:flex-end';
+      box.innerHTML='<div style="width:100%;max-height:88vh;overflow:auto;background:var(--surface);border-radius:24px 24px 0 0;padding:20px"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">🏷️ Mis categorías</h2><button type="button" class="btn secondary" id="xCats">✕</button></div><p class="notice">Añade categorías nuevas o cambia el nombre de las existentes.</p><div id="catList" style="display:grid;gap:8px"></div><div style="display:flex;gap:8px;margin-top:12px"><input id="newCat" placeholder="Nueva categoría" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font:inherit"><button type="button" class="btn" id="addCat">＋ Añadir</button></div></div>';
+      document.body.appendChild(box);const listBox=box.querySelector('#catList');
+      const redraw=()=>{listBox.innerHTML=list.map((c,i)=>'<div style="display:flex;gap:7px;align-items:center"><span style="width:32px;text-align:center;font-size:21px">'+icon(c)+'</span><input data-i="'+i+'" value="'+escAttr(c)+'" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font:inherit"><button type="button" data-d="'+i+'" class="btn secondary">🗑️</button></div>').join('');listBox.querySelectorAll('[data-i]').forEach(inp=>inp.onchange=()=>{const i=+inp.dataset.i,old=list[i],v=inp.value.trim();if(!v)return;list[i]=v;if(selected.has(old)){selected.delete(old);selected.add(v)}saveCats(list);hidden.value=[...selected].join(', ');redraw();draw()});listBox.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{const i=+b.dataset.d;selected.delete(list[i]);list.splice(i,1);saveCats(list);hidden.value=[...selected].join(', ');redraw();draw()})};
+      redraw();box.querySelector('#addCat').onclick=()=>{const v=box.querySelector('#newCat').value.trim();if(v&&!list.some(c=>norm(c)===norm(v))){list.push(v);saveCats(list);box.querySelector('#newCat').value='';redraw();draw()}};box.querySelector('#xCats').onclick=()=>box.remove();
+    }
+    search.oninput=draw;draw();
+  };
+  const oldRefresh=refreshRecipeFilters;refreshRecipeFilters=function(){oldRefresh();setTimeout(()=>{document.querySelectorAll('#categoryGroups [data-cat]').forEach(b=>{const t=b.parentElement;t.lastChild.textContent=' '+icon(b.dataset.cat)+' '+b.dataset.cat})},0)};
+})();
 </script>
 </body></html>
