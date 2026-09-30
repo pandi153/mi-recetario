@@ -214,22 +214,7 @@ document.getElementById('generateAi').onclick=makeAiProposal;document.querySelec
 (function(){const old=document.getElementById('categoryChips');if(!old)return;const wrap=document.createElement('div');wrap.className='category-picker';wrap.innerHTML='<button type="button" id="categoryToggle" class="category-toggle">Categorías <span>▾</span></button><div id="categoryPanel" class="category-panel"><div class="search"><input id="categorySearch" type="text" placeholder="Buscar categoría..." autocomplete="off"></div><div id="categoryGroups"></div></div>';old.replaceWith(wrap);const toggle=wrap.querySelector('#categoryToggle'),panel=wrap.querySelector('#categoryPanel'),input=wrap.querySelector('#categorySearch'),groups=wrap.querySelector('#categoryGroups');let selected=new Set();const allCats=()=>[...new Set(recipes.flatMap(r=>String(r.category||'').split(',').map(x=>x.trim()).filter(Boolean)))].sort((a,b)=>a.localeCompare(b,'es'));const groupMap={'🐟 Pescados y mariscos':['Pescado','Pescado azul','Pescado blanco','Marisco'],'🥩 Carnes':['Carne blanca','Carne roja','Carnes'],'🥬 Verduras y legumbres':['Verduras','Legumbres','Ensaladas','Fruta'],'🍚 Arroces, pasta y cereales':['Arroces','Pasta','Cereales integrales'],'🍳 Otros':['Huevos','Lácteos','Frutos secos','Desayuno','Comida','Cena','Merienda','Aperitivos y entrantes','Postres','Guarnición','Sopas','Salsas','Vegetariano','Vegano','A la parrilla','A la sartén','Al horno','Al vapor','Asiática','Guisos','Entrante']};const escAttr2=s=>escAttr(s);const renderOptions=()=>{const q=norm(input.value),cats=allCats().filter(c=>!q||norm(c).includes(q)),used=new Set();let html='<label class="category-option category-all"><input type="checkbox" id="catAll" '+(!selected.size?'checked':'')+'> Todas las categorías</label>';Object.entries(groupMap).forEach(([title,names])=>{const items=cats.filter(c=>names.includes(c)&&!used.has(c));if(!items.length)return;items.forEach(c=>used.add(c));html+='<div class="category-group"><div class="category-group-title">'+title+'</div>'+items.map(c=>'<label class="category-option"><input type="checkbox" data-cat="'+escAttr2(c)+'" '+(selected.has(c)?'checked':'')+'> '+esc(c)+'</label>').join('')+'</div>'});const rest=cats.filter(c=>!used.has(c));if(rest.length)html+='<div class="category-group"><div class="category-group-title">📌 Otras</div>'+rest.map(c=>'<label class="category-option"><input type="checkbox" data-cat="'+escAttr2(c)+'" '+(selected.has(c)?'checked':'')+'> '+esc(c)+'</label>').join('')+'</div>';groups.innerHTML=html;groups.querySelector('#catAll').onchange=()=>{selected.clear();updateLabel();renderOptions();render()};groups.querySelectorAll('[data-cat]').forEach(ch=>ch.onchange=()=>{ch.checked?selected.add(ch.dataset.cat):selected.delete(ch.dataset.cat);updateLabel();render()})};const updateLabel=()=>{const vals=[...selected];toggle.innerHTML=vals.length?'Categorías: '+vals.slice(0,2).map(esc).join(' + ')+(vals.length>2?' +'+(vals.length-2):'')+' <span>▾</span>':'Categorías <span>▾</span>'};const render=()=>{const q=norm(document.getElementById('search').value),wanted=[...selected].map(norm);const arr=recipes.filter(r=>{const rc=String(r.category||'').split(',').map(x=>norm(x.trim()));const hay=norm([r.name,r.category,r.ingredients_raw].join(' '));return(!q||q.split(/\s+/).every(w=>hay.includes(w)))&&(!wanted.length||wanted.every(c=>rc.includes(c)))});document.getElementById('recipeCount').textContent=arr.length+' receta'+(arr.length===1?'':'s')+' · '+recipes.length+' en total';const grid=document.getElementById('recipeGrid');if(!arr.length){grid.innerHTML='<div class="empty">No encuentro recetas con esos filtros.</div>';return}grid.innerHTML=arr.map(r=>'<article class="card" data-id="'+r.id+'"><div class="photo">'+(r.image?'🍽️':'🥘')+'</div><h3>'+esc(r.name)+'</h3><div class="meta"><span>👥 '+(r.servings||'—')+'</span><span>⏱️ '+esc(r.time||'—')+'</span></div><div class="tags">'+String(r.category||'').split(',').filter(Boolean).slice(0,4).map(x=>'<span class="tag">'+esc(x.trim())+'</span>').join('')+'</div></article>').join('');grid.querySelectorAll('.card').forEach(c=>c.onclick=()=>openRecipe(+c.dataset.id))};toggle.onclick=()=>{panel.classList.toggle('open');if(panel.classList.contains('open')){renderOptions();input.focus()}};input.oninput=renderOptions;document.addEventListener('click',e=>{if(!wrap.contains(e.target))panel.classList.remove('open')});document.getElementById('search').oninput=render;document.getElementById('clearRecipeFilters').onclick=()=>{document.getElementById('search').value='';selected.clear();panel.classList.remove('open');updateLabel();renderOptions();render()};window.refreshRecipeFilters=renderOptions;window.renderRecipes=render;updateLabel();renderOptions();render();})();
 </script>
 <script>
-window.__newRecipe=function(){
-  try{
-    var modal=document.getElementById('modal');
-    if(typeof window.editRecipe==='function'){window.editRecipe(null);return false;}
-    if(modal){
-      document.getElementById('modalTitle').textContent='Nueva receta';
-      document.getElementById('modalBody').innerHTML='<div class="empty">No se ha podido cargar el editor. Recarga la página e inténtalo de nuevo.</div>';
-      modal.classList.add('show');
-    }
-  }catch(e){console.error(e);alert('No se ha podido abrir Nueva receta. Recarga la página e inténtalo de nuevo.');}
-  return false;
-};
-document.addEventListener('click',function(e){
-  var b=e.target.closest&&e.target.closest('#addBtn,#fab');
-  if(b){e.preventDefault();e.stopImmediatePropagation();setTimeout(function(){window.__newRecipe();},0);}
-},true);
+window.__newRecipe=function(){try{window.editRecipe(null);}catch(e){console.error(e);alert('No se ha podido abrir Nueva receta. Recarga la página e inténtalo de nuevo.');}return false;};
 </script>
 <script>
 (function(){
@@ -255,6 +240,25 @@ document.addEventListener('click',function(e){
     search.oninput=draw;draw();
   };
   const oldRefresh=refreshRecipeFilters;refreshRecipeFilters=function(){oldRefresh();setTimeout(()=>{document.querySelectorAll('#categoryGroups [data-cat]').forEach(b=>{const t=b.parentElement;t.lastChild.textContent=' '+icon(b.dataset.cat)+' '+b.dataset.cat})},0)};
+})();
+</script>
+<script>
+/* V47: binding final de los dos botones de nueva receta. */
+(function(){
+  function bind(id){
+    var old=document.getElementById(id);
+    if(!old)return;
+    var btn=old.cloneNode(true);
+    btn.removeAttribute('onclick');
+    old.replaceWith(btn);
+    btn.addEventListener('click',function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      window.__newRecipe();
+    });
+  }
+  bind('addBtn');
+  bind('fab');
 })();
 </script>
 </body></html>
