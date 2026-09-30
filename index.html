@@ -27,7 +27,7 @@ nav{position:fixed;bottom:0;left:0;right:0;background:color-mix(in srgb,var(--su
 html,body{background:var(--bg)!important}body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text)}
 .app{background:linear-gradient(180deg,#07192d 0%,#0a2037 100%);min-height:100vh}
 header{background:#07192df2;border-bottom:1px solid #294965;padding:18px 14px 12px}
-.brand{justify-content:flex-start}.brand>div{text-align:left;padding-left:46px}.brand h1{font-size:25px;letter-spacing:-.4px}.brand small{display:none}
+.brand{justify-content:flex-start}.brand>div{text-align:left;padding-left:58px}.brand h1{font-size:25px;letter-spacing:-.4px}.brand small{display:none}
 .brand:before{content:"🐼";display:block;position:absolute;top:12px;left:14px;font-size:34px;line-height:1;opacity:.98}
 .brand{padding-top:12px}
 .brand .btn{position:absolute;right:14px;top:10px;width:46px;height:42px;padding:0;font-size:24px;line-height:1}
@@ -60,7 +60,7 @@ body:has(#menuTab.active) main,body:has(#shopTab.active) main,body:has(#statsTab
 </head>
 <body>
 <div class="app">
-<header><div class="brand"><div><h1>Pandi recetas</h1></div><button type="button" class="btn secondary" id="addBtn" aria-label="Nueva receta" title="Nueva receta" onclick="editRecipe(null)">＋</button></div></header>
+<header><div class="brand"><button type="button" class="btn secondary cloud-status" id="cloudStatus" aria-label="Pandi en la nube" title="Pandi en la nube">☁️</button><div><h1>Pandi recetas</h1></div><button type="button" class="btn secondary" id="addBtn" aria-label="Nueva receta" title="Nueva receta" onclick="editRecipe(null)">＋</button></div></header>
 <main>
 <section id="recipesTab" class="tab active"><div class="section-head"><div><h2>Recetas</h2><span class="count" id="recipeCount"></span></div><div style="display:flex;gap:7px;align-items:center"><button type="button" class="btn secondary" id="clearRecipeFilters">Limpiar filtros</button><button type="button" class="btn secondary" id="downloadExcel" aria-label="Descargar recetas" title="Descargar recetas">⬇️</button></div></div><div class="search"><input id="search" placeholder="Buscar receta o ingrediente…" autocomplete="off"></div><div id="categoryChips" class="category-chips"></div><div id="recipeGrid" class="grid"></div></section>
 <section id="menuTab" class="tab"><div class="section-head"><div><h2>Menú semanal</h2><span class="count">Desayuno, comida y cena</span></div><div style="display:flex;gap:7px"><button class="btn secondary" id="newWeek">＋ Semana</button><button class="btn secondary" id="clearMenu">Vaciar</button></div></div><div class="weekbar"><select id="weekSelect"></select></div><div id="week" class="week"></div></section>
@@ -75,12 +75,11 @@ body:has(#menuTab.active) main,body:has(#shopTab.active) main,body:has(#statsTab
 </div>
 
 <style id="cloudSyncStyle">
-.cloud-status{position:fixed;right:10px;top:10px;z-index:70;font-size:11px;padding:7px 10px;border-radius:999px;background:#102d48;border:1px solid #46637d;color:#dce7f0;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.2)}
-.cloud-status.ok{color:#07192d;background:#a7df3f;border-color:#a7df3f}.cloud-status.err{background:#5b2630;border-color:#9b4a57;color:#fff}
+.cloud-status{position:absolute;left:14px;top:12px;z-index:6;width:42px;height:42px;padding:0;border-radius:12px;background:#102d48!important;border:1px solid #46637d!important;color:#dce7f0!important;cursor:pointer;box-shadow:none;font-size:20px;display:flex;align-items:center;justify-content:center}.cloud-status.ok{color:#07192d!important;background:#a7df3f!important;border-color:#a7df3f!important}.cloud-status.err{background:#5b2630!important;border-color:#9b4a57!important;color:#fff!important}
 .auth-overlay{position:fixed;inset:0;background:rgba(1,9,18,.78);z-index:80;display:none;align-items:flex-end;justify-content:center}.auth-overlay.show{display:flex}
 .auth-box{width:min(480px,100%);background:#0d2740;border:1px solid #294965;border-radius:24px 24px 0 0;padding:20px;color:#f3f7fb}.auth-box h2{margin:0 0 6px}.auth-box p{color:#9eb1c5;font-size:13px}.auth-box input{width:100%;padding:12px;margin:6px 0;border:1px solid #355570;border-radius:10px;background:#102d48;color:#fff;font:inherit}.auth-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.auth-actions .btn{flex:1}
 </style>
-<div id="cloudStatus" class="cloud-status" title="Cuenta y sincronización">☁️ Sin conectar</div>
+
 <div id="authOverlay" class="auth-overlay"><div class="auth-box">
   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2>☁️ Pandi en la nube</h2><button type="button" class="btn secondary" id="closeAuth">Cerrar</button></div>
   <p id="authInfo">Crea una cuenta o entra con la misma cuenta en tus dos móviles para compartir recetas, menús, lista y objetivos.</p>
@@ -380,107 +379,98 @@ decorate();
   if(!window.supabase){console.error('Supabase JS no está disponible');return;}
   const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
   const $=id=>document.getElementById(id);
-  const status=$('cloudStatus'),overlay=$('authOverlay'),msg=$('authMessage');
-  let syncing=false, suppress=false, syncTimer=null;
-  const setStatus=(text,cls='')=>{status.textContent=text;status.className='cloud-status '+cls};
-  const showAuth=()=>{overlay.classList.add('show');db.auth.getSession().then(({data})=>{const u=data.session?.user; $('signOutBtn').style.display=u?'block':'none';$('signInBtn').style.display=u?'none':'block';$('signUpBtn').style.display=u?'none':'block';$('authInfo').textContent=u?'Cuenta conectada: '+u.email:'Crea una cuenta o entra con la misma cuenta en tus dos móviles para compartir recetas, menús, lista y objetivos.'})};
+  const overlay=$('authOverlay'),msg=$('authMessage');
+  let syncing=false,suppress=false,syncTimer=null;
+  const cloudButton=$('cloudStatus');
+  const setStatus=(text,cls='')=>{if(!cloudButton)return;cloudButton.textContent=cls==='ok'?'☁️':'☁️';cloudButton.className='btn secondary cloud-status '+cls;cloudButton.title=text;cloudButton.setAttribute('aria-label',text)};
+  const showAuth=()=>{overlay.classList.add('show');db.auth.getSession().then(({data})=>{const u=data.session?.user;$('signOutBtn').style.display=u?'block':'none';$('signInBtn').style.display=u?'none':'block';$('signUpBtn').style.display=u?'none':'block';$('authInfo').textContent=u?'Cuenta conectada: '+u.email:'Conecta tu cuenta para guardar y compartir recetas, menús, lista y objetivos entre móviles.'})};
   const closeAuth=()=>overlay.classList.remove('show');
+  cloudButton?.addEventListener('click',showAuth);
   const localState=()=>({
     recipes:JSON.parse(localStorage.getItem('recetario_recipes')||'null')||[],
     weeks:JSON.parse(localStorage.getItem('recetario_weeks')||'null')||{},
     checked:JSON.parse(localStorage.getItem('recetario_checked')||'{}'),
     settings:[
       ['categories',JSON.parse(localStorage.getItem('recetario_categories')||'null')],
-      ['goals',JSON.parse(localStorage.getItem('recetario_goals')||'null')]
+      ['goals',JSON.parse(localStorage.getItem('recetario_goals')||'null')],
+      ['recipe_images',Object.fromEntries((JSON.parse(localStorage.getItem('recetario_recipes')||'[]')||[]).filter(r=>r.image).map(r=>[String(r.id),r.image]))]
     ].filter(x=>x[1]!=null)
   });
   const writeLocal=(k,v)=>{suppress=true;try{localStorage.setItem(k,JSON.stringify(v))}finally{suppress=false}};
   async function session(){return (await db.auth.getSession()).data.session}
-
   async function migrateInitial(user){
-    const l=localState();
-    if(!l.recipes.length)return false;
-    const rows=l.recipes.map(r=>{const x={...r};delete x.id;return {...x,user_id:user.id,updated_at:new Date().toISOString()}});
-    let ins=await db.from('recipes').insert(rows).select('id,name,image,category,servings,time,ingredients_raw,steps,created_at,updated_at');
-    if(ins.error && /image.*column|column.*image/i.test(ins.error.message||'')){
-      const safeRows=rows.map(({image,...rest})=>rest);
-      ins=await db.from('recipes').insert(safeRows).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at');
-      if(ins.data)ins.data=ins.data.map((r,i)=>({...r,image:rows[i]?.image||null}));
-    }
+    const l=localState(); if(!l.recipes.length)return false;
+    // No dependemos de la columna image de Supabase: las imágenes se sincronizan en settings.
+    const rows=l.recipes.map(r=>{const x={...r};delete x.id;delete x.image;return {...x,user_id:user.id,updated_at:new Date().toISOString()}});
+    const ins=await db.from('recipes').insert(rows).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at');
     if(ins.error)throw ins.error;
-    const byName=new Map(ins.data.map((r,i)=>[String(rows[i].name),r.id]));
     const idMap=new Map(l.recipes.map((r,i)=>[String(r.id),ins.data[i]?.id]).filter(x=>x[1]!=null));
-    const newRecipes=ins.data.map(r=>{const x={...r};delete x.created_at;delete x.updated_at;return x});
+    const newRecipes=ins.data.map((r,i)=>({...r,image:l.recipes[i]?.image||null}));
     const newWeeks={};
     Object.entries(l.weeks).forEach(([key,days])=>{newWeeks[key]=(days||[]).map(day=>{const d={...day};['desayuno','comida','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]));});return d})});
     writeLocal('recetario_recipes',newRecipes);writeLocal('recetario_weeks',newWeeks);
-    await pushWeeks(user,newWeeks);await pushShopping(user,l.checked);await pushSettings(user,l.settings);
-    return true;
+    const imageMap=Object.fromEntries(newRecipes.filter(r=>r.image).map(r=>[String(r.id),r.image]));
+    const settings=(l.settings.filter(x=>x[0]!=='recipe_images'));settings.push(['recipe_images',imageMap]);
+    await pushWeeks(user,newWeeks);await pushShopping(user,l.checked);await pushSettings(user,settings); return true;
   }
-  async function pushWeeks(user,weeks){
-    const rows=Object.entries(weeks||{}).map(([week_key,data])=>({user_id:user.id,week_key,data,updated_at:new Date().toISOString()}));
-    if(!rows.length)return;
-    const r=await db.from('weeks').upsert(rows,{onConflict:'user_id,week_key'});if(r.error)throw r.error;
-  }
+  async function pushWeeks(user,weeks){const rows=Object.entries(weeks||{}).map(([week_key,data])=>({user_id:user.id,week_key,data,updated_at:new Date().toISOString()}));if(!rows.length)return;const r=await db.from('weeks').upsert(rows,{onConflict:'user_id,week_key'});if(r.error)throw r.error}
   async function pushShopping(user,data){const r=await db.from('shopping').upsert({user_id:user.id,data:data||{},updated_at:new Date().toISOString()},{onConflict:'user_id'});if(r.error)throw r.error}
-  async function pushSettings(user,settings){
-    for(const [key,value] of settings){const r=await db.from('settings').upsert({user_id:user.id,key,value,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});if(r.error)throw r.error}
-  }
+  async function pushSettings(user,settings){for(const [key,value] of settings){const r=await db.from('settings').upsert({user_id:user.id,key,value,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});if(r.error)throw r.error}}
   async function pushCurrent(){
-    const user=(await session())?.user;if(!user)return;
-    const l=localState();
+    const user=(await session())?.user;if(!user)return; const l=localState();
     if(l.recipes.length){
-      const rows=l.recipes.map(r=>({...r,user_id:user.id,updated_at:new Date().toISOString()}));
-      let r=await db.from('recipes').upsert(rows,{onConflict:'id'});
-      if(r.error && /image.*column|column.*image/i.test(r.error.message||'')){
-        const safeRows=rows.map(({image,...rest})=>rest);
-        r=await db.from('recipes').upsert(safeRows,{onConflict:'id'});
-      }
-      if(r.error)throw r.error;
+      // La tabla recipes no necesita tener columna image.
+      const rows=l.recipes.map(r=>{const x={...r};delete x.image;return {...x,user_id:user.id,updated_at:new Date().toISOString()}});
+      const r=await db.from('recipes').upsert(rows,{onConflict:'id'});if(r.error)throw r.error;
     }
     await pushWeeks(user,l.weeks);await pushShopping(user,l.checked);await pushSettings(user,l.settings);
   }
   async function pullCloud(user){
-    let r=await db.from('recipes').select('id,name,image,category,servings,time,ingredients_raw,steps').eq('user_id',user.id).order('id');
-    if(r.error && /image.*column|column.*image/i.test(r.error.message||'')){
-      r=await db.from('recipes').select('id,name,category,servings,time,ingredients_raw,steps').eq('user_id',user.id).order('id');
-      if(r.data)r.data=r.data.map(x=>({...x,image:null}));
-    }
+    const r=await db.from('recipes').select('id,name,category,servings,time,ingredients_raw,steps').eq('user_id',user.id).order('id');
     const [w,sh,se]=await Promise.all([
       db.from('weeks').select('week_key,data').eq('user_id',user.id),
       db.from('shopping').select('data').eq('user_id',user.id).maybeSingle(),
       db.from('settings').select('key,value').eq('user_id',user.id)
     ]);
     for(const q of [r,w,sh,se])if(q.error)throw q.error;
-    if(r.data?.length)writeLocal('recetario_recipes',r.data);
+    const settings=Object.fromEntries((se.data||[]).map(x=>[x.key,x.value]));
+    const imgs=settings.recipe_images||{};
+    if(r.data?.length)writeLocal('recetario_recipes',r.data.map(x=>({...x,image:imgs[String(x.id)]||null})));
     if(w.data?.length){const weeks={};w.data.forEach(x=>weeks[x.week_key]=x.data);writeLocal('recetario_weeks',weeks)}
     if(sh.data)writeLocal('recetario_checked',sh.data.data||{});
-    (se.data||[]).forEach(x=>writeLocal('recetario_'+x.key,x.value));
+    (se.data||[]).forEach(x=>{if(x.key!=='recipe_images')writeLocal('recetario_'+x.key,x.value)});
     return !!r.data?.length;
   }
   async function syncNow(){
-    if(syncing)return;
-    const s=await session();if(!s)return;
-    syncing=true;setStatus('☁️ Sincronizando…');
+    if(syncing)return; const s=await session();if(!s)return; syncing=true;
     try{
-      const r=await db.from('recipes').select('id',{count:'exact',head:false}).eq('user_id',s.user.id);
-      if(r.error)throw r.error;
-      if(!r.data?.length){await migrateInitial(s.user);setStatus('☁️ Datos guardados','ok');}
-      else {await pullCloud(s.user);setStatus('☁️ Sincronizado','ok');setTimeout(()=>location.reload(),80)}
-    }catch(e){console.error(e);setStatus('☁️ Error','err');msg.textContent='No se pudo sincronizar: '+(e.message||String(e));}
+      const r=await db.from('recipes').select('id',{count:'exact',head:false}).eq('user_id',s.user.id);if(r.error)throw r.error;
+      if(!r.data?.length){await migrateInitial(s.user);msg.textContent='Datos guardados en la nube.'}
+      else {await pullCloud(s.user);setTimeout(()=>location.reload(),80)}
+    }catch(e){console.error(e);msg.textContent='No se pudo sincronizar: '+(e.message||String(e));}
     finally{syncing=false}
   }
-  function schedule(){if(suppress)return;clearTimeout(syncTimer);syncTimer=setTimeout(async()=>{try{await pushCurrent();setStatus('☁️ Guardado','ok')}catch(e){console.error(e);setStatus('☁️ Error','err')}},700)}
+  function schedule(){if(suppress)return;clearTimeout(syncTimer);syncTimer=setTimeout(async()=>{try{await pushCurrent()}catch(e){console.error(e)}},700)}
 
-  $('cloudStatus').onclick=showAuth;$('closeAuth').onclick=closeAuth;$('authOverlay').onclick=e=>{if(e.target===overlay)closeAuth()};
-  $('signInBtn').onclick=async()=>{const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||password.length<6){msg.textContent='Introduce un correo y una contraseña de al menos 6 caracteres.';return}msg.textContent='Entrando…';const r=await db.auth.signInWithPassword({email,password});if(r.error){msg.textContent=r.error.message;return}msg.textContent='Conectado. Cargando datos…';await syncNow();closeAuth()};
-  $('signUpBtn').onclick=async()=>{const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||password.length<6){msg.textContent='Introduce un correo y una contraseña de al menos 6 caracteres.';return}msg.textContent='Creando cuenta…';const r=await db.auth.signUp({email,password});if(r.error){msg.textContent=r.error.message;return}if(r.data.session){msg.textContent='Cuenta creada. Guardando datos…';await syncNow();closeAuth()}else msg.textContent='Cuenta creada. Revisa tu correo si Supabase pide confirmar la cuenta y después entra.'};
-  $('signOutBtn').onclick=async()=>{await db.auth.signOut();closeAuth();setStatus('☁️ Sin conectar')};
-  db.auth.onAuthStateChange((event,session)=>{if(session){setStatus('☁️ Conectado','ok');if(event==='SIGNED_IN')setTimeout(syncNow,100)}else setStatus('☁️ Sin conectar')});
-
+  $('closeAuth').onclick=closeAuth;$('authOverlay').onclick=e=>{if(e.target===overlay)closeAuth()};
+  $('signInBtn').onclick=async()=>{const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||password.length<6){msg.textContent='Introduce un correo y una contraseña de al menos 6 caracteres.';return}if(!navigator.onLine){msg.textContent='Ahora mismo no hay conexión a Internet. Conéctate para iniciar sesión.';return}msg.textContent='Entrando…';const r=await db.auth.signInWithPassword({email,password});if(r.error){msg.textContent=r.error.message;return}msg.textContent='Conectado. Cargando datos…';await syncNow();closeAuth()};
+  $('signUpBtn').onclick=async()=>{const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||password.length<6){msg.textContent='Introduce un correo y una contraseña de al menos 6 caracteres.';return}if(!navigator.onLine){msg.textContent='Ahora mismo no hay conexión a Internet. Conéctate para crear la cuenta.';return}msg.textContent='Creando cuenta…';const r=await db.auth.signUp({email,password});if(r.error){msg.textContent=r.error.message;return}if(r.data.session){msg.textContent='Cuenta creada. Guardando datos…';await syncNow();closeAuth()}else msg.textContent='Cuenta creada. Revisa tu correo si Supabase pide confirmar la cuenta y después entra.'};
+  $('signOutBtn').onclick=async()=>{await db.auth.signOut();closeAuth();};
+  db.auth.onAuthStateChange((event,session)=>{if(session){setStatus('Cuenta conectada','ok');if(event==='SIGNED_IN')setTimeout(syncNow,100)}else{setStatus('No conectado','err')}});
   const originalSetItem=Storage.prototype.setItem;
   Storage.prototype.setItem=function(key,value){originalSetItem.call(this,key,value);if(this===localStorage&&!suppress&&/^recetario_(recipes|weeks|checked|categories|goals)$/.test(key))schedule()};
-  window.addEventListener('load',async()=>{const s=await session();if(s){setStatus('☁️ Conectado','ok');setTimeout(syncNow,300)}else setStatus('☁️ Sin conectar')});
+  function cloudLoginNotice(){
+    db.auth.getSession().then(({data})=>{
+      if(!data.session && navigator.onLine){
+        msg.textContent='No estás conectado a la nube. Inicia sesión para guardar tus datos y usarlos en otro móvil.';
+        $('authInfo').textContent='☁️ No estás conectado. Inicia sesión o crea una cuenta para sincronizar tus recetas, menús, lista y objetivos.';
+        showAuth();
+      }
+    });
+  }
+  window.addEventListener('online',()=>{cloudLoginNotice()});
+  window.addEventListener('offline',()=>{msg.textContent='⚠️ Sin conexión a Internet. Puedes seguir usando tus datos locales; la nube se sincronizará al volver a estar conectado.';showAuth()});
+  window.addEventListener('load',()=>{setTimeout(async()=>{const s=await session();setStatus(s?'Cuenta conectada':'No conectado',s?'ok':'err');cloudLoginNotice()},500)});
 })();
 </script>
 </body></html>
