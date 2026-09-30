@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Panda recetas</title>
+<meta name="theme-color" content="#07192d">
+<link rel="icon" type="image/png" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <style>
 :root{color-scheme:light dark;--bg:#f6f3ee;--surface:#fffdf9;--surface2:#f0ece5;--text:#28251f;--muted:#766f63;--accent:#a65f2b;--accent2:#d58a4b;--border:#ddd5c8;--shadow:0 10px 30px rgba(65,45,25,.08)}
 @media(prefers-color-scheme:dark){:root{--bg:#1d1b18;--surface:#26231f;--surface2:#322e28;--text:#f4efe7;--muted:#bcb3a6;--accent:#e29a5d;--accent2:#f0b078;--border:#4a433a;--shadow:none}}
@@ -55,9 +58,9 @@ body:has(#menuTab.active) main,body:has(#shopTab.active) main,body:has(#statsTab
 </head>
 <body>
 <div class="app">
-<header><div class="brand"><div><h1>🐼👩‍🍳 Panda recetas</h1></div><button type="button" class="btn secondary" id="addBtn" onclick="editRecipe(null)">＋ Receta</button></div><div class="search"><input id="search" placeholder="Buscar receta o ingrediente…" autocomplete="off"></div></header>
+<header><div class="brand"><div><h1>Pandi recetas</h1></div><button type="button" class="btn secondary" id="addBtn" onclick="editRecipe(null)">＋ Receta</button></div></header>
 <main>
-<section id="recipesTab" class="tab active"><div class="section-head"><div><h2>Recetas</h2><span class="count" id="recipeCount"></span></div><button type="button" class="btn secondary" id="clearRecipeFilters">Limpiar</button></div><div class="data-actions"><button type="button" class="btn secondary" id="downloadExcel">⬇️ Descargar Excel</button><button type="button" class="btn secondary" id="openDatabase">🗂️ Base de datos</button></div><div class="recipe-tools"><select id="categoryFilter"><option value="">Todas las categorías</option></select><select id="mealFilter"><option value="">Tipo de comida: Todos</option><option value="Desayuno">Desayuno</option><option value="Comida">Comida</option><option value="Cena">Cena</option><option value="Merienda">Merienda</option><option value="Aperitivos y entrantes">Entrantes</option><option value="Postres">Postres</option></select></div><div id="recipeGrid" class="grid"></div></section>
+<section id="recipesTab" class="tab active"><div class="section-head"><div><h2>Recetas</h2><span class="count" id="recipeCount"></span></div><div style="display:flex;gap:7px;align-items:center"><button type="button" class="btn secondary" id="clearRecipeFilters">Limpiar filtros</button><button type="button" class="btn secondary" id="downloadExcel" aria-label="Descargar recetas" title="Descargar recetas">⬇️</button></div></div><div class="search"><input id="search" placeholder="Buscar receta o ingrediente…" autocomplete="off"></div><div class="recipe-tools"><select id="categoryFilter"><option value="">Todas las categorías</option></select><select id="mealFilter"><option value="">Tipo de comida: Todos</option><option value="Desayuno">Desayuno</option><option value="Comida">Comida</option><option value="Cena">Cena</option><option value="Merienda">Merienda</option><option value="Aperitivos y entrantes">Entrantes</option><option value="Postres">Postres</option></select></div><div id="recipeGrid" class="grid"></div></section>
 <section id="menuTab" class="tab"><div class="section-head"><div><h2>Menú semanal</h2><span class="count">Desayuno, comida y cena</span></div><button class="btn secondary" id="clearMenu">Vaciar</button></div><div class="weekbar"><select id="weekSelect"></select><button class="btn secondary" id="newWeek">＋ Semana</button></div><div id="week" class="week"></div></section>
 <section id="shopTab" class="tab"><div class="section-head"><div><h2>🛒 Lista de compra</h2><span class="count" id="shopCount"></span></div><button class="btn secondary" id="clearShop">Desmarcar</button></div><div id="shopping" class="shopping"></div><div class="notice">La lista se calcula automáticamente a partir de las recetas seleccionadas en el menú.</div></section>
 <section id="statsTab" class="tab"><div class="section-head"><div><h2>📊 Estadísticas</h2><span class="count">Semana, histórico y objetivos</span></div><button type="button" class="btn secondary" id="configureGoals">⚙️ Objetivos</button></div><div id="statsContent"></div></section>
@@ -65,6 +68,7 @@ body:has(#menuTab.active) main,body:has(#shopTab.active) main,body:has(#statsTab
 </main>
 <nav><button type="button" data-tab="recipesTab" class="active"><span>🔎</span>Recetas</button><button type="button" data-tab="menuTab"><span>📅</span>Menú</button><button type="button" data-tab="shopTab"><span>🛒</span>Compra</button><button type="button" data-tab="statsTab"><span>📊</span>Estadísticas</button><button type="button" data-tab="aiTab"><span>🤖</span>IA</button></nav>
 <button type="button" class="btn fab" id="fab" onclick="editRecipe(null)">＋</button>
+<span id="openDatabase" hidden></span>
 <div id="modal" class="modal"><div class="sheet"><div class="section-head"><h2 id="modalTitle">Receta</h2><button class="btn secondary" id="closeModal">Cerrar</button></div><div id="modalBody"></div></div></div>
 </div>
 <script>
@@ -111,5 +115,97 @@ function renderStats(){const meals=menu.reduce((n,d)=>n+['desayuno','comida','ce
 function mealCandidates(meal,exclude){const label=meal==='desayuno'?'Desayuno':meal==='comida'?'Comida':'Cena';return recipes.filter(r=>recipeCats(r).includes(norm(label))&&!exclude.has(r.id))}
 function makeAiProposal(){const goals=norm(document.getElementById('aiGoals').value);const previousIds=new Set(menu.flatMap(d=>['desayuno','comida','cena'].map(m=>d[m]).filter(Boolean)));const targetDate=new Date(`${selectedWeek}T00:00:00`);targetDate.setDate(targetDate.getDate()+7);const nextKey=weekKey(targetDate);const proposal=[];const used=new Set();const needFish=goals.includes('pescado');const needLeg=goals.includes('legumbre');const maxRed=goals.includes('carne roja')?2:99;let red=0;for(let i=0;i<7;i++){const day={};for(const meal of ['desayuno','comida','cena']){let pool=mealCandidates(meal,new Set([...previousIds,...used]));if(!pool.length)pool=mealCandidates(meal,used);if(meal==='comida'&&needFish){const fish=pool.find(r=>recipeCats(r).includes('pescado'));if(fish)pool=[fish,...pool.filter(r=>r.id!==fish.id)]}if(meal==='comida'&&needLeg){const leg=pool.find(r=>recipeCats(r).includes('legumbres'));if(leg)pool=[leg,...pool.filter(r=>r.id!==leg.id)]}if(meal!=='desayuno'&&red>=maxRed)pool=pool.filter(r=>!recipeCats(r).includes('carne roja'));const pick=pool.find(r=>!used.has(r.id))||pool[0];if(pick){day[meal]=pick.id;used.add(pick.id);if(recipeCats(pick).includes('carne roja'))red++}}proposal.push(day)}const result=document.getElementById('aiResult');result.dataset.week=nextKey;result.dataset.proposal=JSON.stringify(proposal);const base=new Date(`${nextKey}T00:00:00`);result.innerHTML=proposal.map((d,i)=>{const date=new Date(base);date.setDate(date.getDate()+i);return `<div class="ai-day"><strong>${days[i]} ${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}</strong><div>Desayuno: ${esc(recipes.find(r=>r.id===d.desayuno)?.name||'—')}</div><div>Comida: ${esc(recipes.find(r=>r.id===d.comida)?.name||'—')}</div><div>Cena: ${esc(recipes.find(r=>r.id===d.cena)?.name||'—')}</div></div>`}).join('')+`<button class="btn" id="applyAi" style="margin-top:6px">Guardar como semana siguiente</button>`;document.getElementById('applyAi').onclick=()=>{weeks[nextKey]=proposal;selectedWeek=nextKey;menu=proposal;save();renderMenu();renderShopping();renderStats();result.insertAdjacentHTML('beforeend','<div class="notice">✓ Menú guardado.</div>')}}
 document.getElementById('generateAi').onclick=makeAiProposal;document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.tab==='statsTab')renderStats()}));document.body.classList.remove('menu-mode');document.querySelector('nav').style.gridTemplateColumns='repeat(5,1fr)';renderStats();
+(function(){
+  const newRecipe=()=>{try{editRecipe(null)}catch(e){console.error(e);alert('No se ha podido abrir Nueva receta. Recarga la página e inténtalo de nuevo.')}};
+  const add=document.getElementById('addBtn'),fab=document.getElementById('fab');
+  if(add){add.textContent='＋ Crear receta';add.onclick=e=>{e.preventDefault();e.stopPropagation();newRecipe()}}
+  if(fab)fab.onclick=e=>{e.preventDefault();e.stopPropagation();newRecipe()};
+  document.getElementById('clearRecipeFilters').textContent='Limpiar filtros';
+  document.getElementById('clearMenu').onclick=()=>{if(confirm('¿Seguro que quieres vaciar todas las recetas de esta semana?')){menu=days.map(()=>({}));save();renderMenu();renderShopping();renderStats()}};
+  document.getElementById('configureGoals').onclick=()=>{statsConfigOpen=true;renderStats();setTimeout(()=>document.querySelector('.goals-card')?.scrollIntoView({behavior:'smooth',block:'start'}),50)};
+  document.getElementById('downloadExcel').textContent='⬇️';
+  document.getElementById('downloadExcel').onclick=()=>{
+    const q=v=>`"${String(v??'').replace(/"/g,'""').replace(/\n/g,' ')}`+'"';
+    const rows=[['Receta','Categorías','Raciones','Tiempo','Ingredientes','Preparación'],...recipes.map(r=>[r.name,r.category||'',r.servings||'',r.time||'',r.ingredients_raw||'',r.steps||''])];
+    const csv='\ufeff'+rows.map(row=>row.map(q).join(';')).join('\r\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download='Panda-recetas.csv';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},1000);
+  };
+  const style=document.createElement('style');style.textContent='body:has(#menuTab.active) #fab,body:has(#shopTab.active) #fab,body:has(#statsTab.active) #fab,body:has(#aiTab.active) #fab{display:none!important}';document.head.appendChild(style);
+})();
+</script>
+<script>
+(function(){
+  const extraCategories=['Pescado azul','Pescado blanco','Carne blanca','Frutos secos','Lácteos','Cereales integrales'];
+  goalData=function(){
+    const defaults=[
+      {label:'Vegetales',key:'Verduras',target:10,mode:'min',icon:'🥦'},
+      {label:'Fruta',key:'Fruta',target:7,mode:'min',icon:'🍎'},
+      {label:'Legumbres',key:'Legumbres',target:2,mode:'min',icon:'🫘'},
+      {label:'Pescado total',key:'Pescado',target:2,mode:'min',icon:'🐟'},
+      {label:'Pescado azul',key:'Pescado azul',target:1,mode:'min',icon:'🔵🐟'},
+      {label:'Pescado blanco',key:'Pescado blanco',target:1,mode:'min',icon:'⚪🐟'},
+      {label:'Carne blanca',key:'Carne blanca',target:2,mode:'min',icon:'🍗'},
+      {label:'Carne roja',key:'Carne roja',target:2,mode:'max',icon:'🥩'},
+      {label:'Huevos',key:'Huevos',target:2,mode:'min',icon:'🥚'}
+    ];
+    try{const saved=JSON.parse(localStorage.getItem('recetario_goals')||'null');return Array.isArray(saved)&&saved.length&&saved.some(g=>g.key==='Pescado azul')&&saved.some(g=>g.key==='Carne blanca')?saved:defaults}catch(e){return defaults}
+  };
+  const originalEditRecipe=editRecipe;
+  editRecipe=function(id){
+    originalEditRecipe(id);
+    const picker=document.getElementById('catOptions'),hidden=document.getElementById('fCat'),selectedBox=document.getElementById('catSelected');
+    if(!picker||!hidden)return;
+    const extras=new Set();
+    const sync=()=>{
+      const vals=String(hidden.value||'').split(',').map(x=>x.trim()).filter(Boolean);
+      if(selectedBox)selectedBox.textContent=vals.length?vals.join(' · '):'No se han añadido categorías';
+      picker.querySelectorAll('[data-extra-cat]').forEach(b=>b.style.background=extras.has(b.dataset.extraCat)?'var(--accent)':'#5f84bd');
+    };
+    extraCategories.forEach(c=>{
+      const b=document.createElement('button');
+      b.type='button';b.dataset.extraCat=c;b.textContent=c;
+      b.style.cssText='border:0;border-radius:12px;padding:11px 14px;background:#5f84bd;color:#fff;font:inherit;cursor:pointer';
+      b.onclick=()=>{
+        if(extras.has(c))extras.delete(c);else extras.add(c);
+        let vals=String(hidden.value||'').split(',').map(x=>x.trim()).filter(Boolean).filter(x=>!extraCategories.includes(x));
+        extras.forEach(x=>vals.push(x));hidden.value=[...new Set(vals)].join(', ');sync();
+      };
+      picker.appendChild(b);
+    });
+    const apply=document.getElementById('applyCats');
+    if(apply)apply.addEventListener('click',()=>setTimeout(()=>{
+      let vals=String(hidden.value||'').split(',').map(x=>x.trim()).filter(Boolean).filter(x=>!extraCategories.includes(x));
+      extras.forEach(x=>vals.push(x));hidden.value=[...new Set(vals)].join(', ');sync();
+    },0));
+    const saveEdit=document.getElementById('saveEdit');
+    if(saveEdit)saveEdit.addEventListener('click',()=>setTimeout(()=>{
+      const name=document.getElementById('fName')?.value.trim();
+      const target=id?recipes.find(x=>x.id===id):recipes.find(x=>x.name===name);
+      if(target){target.category=hidden.value.trim();save();refreshRecipeFilters();renderRecipes();renderMenu();renderStats()}
+    },0));
+  };
+  const originalRenderStats=renderStats;
+  renderStats=function(){
+    originalRenderStats();
+    const box=document.getElementById('statsContent');if(!box)return;
+    box.querySelector('#proteinStatsPanel')?.remove();
+    box.querySelector('#foodGroupsTitle')?.remove();
+    const title=document.createElement('div');
+    title.id='foodGroupsTitle';title.className='chart-card';title.style.marginBottom='0';
+    title.innerHTML='<div class="chart-head"><h3>🥗 Grupos de alimentos</h3><span class="count">Esta semana</span></div>';
+    const balance=box.querySelector('.balance');
+    if(balance)balance.parentNode.insertBefore(title,balance);
+    const panel=document.createElement('div');
+    panel.id='proteinStatsPanel';panel.className='chart-card';
+    const rows=[
+      ['🐟','Pescado total','Pescado'],['🔵🐟','Pescado azul','Pescado azul'],['⚪🐟','Pescado blanco','Pescado blanco'],
+      ['🍗','Carne blanca','Carne blanca'],['🥩','Carne roja','Carne roja'],['🫘','Legumbres','Legumbres'],['🥚','Huevos','Huevos']
+    ];
+    panel.innerHTML='<div class="chart-head"><h3>🥩 Fuentes de proteína</h3><span class="count">Esta semana</span></div><div class="balance">'+rows.map(x=>'<div class="balance-row"><span>'+x[0]+' '+x[1]+'</span><strong>'+countCategoryIn(menu,x[2])+'</strong></div>').join('')+'</div>';
+    const chart=box.querySelector('.chart-card');
+    if(chart)chart.parentNode.insertBefore(panel,chart);
+  };
+})();
 </script>
 </body></html>
