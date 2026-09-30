@@ -53,8 +53,8 @@ nav button{color:#9eb1c5;padding:9px 3px 7px;font-size:11px}nav button.active{co
 .ai-box{background:#102d48;border-color:#294965;border-radius:10px}.ai-box textarea{background:#0d2740;border-color:#3b5b77}.ai-result .ai-day{background:#0d2740;border:1px solid #294965}.ai-box .actions .btn,.ai-result>#applyAi{background:linear-gradient(135deg,#7450dd,#9a62ef);color:#fff;border:0;border-radius:8px}
 .goal-edit input,.goal-edit select{background:#0d2740;border-color:#355570;color:var(--text)}
 @media(max-width:700px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
-body:has(#menuTab.active) header,body:has(#shopTab.active) header,body:has(#statsTab.active) header,body:has(#aiTab.active) header{display:none}
-body:has(#menuTab.active) main,body:has(#shopTab.active) main,body:has(#statsTab.active) main,body:has(#aiTab.active) main{padding-top:18px}
+body:has(#menuTab.active) header,body:has(#shopTab.active) header,body:has(#statsTab.active) header,body:has(#aiTab.active) header,body:has(#pantryTab.active) header{display:none}
+body:has(#menuTab.active) main,body:has(#shopTab.active) main,body:has(#statsTab.active) main,body:has(#aiTab.active) main,body:has(#pantryTab.active) main{padding-top:18px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -62,13 +62,13 @@ body:has(#menuTab.active) main,body:has(#shopTab.active) main,body:has(#statsTab
 <div class="app">
 <header><div class="brand"><button type="button" class="btn secondary cloud-status" id="cloudStatus" aria-label="Pandi en la nube" title="Pandi en la nube">☁️</button><div><h1>Pandi recetas</h1></div><button type="button" class="btn secondary" id="addBtn" aria-label="Nueva receta" title="Nueva receta" onclick="editRecipe(null)">＋</button></div></header>
 <main>
-<section id="recipesTab" class="tab active"><div class="section-head"><div><h2>Recetas</h2><span class="count" id="recipeCount"></span></div><div style="display:flex;gap:7px;align-items:center"><button type="button" class="btn secondary" id="clearRecipeFilters">Limpiar filtros</button><button type="button" class="btn secondary" id="downloadExcel" aria-label="Descargar recetas" title="Descargar recetas">⬇️</button></div></div><div class="search"><input id="search" placeholder="Buscar receta o ingrediente…" autocomplete="off"></div><div id="categoryChips" class="category-chips"></div><div id="recipeGrid" class="grid"></div></section>
-<section id="menuTab" class="tab"><div class="section-head"><div><h2>Menú semanal</h2><span class="count">5 comidas · desayuno, almuerzo, comida, merienda y cena</span></div><div style="display:flex;gap:7px"><button class="btn secondary" id="newWeek">＋ Semana</button><button class="btn secondary" id="clearMenu">Vaciar</button></div></div><div class="weekbar"><select id="weekSelect"></select></div><div id="week" class="week"></div></section>
+<section id="recipesTab" class="tab"><div class="section-head"><div><h2>Recetas</h2><span class="count" id="recipeCount"></span></div><div style="display:flex;gap:7px;align-items:center"><button type="button" class="btn secondary" id="clearRecipeFilters">Limpiar filtros</button><button type="button" class="btn secondary" id="downloadExcel" aria-label="Descargar recetas" title="Descargar recetas">⬇️</button></div></div><div class="search"><input id="search" placeholder="Buscar receta o ingrediente…" autocomplete="off"></div><div id="categoryChips" class="category-chips"></div><div id="recipeGrid" class="grid"></div></section>
+<section id="menuTab" class="tab active"><div class="section-head"><div><h2>Menú semanal</h2><span class="count">5 comidas · desayuno, almuerzo, comida, merienda y cena</span></div><div style="display:flex;gap:7px"><button class="btn secondary" id="newWeek">＋ Semana</button><button class="btn secondary" id="clearMenu">Vaciar</button></div></div><div class="weekbar"><select id="weekSelect"></select></div><div id="week" class="week"></div></section>
 <section id="shopTab" class="tab"><div class="section-head"><div><h2>🛒 Lista de compra</h2><span class="count" id="shopCount"></span></div><button class="btn secondary" id="clearShop">Desmarcar</button></div><div id="shopping" class="shopping"></div><div class="notice">La lista se calcula automáticamente a partir de las recetas seleccionadas en el menú.</div></section>
 <section id="statsTab" class="tab"><div class="section-head"><div><h2>📊 Estadísticas</h2><span class="count">Semana, histórico y objetivos</span></div><button type="button" class="btn secondary" id="configureGoals">⚙️ Objetivos</button></div><div id="statsContent"></div></section>
-<section id="aiTab" class="tab"><div class="section-head"><div><h2>🤖 IA</h2><span class="count">Planifica tu próxima semana</span></div></div><div class="ai-box"><p style="margin-top:0"><strong>¿Qué quieres conseguir?</strong></p><textarea id="aiGoals" placeholder="Ej.: Quiero 3 días de pescado, 2 de legumbres, máximo 2 comidas con carne roja y no repetir las comidas de esta semana."></textarea><div class="actions"><button class="btn" id="generateAi">Preparar menú</button></div><div class="ai-note">Esta primera versión prepara una propuesta usando tus recetas, categorías y el menú anterior. La conexión con una IA conversacional real la añadiremos después.</div><div id="aiResult" class="ai-result"></div></div></section>
+<section id="pantryTab" class="tab"><div class="section-head"><div><h2>🧊 Despensa</h2><span class="count">Controla lo que tienes en casa</span></div><button type="button" class="btn secondary" id="addInventory">＋ Añadir</button></div><div id="inventorySummary" class="stats-grid" style="margin-bottom:12px"></div><div class="recipe-tools"><select id="inventoryPlace"><option value="todos">📦 Todo</option><option value="despensa">🏠 Despensa</option><option value="congelador">❄️ Congelador</option><option value="frigorifico">🧊 Frigorífico</option></select><select id="inventorySort"><option value="newest">Más recientes</option><option value="oldest">Más antiguos</option><option value="name">Nombre</option></select></div><div id="inventoryList" class="shopping"></div></section><section id="aiTab" class="tab"><div class="section-head"><div><h2>🤖 IA</h2><span class="count">Planifica tu próxima semana</span></div></div><div class="ai-box"><p style="margin-top:0"><strong>¿Qué quieres conseguir?</strong></p><textarea id="aiGoals" placeholder="Ej.: Quiero 3 días de pescado, 2 de legumbres, máximo 2 comidas con carne roja y no repetir las comidas de esta semana."></textarea><div class="actions"><button class="btn" id="generateAi">Preparar menú</button></div><div class="ai-note">Esta primera versión prepara una propuesta usando tus recetas, categorías y el menú anterior. La conexión con una IA conversacional real la añadiremos después.</div><div id="aiResult" class="ai-result"></div></div></section>
 </main>
-<nav><button type="button" data-tab="recipesTab" class="active"><span>🔎</span>Recetas</button><button type="button" data-tab="menuTab"><span>📅</span>Menú</button><button type="button" data-tab="shopTab"><span>🛒</span>Compra</button><button type="button" data-tab="statsTab"><span>📊</span>Estadísticas</button><button type="button" data-tab="aiTab"><span>🤖</span>IA</button></nav>
+<nav><button type="button" data-tab="menuTab" class="active"><span>📅</span>Menú</button><button type="button" data-tab="recipesTab"><span>🔎</span>Buscar</button><button type="button" data-tab="shopTab"><span>🛒</span>Compra</button><button type="button" data-tab="pantryTab"><span>🧊</span>Despensa</button><button type="button" data-tab="statsTab"><span>📊</span>Estadísticas</button></nav>
 <button type="button" class="btn fab" id="fab" onclick="editRecipe(null)">＋</button>
 <span id="openDatabase" hidden></span>
 <div id="modal" class="modal"><div class="sheet"><div class="section-head"><h2 id="modalTitle">Receta</h2><button class="btn secondary" id="closeModal">Cerrar</button></div><div id="modalBody"></div></div></div>
@@ -435,6 +435,21 @@ decorate();
   }catch(e){}
 })();
 </script>
+<script id="inventoryEnhancements">
+(function(){
+ const KEY='recetario_inventory', $=id=>document.getElementById(id);
+ const places={despensa:'🏠 Despensa',congelador:'❄️ Congelador',frigorifico:'🧊 Frigorífico'};
+ function read(){try{const x=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(x)?x:[]}catch(e){return []}}
+ function write(x){localStorage.setItem(KEY,JSON.stringify(x));render()}
+ function fmt(d){if(!d)return '—';const x=new Date(d);return isNaN(x)?d:x.toLocaleDateString('es-ES')}
+ function render(){const list=$('inventoryList');if(!list)return;let a=read(),place=$('inventoryPlace')?.value||'todos',sort=$('inventorySort')?.value||'newest';if(place!=='todos')a=a.filter(x=>x.place===place);a.sort((x,y)=>sort==='name'?String(x.name).localeCompare(String(y.name),'es'):(sort==='oldest'?new Date(x.added)-new Date(y.added):new Date(y.added)-new Date(x.added)));const all=read();$('inventorySummary').innerHTML=[['📦',all.length,'Productos'],['❄️',all.filter(x=>x.place==='congelador').length,'Congelador'],['🏠',all.filter(x=>x.place==='despensa').length,'Despensa'],['🧊',all.filter(x=>x.place==='frigorifico').length,'Frigorífico']].map(x=>`<div class="stat-card"><strong>${x[0]} ${x[1]}</strong><span>${x[2]}</span></div>`).join('');list.innerHTML=a.length?a.map(x=>`<div class="shop"><div class="item"><strong>${esc(x.name)}</strong><div class="notice">${places[x.place]||'📦'} · Cantidad: ${esc(x.qty||'—')} · Entró: ${fmt(x.added)}${x.expiry?' · Caduca: '+fmt(x.expiry):''}</div></div><button type="button" class="btn secondary inv-edit" data-id="${esc(String(x.id))}">✏️</button><button type="button" class="btn secondary inv-del" data-id="${esc(String(x.id))}">🗑️</button></div>`).join(''):'<div class="empty">No hay alimentos en este apartado todavía.<br><br>Pulsa <strong>＋ Añadir</strong> para empezar.</div>';
+ list.querySelectorAll('.inv-del').forEach(b=>b.onclick=()=>{const id=b.dataset.id;if(confirm('¿Eliminar este alimento del inventario?'))write(read().filter(x=>String(x.id)!==String(id)))});
+ list.querySelectorAll('.inv-edit').forEach(b=>b.onclick=()=>openForm(b.dataset.id));
+ }
+ function openForm(id){const old=read().find(x=>String(x.id)===String(id));const modal=$('modal'),body=$('modalBody');$('modalTitle').textContent=old?'Editar alimento':'Añadir al inventario';body.innerHTML=`<div class="field"><label>Alimento</label><input id="invName" value="${escAttr(old?.name||'')}" placeholder="Ej.: Pechuga de pollo"></div><div class="field"><label>Lugar</label><select id="invPlace"><option value="despensa">🏠 Despensa</option><option value="congelador">❄️ Congelador</option><option value="frigorifico">🧊 Frigorífico</option></select></div><div class="field"><label>Cantidad</label><input id="invQty" value="${escAttr(old?.qty||'')}" placeholder="Ej.: 2 unidades"></div><div class="field"><label>Fecha de entrada</label><input id="invAdded" type="date" value="${old?.added?String(old.added).slice(0,10):new Date().toISOString().slice(0,10)}"></div><div class="field"><label>Fecha de caducidad (opcional)</label><input id="invExpiry" type="date" value="${old?.expiry?String(old.expiry).slice(0,10):''}"></div><div class="actions"><button type="button" class="btn secondary" id="invCancel">Cancelar</button><button type="button" class="btn" id="invSave">Guardar</button></div>`;modal.classList.add('show');$('invPlace').value=old?.place||'despensa';$('invCancel').onclick=closeModal;$('invSave').onclick=()=>{const name=$('invName').value.trim();if(!name)return alert('Escribe el nombre del alimento.');const a=read(),item={id:old?.id||('i_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)),name,place:$('invPlace').value,qty:$('invQty').value.trim(),added:$('invAdded').value,expiry:$('invExpiry').value};const out=old?a.map(x=>String(x.id)===String(old.id)?item:x):[...a,item];write(out);closeModal()}}
+ $('addInventory')?.addEventListener('click',()=>openForm());$('inventoryPlace')?.addEventListener('change',render);$('inventorySort')?.addEventListener('change',render);window.renderInventory=render;render();
+})();
+</script>
 <script id="supabaseIntegration">
 (function(){
   'use strict';
@@ -456,6 +471,7 @@ decorate();
     settings:[
       ['categories',JSON.parse(localStorage.getItem('recetario_categories')||'null')],
       ['goals',JSON.parse(localStorage.getItem('recetario_goals')||'null')],
+      ['inventory',JSON.parse(localStorage.getItem('recetario_inventory')||'null')],
       ['recipe_images',Object.fromEntries((JSON.parse(localStorage.getItem('recetario_recipes')||'[]')||[]).filter(r=>r.image).map(r=>[String(r.id),r.image]))]
     ].filter(x=>x[1]!=null),
     deletedNames:JSON.parse(localStorage.getItem('recetario_deleted_recipe_names')||'[]')
@@ -463,26 +479,41 @@ decorate();
   const writeLocal=(k,v)=>{suppress=true;try{localStorage.setItem(k,JSON.stringify(v))}finally{suppress=false}};
   const normName=x=>norm(String(x||''));
   async function session(){return (await db.auth.getSession()).data.session}
-  async function pushWeeks(user,weeks){const rows=Object.entries(weeks||{}).map(([week_key,data])=>({user_id:user.id,week_key,data,updated_at:new Date().toISOString()}));if(!rows.length)return;const r=await db.from('weeks').upsert(rows,{onConflict:'user_id,week_key'});if(r.error)throw r.error}
+  async function pushWeeks(user,weeks){
+    const rows=Object.entries(weeks||{}).map(([week_key,data])=>({user_id:user.id,week_key,data,updated_at:new Date().toISOString()}));
+    if(!rows.length)return true;
+    const r=await db.from('weeks').upsert(rows,{onConflict:'user_id,week_key'});
+    if(!r.error)return true;
+    console.warn('No se pudo usar la tabla weeks; guardando menús en settings.',r.error);
+    const fallback=await db.from('settings').upsert({user_id:user.id,key:'weekly_menus',value:weeks||{},updated_at:new Date().toISOString()},{onConflict:'user_id,key'});
+    if(fallback.error)throw fallback.error;
+    return false;
+  }
   async function pushShopping(user,data){const r=await db.from('shopping').upsert({user_id:user.id,data:data||{},updated_at:new Date().toISOString()},{onConflict:'user_id'});if(r.error)throw r.error}
   async function pushSettings(user,settings){for(const [key,value] of settings){const r=await db.from('settings').upsert({user_id:user.id,key,value,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});if(r.error)throw r.error}}
   async function fetchCloud(user){
-    const [r,w,sh,se]=await Promise.all([
+    const [r,sh,se]=await Promise.all([
       db.from('recipes').select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').eq('user_id',user.id).order('id'),
-      db.from('weeks').select('week_key,data').eq('user_id',user.id),
       db.from('shopping').select('data').eq('user_id',user.id).maybeSingle(),
       db.from('settings').select('key,value').eq('user_id',user.id)
     ]);
-    for(const q of [r,w,sh,se])if(q.error)throw q.error;
-    return {recipes:r.data||[],weeks:Object.fromEntries((w.data||[]).map(x=>[x.week_key,x.data])),checked:sh.data?.data||{},settings:Object.fromEntries((se.data||[]).map(x=>[x.key,x.value]))};
+    for(const q of [r,sh,se])if(q.error)throw q.error;
+    let cloudWeeks={};
+    const w=await db.from('weeks').select('week_key,data').eq('user_id',user.id);
+    if(!w.error){
+      cloudWeeks=Object.fromEntries((w.data||[]).map(x=>[x.week_key,x.data]));
+    }else{
+      console.warn('La tabla weeks no está disponible; usando settings.weekly_menus.',w.error);
+    }
+    const settings=Object.fromEntries((se.data||[]).map(x=>[x.key,x.value]));
+    if(!Object.keys(cloudWeeks).length&&settings.weekly_menus)cloudWeeks=settings.weekly_menus;
+    return {recipes:r.data||[],weeks:cloudWeeks,checked:sh.data?.data||{},settings};
   }
   async function mergeAndSync(user){
     const l=localState(), c=await fetchCloud(user);
     const deleted=new Set((l.deletedNames||[]).map(normName));
-    // Delete cloud recipes explicitly removed locally.
     for(const cr of c.recipes){if(deleted.has(normName(cr.name))){const d=await db.from('recipes').delete().eq('id',cr.id).eq('user_id',user.id);if(d.error)throw d.error}}
     c.recipes=c.recipes.filter(r=>!deleted.has(normName(r.name)));
-    // Cloud is canonical for matching names; local-only recipes are uploaded.
     const cloudByName=new Map(c.recipes.map(r=>[normName(r.name),r]));
     const merged=[]; const idMap=new Map();
     for(const lr of l.recipes){
@@ -490,11 +521,11 @@ decorate();
       if(cr){idMap.set(String(lr.id),cr.id);merged.push({...cr,image:(lr.image||((c.settings.recipe_images||{})[String(cr.id)]))||null});}
       else {
         const row={user_id:user.id,name:lr.name,category:lr.category||'',servings:lr.servings,time:lr.time||'',ingredients_raw:lr.ingredients_raw||'',steps:lr.steps||'',updated_at:new Date().toISOString()};
-        const ins=await db.from('recipes').insert(row).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();if(ins.error)throw ins.error;
+        const ins=await db.from('recipes').insert(row).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();
+        if(ins.error)throw ins.error;
         idMap.set(String(lr.id),ins.data.id);merged.push({...ins.data,image:lr.image||null});
       }
     }
-    // Keep cloud recipes that exist only in the cloud.
     const localNames=new Set(l.recipes.map(r=>normName(r.name)));
     for(const cr of c.recipes)if(!localNames.has(normName(cr.name)))merged.push({...cr,image:(c.settings.recipe_images||{})[String(cr.id)]||null});
     const remapWeeks=Object.assign({},c.weeks);
@@ -508,15 +539,32 @@ decorate();
       });
     });
     const images=Object.fromEntries(merged.filter(r=>r.image).map(r=>[String(r.id),r.image]));
-    const settings=[['categories',l.settings.find(x=>x[0]==='categories')?.[1]??c.settings.categories],['goals',l.settings.find(x=>x[0]==='goals')?.[1]??c.settings.goals],['recipe_images',images]].filter(x=>x[1]!=null);
-    await pushWeeks(user,remapWeeks); await pushShopping(user,l.checked && Object.keys(l.checked).length?l.checked:c.checked); await pushSettings(user,settings);
+    const settings=[
+      ['categories',l.settings.find(x=>x[0]==='categories')?.[1]??c.settings.categories],
+      ['goals',l.settings.find(x=>x[0]==='goals')?.[1]??c.settings.goals],
+      ['inventory',l.settings.find(x=>x[0]==='inventory')?.[1]??c.settings.inventory],
+      ['recipe_images',images],
+      ['weekly_menus',remapWeeks]
+    ].filter(x=>x[1]!=null);
+    // Save recipes before the optional legacy weeks table so a weeks-schema problem
+    // can never block recipe synchronization.
     const rows=merged.map(r=>{const x={...r};delete x.id;delete x.image;return {...x,user_id:user.id,updated_at:new Date().toISOString()}});
-    if(rows.length){const up=await db.from('recipes').upsert(rows,{onConflict:'user_id,name'});if(up.error){
-      // Fallback: recipes has no unique(user_id,name) in the current schema, so update by id one by one.
-      for(const r of merged){const x={name:r.name,category:r.category||'',servings:r.servings,time:r.time||'',ingredients_raw:r.ingredients_raw||'',steps:r.steps||'',user_id:user.id,updated_at:new Date().toISOString()};const up1=await db.from('recipes').update(x).eq('id',r.id).eq('user_id',user.id);if(up1.error)throw up1.error}
-    }}
+    if(rows.length){
+      const up=await db.from('recipes').upsert(rows,{onConflict:'user_id,name'});
+      if(up.error){
+        for(const r of merged){
+          const x={name:r.name,category:r.category||'',servings:r.servings,time:r.time||'',ingredients_raw:r.ingredients_raw||'',steps:r.steps||'',user_id:user.id,updated_at:new Date().toISOString()};
+          const up1=await db.from('recipes').update(x).eq('id',r.id).eq('user_id',user.id);
+          if(up1.error)throw up1.error;
+        }
+      }
+    }
+    await pushWeeks(user,remapWeeks);
+    await pushShopping(user,l.checked && Object.keys(l.checked).length?l.checked:c.checked);
+    await pushSettings(user,settings);
     writeLocal('recetario_recipes',merged);writeLocal('recetario_weeks',remapWeeks);writeLocal('recetario_checked',l.checked && Object.keys(l.checked).length?l.checked:c.checked);writeLocal('recetario_deleted_recipe_names',[]);
     for(const [k,v] of settings)writeLocal('recetario_'+k,v);
+    if(window.renderInventory)window.renderInventory();
   }
   async function syncNow(){
     if(syncing)return;const s=await session();if(!s)return;syncing=true;
@@ -530,7 +578,7 @@ decorate();
   $('signUpBtn').onclick=async()=>{const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||password.length<6){msg.textContent='Introduce un correo y una contraseña de al menos 6 caracteres.';return}if(!navigator.onLine){msg.textContent='Ahora mismo no hay conexión a Internet. Conéctate para crear la cuenta.';return}msg.textContent='Creando cuenta…';const r=await db.auth.signUp({email,password});if(r.error){msg.textContent=r.error.message;return}if(r.data.session){msg.textContent='Cuenta creada. Sincronizando…';await syncNow();closeAuth()}else msg.textContent='Cuenta creada. Revisa tu correo si Supabase pide confirmar la cuenta y después entra.'};
   $('signOutBtn').onclick=async()=>{await db.auth.signOut();closeAuth()};
   db.auth.onAuthStateChange((event,s)=>{if(s){setStatus('Cuenta conectada','ok');if(event==='SIGNED_IN')setTimeout(syncNow,100)}else setStatus('No conectado','err')});
-  const originalSetItem=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){originalSetItem.call(this,key,value);if(this===localStorage&&!suppress&&/^recetario_(recipes|weeks|checked|categories|goals|deleted_recipe_names)$/.test(key))schedule()};
+  const originalSetItem=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){originalSetItem.call(this,key,value);if(this===localStorage&&!suppress&&/^recetario_(recipes|weeks|checked|categories|goals|inventory|deleted_recipe_names)$/.test(key))schedule()};
   function cloudLoginNotice(){db.auth.getSession().then(({data})=>{if(!data.session&&navigator.onLine){msg.textContent='No estás conectado a la nube. Inicia sesión para guardar tus datos y usarlos en otro móvil.';$('authInfo').textContent='☁️ No estás conectado. Inicia sesión o crea una cuenta para sincronizar tus recetas, menús, lista y objetivos.';showAuth()}})}
   window.addEventListener('online',cloudLoginNotice);window.addEventListener('offline',()=>{msg.textContent='⚠️ Sin conexión a Internet. Puedes seguir usando tus datos locales; la nube se sincronizará al volver a estar conectado.';showAuth()});
   window.addEventListener('pandi:recipe-deleted',()=>{const n=window.__pandiDeletedRecipeName;if(n){writeLocal('recetario_deleted_recipe_names',[...new Set([...localState().deletedNames,n])]);schedule()}});
