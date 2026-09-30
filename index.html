@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Panda recetas</title>
 <meta name="theme-color" content="#07192d">
+<link rel="manifest" href="./manifest.json">
 <link rel="icon" type="image/png" href="./icon-192.png">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
-<link rel="manifest" href="./manifest.json">
 <style>
 :root{color-scheme:light dark;--bg:#f6f3ee;--surface:#fffdf9;--surface2:#f0ece5;--text:#28251f;--muted:#766f63;--accent:#a65f2b;--accent2:#d58a4b;--border:#ddd5c8;--shadow:0 10px 30px rgba(65,45,25,.08)}
 @media(prefers-color-scheme:dark){:root{--bg:#1d1b18;--surface:#26231f;--surface2:#322e28;--text:#f4efe7;--muted:#bcb3a6;--accent:#e29a5d;--accent2:#f0b078;--border:#4a433a;--shadow:none}}
@@ -59,7 +59,7 @@ body:has(#menuTab.active) main,body:has(#shopTab.active) main,body:has(#statsTab
 </head>
 <body>
 <div class="app">
-<header><div class="brand"><div><h1>Pandi recetas</h1></div><button type="button" class="btn secondary" id="addBtn" onclick="editRecipe(null)">＋ Receta</button></div></header>
+<header><div class="brand"><div><h1>Pandi recetas</h1></div><button type="button" class="btn secondary" id="addBtn">＋ Crear receta</button></div></header>
 <main>
 <section id="recipesTab" class="tab active"><div class="section-head"><div><h2>Recetas</h2><span class="count" id="recipeCount"></span></div><div style="display:flex;gap:7px;align-items:center"><button type="button" class="btn secondary" id="clearRecipeFilters">Limpiar filtros</button><button type="button" class="btn secondary" id="downloadExcel" aria-label="Descargar recetas" title="Descargar recetas">⬇️</button></div></div><div class="search"><input id="search" placeholder="Buscar receta o ingrediente…" autocomplete="off"></div><div id="categoryChips" class="category-chips"></div><div id="recipeGrid" class="grid"></div></section>
 <section id="menuTab" class="tab"><div class="section-head"><div><h2>Menú semanal</h2><span class="count">Desayuno, comida y cena</span></div><div style="display:flex;gap:7px"><button class="btn secondary" id="newWeek">＋ Semana</button><button class="btn secondary" id="clearMenu">Vaciar</button></div></div><div class="weekbar"><select id="weekSelect"></select></div><div id="week" class="week"></div></section>
@@ -73,6 +73,7 @@ body:has(#menuTab.active) main,body:has(#shopTab.active) main,body:has(#statsTab
 <div id="modal" class="modal"><div class="sheet"><div class="section-head"><h2 id="modalTitle">Receta</h2><button class="btn secondary" id="closeModal">Cerrar</button></div><div id="modalBody"></div></div></div>
 </div>
 <script>
+(function(){const b=document.getElementById('addBtn');if(b)b.addEventListener('click',function(e){e.preventDefault();if(typeof editRecipe==='function'){editRecipe(null)}else{const t=document.querySelector('[data-tab="recipes"],#recipesTab');if(t)t.click()}})})();
 const RECIPE_DATA=[{"id":1,"name":"Arroz con habichuelas","image":null,"category":"Comida, Guisos, Legumbres","servings":4.0,"time":"45 min","ingredients_raw":"1 pimiento verde italiano\n3-4 ajos\n1/2 bolsa de alcachofas congeladas, Tomate rallado\nPimentón\nAgua\n 1 bote Habichuelas","steps":"1. Sofreír verduras. 2. Añadir pimentón y tomate. 3. Cocer con agua y habichuelas."},{"id":2,"name":"Arroz con leche","image":"Base de Datos_Images/Arroz con leche.Imagen.104944.jpg","category":"Postres","servings":4.0,"time":"40 min","ingredients_raw":"Arroz , Harina , Canela , Leche","steps":"Cocer"},{"id":3,"name":"Boniato al horno","image":null,"category":"Cena, Guarnición","servings":2.0,"time":"35 min","ingredients_raw":"","steps":""},{"id":4,"name":"Boniato con carne picada","image":null,"category":"Comida","servings":2.0,"time":"30 min","ingredients_raw":"","steps":""},{"id":5,"name":"Boquerones en vinagre","image":null,"category":"Entrante, Pescado","servings":4.0,"time":"20 min","ingredients_raw":"","steps":""},{"id":6,"name":"Boquerones a la plancha","image":null,"category":"Cena, Pescado","servings":2.0,"time":"15 min","ingredients_raw":"","steps":""},{"id":7,"name":"Verduras Air Fryer","image":null,"category":"Guarnición, Cena","servings":2.0,"time":"10 min","ingredients_raw":"Bolsa verduras congeladas","steps":""}];
 const MENU_DATA=[{"desayuno":null,"comida":4,"cena":null},{"desayuno":null,"comida":null,"cena":6},{"desayuno":null,"comida":null,"cena":null},{"desayuno":null,"comida":null,"cena":null},{"desayuno":null,"comida":null,"cena":6},{"desayuno":null,"comida":null,"cena":null},{"desayuno":null,"comida":null,"cena":null}];
 const initialRecipes = RECIPE_DATA;
