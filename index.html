@@ -568,8 +568,17 @@ decorate();
   }
   async function syncNow(){
     if(syncing)return;const s=await session();if(!s)return;syncing=true;
-    try{await mergeAndSync(s.user);setStatus('Cuenta conectada','ok');msg.textContent='Datos sincronizados correctamente.';const activeTab=document.querySelector('nav button.active')?.dataset.tab||'menuTab';try{sessionStorage.setItem('pandi_active_tab',activeTab)}catch(e){};setTimeout(()=>location.reload(),80)}
-    catch(e){console.error(e);setStatus('Error de sincronización','err');msg.textContent='No se pudo sincronizar: '+(e.message||String(e));}
+    const activeTab=document.querySelector('nav button.active')?.dataset.tab||'menuTab';
+    try{
+      await mergeAndSync(s.user);
+      setStatus('Cuenta conectada','ok');
+      msg.textContent='Datos sincronizados correctamente.';
+      renderRecipes();renderMenu();renderShopping();renderStats();
+      if(window.renderInventory)window.renderInventory();
+      document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x.dataset.tab===activeTab));
+      document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.id===activeTab));
+      document.body.classList.toggle('menu-mode',activeTab==='menuTab');
+    }catch(e){console.error(e);setStatus('Error de sincronización','err');msg.textContent='No se pudo sincronizar: '+(e.message||String(e));}
     finally{syncing=false}
   }
   function schedule(){if(suppress)return;clearTimeout(syncTimer);syncTimer=setTimeout(async()=>{try{await syncNow()}catch(e){console.error(e)}},700)}
