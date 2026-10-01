@@ -65,7 +65,7 @@ body:has(#menuTab.active) main,body:has(#shopTab.active) main,body:has(#statsTab
 <header><div class="brand"><button type="button" class="btn secondary cloud-status" id="cloudStatus" aria-label="Pandi en la nube" title="Pandi en la nube">☁️</button><div><h1>Pandi recetas</h1></div><button type="button" class="btn secondary" id="addBtn" aria-label="Nueva receta" title="Nueva receta" onclick="editRecipe(null)">🍳</button></div></header>
 <main>
 <section id="recipesTab" class="tab"><div class="section-head"><div><h2>Recetas</h2><span class="count" id="recipeCount"></span></div><div style="display:flex;gap:7px;align-items:center"><button type="button" class="btn secondary" id="downloadExcel" aria-label="Descargar recetas" title="Descargar recetas">⬇️</button></div></div><div class="search"><input id="search" placeholder="Buscar receta o ingrediente…" autocomplete="off"></div><div id="recipeGrid" class="grid"></div></section>
-<section id="menuTab" class="tab active"><div class="section-head"><div><h2>Menú semanal</h2></div><div style="display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end"><button class="btn secondary" id="openAiFromMenu">🤖 Crear con IA</button><button class="btn secondary" id="newWeek">＋ Semana</button><button class="btn secondary" id="clearMenu">Vaciar</button></div></div><div class="weekbar"><button type="button" class="btn secondary" id="prevWeek" aria-label="Semana anterior" title="Semana anterior">◀️</button><select id="weekSelect"></select><button type="button" class="btn secondary" id="nextWeek" aria-label="Semana siguiente" title="Semana siguiente">▶️</button></div><div id="week" class="week"></div><div id="menuAiBox" class="ai-box" style="margin-top:14px"><p style="margin-top:0"><strong>🤖 Crear menú con indicaciones</strong></p><textarea id="aiGoals" placeholder="Ej.: Quiero 3 días de pescado, 2 de legumbres, máximo 2 comidas con carne roja y no repetir las comidas de esta semana."></textarea><div class="actions"><button class="btn" id="generateAi">Preparar menú</button></div><div class="ai-note">Esta primera versión prepara una propuesta usando tus recetas, categorías y el menú anterior. La conexión con una IA conversacional real la añadiremos después.</div><div id="aiResult" class="ai-result"></div></div></section>
+<section id="menuTab" class="tab active"><div class="section-head"><div><h2>Menú semanal</h2></div><div style="display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end"><button class="btn secondary" id="openAiFromMenu">🤖 Crear con IA</button><button class="btn secondary" id="newWeek">＋ Semana</button><button class="btn secondary" id="clearMenu">Vaciar</button></div></div><div class="weekbar"><button type="button" class="btn secondary" id="prevWeek" aria-label="Semana anterior" title="Semana anterior">◀️</button><button type="button" class="btn secondary" id="currentWeek" aria-label="Ir a semana actual" title="Semana actual">📅</button><select id="weekSelect"></select><button type="button" class="btn secondary" id="nextWeek" aria-label="Semana siguiente" title="Semana siguiente">▶️</button></div><div id="week" class="week"></div><div id="menuAiBox" class="ai-box" style="margin-top:14px"><p style="margin-top:0"><strong>🤖 Crear menú con indicaciones</strong></p><textarea id="aiGoals" placeholder="Ej.: Quiero 3 días de pescado, 2 de legumbres, máximo 2 comidas con carne roja y no repetir las comidas de esta semana."></textarea><div class="actions"><button class="btn" id="generateAi">Preparar menú</button></div><div class="ai-note">Esta primera versión prepara una propuesta usando tus recetas, categorías y el menú anterior. La conexión con una IA conversacional real la añadiremos después.</div><div id="aiResult" class="ai-result"></div></div></section>
 <section id="shopTab" class="tab"><div class="section-head"><div><h2>🛒 Lista de compra</h2><span class="count" id="shopCount"></span></div><button class="btn secondary" id="clearShop">Desmarcar</button></div><div id="shopping" class="shopping"></div><div class="notice">La lista se calcula automáticamente a partir de las recetas seleccionadas en el menú.</div></section>
 <section id="statsTab" class="tab"><div class="section-head"><div><h2>📊 Estadísticas</h2><span class="count">Semana, histórico y objetivos</span></div><button type="button" class="btn secondary" id="configureGoals">⚙️ Objetivos</button></div><div id="statsContent"></div></section>
 <section id="pantryTab" class="tab"><div class="section-head"><div><h2>🧊 Despensa</h2><span class="count">Controla lo que tienes en casa</span></div><button type="button" class="btn inventory-add" id="addInventory" aria-label="Añadir alimento a la despensa" title="Añadir alimento a la despensa" style="display:none">🧊 ＋ Alimento</button></div><div id="inventorySummary" class="stats-grid" style="margin-bottom:12px"></div><div class="search pantry-search"><input id="inventorySearch" placeholder="Buscar alimento…" autocomplete="off"></div><div class="recipe-tools"><select id="inventorySort"><option value="newest">Entrada: más recientes</option><option value="oldest">Entrada: más antiguos</option><option value="expirySoon">Caducidad: más próximas</option><option value="expiryLate">Caducidad: más lejanas</option><option value="name">Nombre</option></select></div><div id="inventoryList" class="shopping"></div></section>
@@ -123,7 +123,7 @@ let pendingRecipeImage='';const baseEditRecipe=editRecipe;editRecipe=function(id
 function exportRecipesToExcel(){const rows=recipes.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.category||'')}</td><td>${esc(r.servings||'')}</td><td>${esc(r.time||'')}</td><td>${esc(r.ingredients_raw||'').replace(/\n/g,'<br>')}</td><td>${esc(r.steps||'').replace(/\n/g,'<br>')}</td></tr>`).join('');const html=`<html><head><meta charset="UTF-8"></head><body><table border="1"><tr><th>Receta</th><th>Categorías</th><th>Raciones</th><th>Tiempo</th><th>Ingredientes</th><th>Preparación</th></tr>${rows}</table>
 
 </body></html>`;const blob=new Blob(['\ufeff',html],{type:'application/vnd.ms-excel;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='Panda-recetas.xls';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},0)}
-document.getElementById('search').oninput=renderRecipes;document.getElementById('downloadExcel').onclick=exportRecipesToExcel;document.getElementById('openDatabase').onclick=()=>window.open('https://github.com/pandi153/mi-recetario','_blank','noopener');document.getElementById('addBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('fab').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('closeModal').onclick=closeModal;document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')closeModal()};document.getElementById('clearMenu').onclick=()=>{menu=days.map(()=>({}));save();renderMenu();renderShopping();renderStats()};document.getElementById('newWeek').onclick=()=>{const d=new Date(`${selectedWeek}T00:00:00`);d.setDate(d.getDate()+7);const k=weekKey(d);if(!weeks[k])weeks[k]=days.map(()=>({}));selectedWeek=k;menu=weeks[k];save();renderMenu();renderShopping();renderStats()};document.getElementById('clearShop').onclick=()=>{checked={};save();renderShopping()};document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.getElementById(b.dataset.tab).classList.add('active');document.body.classList.toggle('menu-mode',b.dataset.tab==='menuTab');const fab=document.getElementById('fab');if(fab){if(b.dataset.tab==='pantryTab'){fab.textContent='🧊';fab.title='Añadir alimento';fab.setAttribute('aria-label','Añadir alimento');fab.onclick=e=>{e.preventDefault();e.stopPropagation();window.__newInventory()}}else{fab.textContent='＋';fab.title='Crear receta';fab.setAttribute('aria-label','Crear receta');fab.onclick=e=>{e.preventDefault();e.stopPropagation();editRecipe(null)}}}if(b.dataset.tab==='statsTab')renderStats();if(b.dataset.tab==='pantryTab'&&window.renderInventory)window.renderInventory()});refreshRecipeFilters();if('serviceWorker' in navigator){navigator.serviceWorker.register('./service-worker.js?v=18',{updateViaCache:'none'}).catch(()=>{});}
+document.getElementById('search').oninput=renderRecipes;document.getElementById('downloadExcel').onclick=exportRecipesToExcel;document.getElementById('openDatabase').onclick=()=>window.open('https://github.com/pandi153/mi-recetario','_blank','noopener');document.getElementById('addBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('fab').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('closeModal').onclick=closeModal;document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')closeModal()};document.getElementById('clearMenu').onclick=()=>{menu=days.map(()=>({}));save();renderMenu();renderShopping();renderStats()};document.getElementById('newWeek').onclick=()=>{const d=new Date(`${selectedWeek}T00:00:00`);d.setDate(d.getDate()+7);const k=weekKey(d);if(!weeks[k])weeks[k]=days.map(()=>({}));selectedWeek=k;menu=weeks[k];save();renderMenu();renderShopping();renderStats()};document.getElementById('clearShop').onclick=()=>{checked={};save();renderShopping()};document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.getElementById(b.dataset.tab).classList.add('active');document.body.classList.toggle('menu-mode',b.dataset.tab==='menuTab');const fab=document.getElementById('fab');if(fab){if(b.dataset.tab==='pantryTab'){fab.textContent='🧊';fab.title='Añadir alimento';fab.setAttribute('aria-label','Añadir alimento');fab.onclick=e=>{e.preventDefault();e.stopPropagation();window.__newInventory()}}else{fab.textContent='＋';fab.title='Crear receta';fab.setAttribute('aria-label','Crear receta');fab.onclick=e=>{e.preventDefault();e.stopPropagation();editRecipe(null)}}}if(b.dataset.tab==='statsTab')renderStats();if(b.dataset.tab==='pantryTab'&&window.renderInventory)window.renderInventory()});refreshRecipeFilters();if('serviceWorker' in navigator){navigator.serviceWorker.register('./service-worker.js?v=19',{updateViaCache:'none'}).catch(()=>{});}
 renderRecipes();renderMenu();renderShopping();
 </script>
 <script>
@@ -911,7 +911,7 @@ decorate();
   let savingMenu=false;
   let saveTimer=null;
   async function saveMenuCloud(){
-    if(savingMenu||!window.__pandiCloudOnly)return;
+    if(savingMenu)return;
     savingMenu=true;
     try{
       const {data:{session}}=await cloudDb.auth.getSession();
@@ -1015,5 +1015,43 @@ decorate();
   const newWeek=$('newWeek');if(newWeek)newWeek.onclick=()=>goWeek(keyFromOffset(7));
   const clear=$('clearMenu');if(clear)clear.onclick=()=>{if(!confirm('¿Seguro que quieres vaciar todas las recetas de esta semana?'))return;menu=days.map(()=>({}));weeks[selectedWeek]=menu;renderMenu();renderShopping();renderStats();scheduleMenuCloud()};
   setTimeout(bindWeekControls,300);
+})();
+</script>
+
+<script id="menuCurrentWeekAndPersistenceFix">
+(function(){
+  'use strict';
+  const $=id=>document.getElementById(id);
+  let timer=null;
+  function currentKey(){return weekKey(new Date());}
+  async function persist(){
+    clearTimeout(timer);
+    timer=setTimeout(async()=>{
+      try{ if(window.__pandiSaveMenuCloud) await window.__pandiSaveMenuCloud(); }catch(e){console.error(e);}
+    },150);
+  }
+  function go(key){
+    if(!key)return;
+    if(!weeks[key])weeks[key]=days.map(()=>({}));
+    selectedWeek=key; menu=weeks[key];
+    renderMenu(); renderShopping(); renderStats(); persist();
+  }
+  function bind(){
+    const prev=$('prevWeek'), next=$('nextWeek'), cur=$('currentWeek'), sel=$('weekSelect');
+    if(prev)prev.onclick=()=>{const d=new Date(selectedWeek+'T00:00:00');d.setDate(d.getDate()-7);go(weekKey(d));};
+    if(next)next.onclick=()=>{const d=new Date(selectedWeek+'T00:00:00');d.setDate(d.getDate()+7);go(weekKey(d));};
+    if(cur)cur.onclick=()=>go(currentKey());
+    if(sel)sel.onchange=()=>go(sel.value);
+    document.querySelectorAll('select[data-day][data-meal]').forEach(x=>x.onchange=()=>{
+      if(!weeks[selectedWeek])weeks[selectedWeek]=days.map(()=>({}));
+      if(!weeks[selectedWeek][+x.dataset.day])weeks[selectedWeek][+x.dataset.day]={};
+      menu=weeks[selectedWeek];
+      menu[+x.dataset.day][x.dataset.meal]=x.value?Number(x.value):null;
+      renderShopping(); renderStats(); persist();
+    });
+  }
+  const base=window.renderMenu;
+  window.renderMenu=function(){base?.();bind();};
+  setTimeout(bind,500);
 })();
 </script>
