@@ -52,6 +52,30 @@ nav button.active{color:var(--accent)}
 .check{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:14px}
 .check b.ok{color:var(--accent)}.check b.fail{color:var(--danger)}
 .check small{display:block;color:var(--muted);font-weight:400}
+
+/* Recetas */
+.tools{display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px}
+.tools select,.field textarea,.field select{width:100%;padding:12px;border:1px solid #355570;border-radius:9px;background:var(--surface2);color:var(--text);font:inherit;font-size:16px}
+.tools select{grid-column:1/-1}
+.count{color:var(--muted);font-size:13px;margin:2px 2px 10px}
+.rcard{display:grid;grid-template-columns:84px 1fr;gap:12px;background:var(--surface2);border:1px solid #244763;border-radius:11px;padding:9px;margin-bottom:8px;cursor:pointer}
+.thumb{width:84px;height:76px;border-radius:9px;background:#1b3d5e;display:flex;align-items:center;justify-content:center;font-size:30px;overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.rcard h3{margin:2px 0 4px;font-size:15px}.rcard small{display:block;color:var(--muted);font-size:12px}.rcard .tags{color:var(--accent);font-size:11px;margin-top:4px}
+.field{margin:12px 0}.field>label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px}
+.field textarea{min-height:110px;resize:vertical}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{border:0;border-radius:999px;padding:8px 12px;background:#2c4f74;color:#fff;font:inherit;font-size:13px;cursor:pointer}
+.chip.on{background:var(--accent);color:#07192d;font-weight:700}
+.chip.add{background:transparent;border:2px dashed #5f84bd}
+.photo-prev{height:150px;border:1px solid #355570;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--muted);overflow:hidden;margin-bottom:8px}
+.photo-prev img{width:100%;height:100%;object-fit:cover}
+.detail-photo{height:190px;border-radius:12px;overflow:hidden;margin-bottom:12px}.detail-photo img{width:100%;height:100%;object-fit:cover}
+.ing{background:var(--surface2);border-radius:8px;padding:9px 11px;margin:5px 0}
+.step{margin:8px 0;white-space:pre-wrap}
+.sheet h3{margin:16px 0 6px;font-size:15px}
+.btn.danger{background:#5b2630;color:#fff;border:1px solid #9b4a57}
+.sheet-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
 </style>
 </head>
 <body>
@@ -79,7 +103,12 @@ nav button.active{color:var(--accent)}
   </header>
   <main>
     <section class="tab active" id="tab-menu"><h2>📅 Menú semanal</h2><div class="empty">Se construye en la Parte 3.</div></section>
-    <section class="tab" id="tab-recipes"><h2>🔎 Recetas</h2><div id="recipeList"></div></section>
+    <section class="tab" id="tab-recipes">
+      <div class="sheet-top"><h2>🔎 Recetas</h2><button class="btn" id="btnNewRecipe" type="button">＋ Nueva</button></div>
+      <div class="tools"><input id="recipeSearch" type="search" placeholder="Buscar receta o ingrediente…" autocomplete="off"><select id="recipeCat"></select></div>
+      <div class="count" id="recipeCount"></div>
+      <div id="recipeList"></div>
+    </section>
     <section class="tab" id="tab-shop"><h2>🛒 Compra</h2><div class="empty">Se construye en la Parte 4.</div></section>
     <section class="tab" id="tab-pantry"><h2>🧊 Despensa</h2><div class="empty">Se construye en la Parte 5.</div></section>
     <section class="tab" id="tab-stats"><h2>📊 Estadísticas</h2><div class="empty">Se construye en la Parte 6.</div></section>
@@ -106,6 +135,8 @@ nav button.active{color:var(--accent)}
   </div>
 </div>
 
+<div class="modal" id="recipeModal"><div class="sheet" id="recipeBody"></div></div>
+
 <script>
 /* ============ 1. CONFIGURACIÓN ============ */
 const SUPABASE_URL = 'https://hgjojgxspclmuwaeenjq.supabase.co';
@@ -113,6 +144,15 @@ const SUPABASE_KEY = 'sb_publishable_LPRAkNBsVLKUZLDfAMD6dQ_kaMErp_2';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const DEFAULT_CATS = [
+  ['Desayuno','🥞'],['Almuerzo','🍎'],['Comida','🍽️'],['Merienda','🥪'],['Cena','🌙'],
+  ['A la parrilla','🔥'],['A la sartén','🍳'],['Al horno','♨️'],['Al vapor','💨'],['Alto en proteínas','💪'],
+  ['Aperitivos y entrantes','🥟'],['Arroces','🍚'],['Asiática','🥢'],['Carne blanca','🍗'],['Carne roja','🥩'],
+  ['Ensaladas','🥗'],['Fruta','🍎'],['Guarnición','🥔'],['Guisos','🍲'],['Huevos','🥚'],['Legumbres','🫘'],
+  ['Marisco','🦐'],['Pasta','🍝'],['Pescado','🐟'],['Pescado azul','🐟'],['Pescado blanco','🐠'],
+  ['Postres','🍰'],['Salsas','🥫'],['Sopas','🥣'],['Vegano','🌿'],['Vegetariano','🌱'],['Verduras','🥦']
+].map(([name, icon]) => ({ name, icon }));
 
 /* ============ 2. CAPA DE DATOS (todo online) ============
    Aquí vivirá TODA la comunicación con Supabase. El resto de la app
@@ -123,6 +163,35 @@ const db = {
     const { data, error } = await sb.from('recipes').select('*').order('name');
     if (error) throw error;
     return data;
+  },
+  async categories() {
+    const { data, error } = await sb.from('settings').select('categories').maybeSingle();
+    if (error) throw error;
+    return (data && data.categories) || DEFAULT_CATS;
+  },
+  async saveCategories(list) {
+    const { error } = await sb.from('settings').upsert({ user_id: this.user.id, categories: list }, { onConflict: 'user_id' });
+    if (error) throw error;
+  },
+  async uploadPhoto(blob) {
+    const path = `${this.user.id}/${crypto.randomUUID()}.jpg`;
+    const { error } = await sb.storage.from('recipe-photos').upload(path, blob, { contentType: 'image/jpeg' });
+    if (error) throw error;
+    return sb.storage.from('recipe-photos').getPublicUrl(path).data.publicUrl;
+  },
+  async removePhoto(url) {
+    const i = (url || '').indexOf('/recipe-photos/');
+    if (i >= 0) await sb.storage.from('recipe-photos').remove([decodeURIComponent(url.slice(i + 15))]);
+  },
+  async saveRecipe(r) {
+    const row = { name: r.name, categories: r.categories, servings: r.servings, time: r.time, ingredients: r.ingredients, steps: r.steps, image_url: r.image_url };
+    const { error } = r.id ? await sb.from('recipes').update(row).eq('id', r.id) : await sb.from('recipes').insert(row);
+    if (error) throw error;
+  },
+  async deleteRecipe(r) {
+    const { error } = await sb.from('recipes').delete().eq('id', r.id);
+    if (error) throw error;
+    if (r.image_url) await this.removePhoto(r.image_url).catch(() => {});
   },
   /* Comprueba que cada pieza responde. Devuelve [{name, ok, detail}] */
   async diagnose() {
@@ -168,17 +237,137 @@ function showTab(name) {
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   if (name === 'recipes') loadRecipes();
 }
+/* ---- Recetas ---- */
+let RECIPES = [], CATS = [];
+const norm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const icon = n => (CATS.find(c => c.name === n) || {}).icon || '🏷️';
+const catLabel = n => icon(n) + ' ' + n;
+
 async function loadRecipes() {
-  const box = $('recipeList');
-  try {
-    const list = await db.recipes();
-    box.innerHTML = list.length
-      ? list.map(r => `<div class="card"><h3>${esc(r.name)}</h3><small>${esc((r.categories || []).join(' · '))}</small></div>`).join('')
-      : '<div class="empty">Todavía no hay recetas. En la Parte 2 añadimos crear, editar y eliminar.</div>';
-  } catch (e) {
-    box.innerHTML = `<div class="empty">No se pudieron cargar las recetas: ${esc(e.message)}</div>`;
-  }
+  try { [RECIPES, CATS] = await Promise.all([db.recipes(), db.categories()]); }
+  catch (e) { $('recipeList').innerHTML = `<div class="empty">No se pudieron cargar las recetas: ${esc(e.message)}</div>`; return; }
+  const sel = $('recipeCat'), cur = sel.value;
+  sel.innerHTML = '<option value="">Todas las categorías</option>' +
+    CATS.slice().sort((a, b) => a.name.localeCompare(b.name, 'es')).map(c => `<option value="${esc(c.name)}">${esc(catLabel(c.name))}</option>`).join('');
+  sel.value = cur;
+  renderRecipes();
 }
+function renderRecipes() {
+  const q = norm($('recipeSearch').value).split(/\s+/).filter(Boolean), cat = $('recipeCat').value;
+  const list = RECIPES.filter(r => (!cat || (r.categories || []).includes(cat)) &&
+    q.every(w => norm([r.name, r.ingredients, (r.categories || []).join(' ')].join(' ')).includes(w)));
+  $('recipeCount').textContent = `${list.length} receta${list.length === 1 ? '' : 's'} · ${RECIPES.length} en total`;
+  $('recipeList').innerHTML = list.length ? list.map(r => `
+    <div class="rcard" data-id="${r.id}">
+      <div class="thumb">${r.image_url ? `<img src="${esc(r.image_url)}" alt="" loading="lazy">` : '🥘'}</div>
+      <div><h3>${esc(r.name)}</h3><small>👥 ${esc(r.servings || '—')} · ⏱️ ${esc(r.time || '—')}</small>
+      <div class="tags">${esc((r.categories || []).slice(0, 4).map(catLabel).join(' · '))}</div></div></div>`).join('')
+    : `<div class="empty">${RECIPES.length ? 'No hay recetas con esos filtros.' : 'Todavía no tienes recetas. Pulsa ＋ Nueva para crear la primera.'}</div>`;
+}
+const openModal = html => { $('recipeBody').innerHTML = html; $('recipeModal').classList.add('show'); };
+const closeRecipeModal = () => $('recipeModal').classList.remove('show');
+const lines = t => String(t || '').split('\n').map(x => x.trim()).filter(Boolean);
+
+function showRecipe(id) {
+  const r = RECIPES.find(x => x.id === id); if (!r) return;
+  openModal(`<div class="sheet-top"><h2>${esc(r.name)}</h2><button class="btn secondary" data-act="close">Cerrar</button></div>
+    ${r.image_url ? `<div class="detail-photo"><img src="${esc(r.image_url)}" alt=""></div>` : ''}
+    <div class="notice">👥 ${esc(r.servings || '—')} raciones · ⏱️ ${esc(r.time || '—')}</div>
+    <div class="notice">${esc((r.categories || []).map(catLabel).join(' · '))}</div>
+    <h3>Ingredientes</h3>${lines(r.ingredients).map(x => `<div class="ing">${esc(x)}</div>`).join('') || '<div class="notice">Sin ingredientes.</div>'}
+    <h3>Preparación</h3>${r.steps ? `<div class="step">${esc(r.steps)}</div>` : '<div class="notice">Sin pasos.</div>'}
+    <div class="row"><button class="btn danger" data-act="delete" data-id="${r.id}">Eliminar</button><button class="btn" data-act="edit" data-id="${r.id}">Editar</button></div>
+    <div class="notice" id="recipeMsg"></div>`);
+}
+
+let draft = null;
+function editRecipe(id) {
+  const r = RECIPES.find(x => x.id === id) || { name: '', categories: [], servings: 2, time: '', ingredients: '', steps: '', image_url: null };
+  draft = { id: r.id || null, cats: new Set(r.categories || []), file: null, oldUrl: r.image_url, image_url: r.image_url, removePhoto: false };
+  openModal(`<div class="sheet-top"><h2>${id ? 'Editar receta' : 'Nueva receta'}</h2></div>
+    <div class="field"><label>Nombre</label><input id="fName" value="${esc(r.name)}"></div>
+    <div class="field"><label>Foto</label><div class="photo-prev" id="photoPrev"></div>
+      <input id="fPhoto" type="file" accept="image/*">
+      <button class="btn secondary" id="btnNoPhoto" type="button" style="margin-top:6px">Quitar foto</button></div>
+    <div class="field"><label>Categorías</label><div class="chips" id="fCats"></div></div>
+    <div class="field"><label>Raciones</label><input id="fServ" type="number" min="1" value="${esc(r.servings || 2)}"></div>
+    <div class="field"><label>Tiempo</label><input id="fTime" value="${esc(r.time)}" placeholder="Ej.: 30 min"></div>
+    <div class="field"><label>Ingredientes (uno por línea)</label><textarea id="fIngs">${esc(r.ingredients)}</textarea></div>
+    <div class="field"><label>Preparación</label><textarea id="fSteps">${esc(r.steps)}</textarea></div>
+    <div class="row"><button class="btn secondary" data-act="close">Cancelar</button><button class="btn" id="btnSaveRecipe" data-act="save">Guardar</button></div>
+    <div class="notice" id="recipeMsg"></div>`);
+  drawChips(); drawPhoto();
+}
+function drawChips() {
+  $('fCats').innerHTML = CATS.slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
+    .map(c => `<button type="button" class="chip${draft.cats.has(c.name) ? ' on' : ''}" data-cat="${esc(c.name)}">${esc(catLabel(c.name))}</button>`).join('') +
+    '<button type="button" class="chip add" data-act="newcat">＋ Nueva categoría</button>';
+}
+function drawPhoto() {
+  const url = draft.file ? URL.createObjectURL(draft.file) : (draft.removePhoto ? null : draft.image_url);
+  $('photoPrev').innerHTML = url ? `<img src="${esc(url)}" alt="">` : 'Sin foto';
+  $('btnNoPhoto').classList.toggle('hidden', !url);
+}
+async function newCategory() {
+  const name = (prompt('Nombre de la nueva categoría') || '').trim(); if (!name) return;
+  let c = CATS.find(x => norm(x.name) === norm(name));
+  if (!c) {
+    c = { name, icon: (prompt('Icono (un emoji)', '🏷️') || '').trim() || '🏷️' };
+    try { await db.saveCategories([...CATS, c]); CATS.push(c); }
+    catch (e) { return ($('recipeMsg').textContent = 'No se pudo guardar la categoría: ' + e.message); }
+  }
+  draft.cats.add(c.name); drawChips();
+}
+async function saveRecipe() {
+  const msg = $('recipeMsg'), btn = $('btnSaveRecipe'), name = $('fName').value.trim();
+  msg.className = 'notice err';
+  if (!name) return (msg.textContent = 'Escribe un nombre para la receta.');
+  btn.disabled = true; msg.className = 'notice'; msg.textContent = 'Guardando…';
+  try {
+    let url = draft.removePhoto ? null : draft.image_url;
+    if (draft.file) url = await db.uploadPhoto(await resizeImage(draft.file));
+    await db.saveRecipe({
+      id: draft.id, name, categories: [...draft.cats], servings: +$('fServ').value || 2, time: $('fTime').value.trim(),
+      ingredients: lines($('fIngs').value).join('\n'), steps: $('fSteps').value.trim(), image_url: url
+    });
+    if (draft.oldUrl && draft.oldUrl !== url) await db.removePhoto(draft.oldUrl).catch(() => {});
+    closeRecipeModal(); await loadRecipes();
+  } catch (e) { btn.disabled = false; msg.className = 'notice err'; msg.textContent = 'No se pudo guardar: ' + e.message; }
+}
+async function deleteRecipe(id) {
+  const r = RECIPES.find(x => x.id === id); if (!r || !confirm(`¿Eliminar "${r.name}"?`)) return;
+  try { await db.deleteRecipe(r); closeRecipeModal(); await loadRecipes(); }
+  catch (e) { const m = $('recipeMsg'); m.className = 'notice err'; m.textContent = 'No se pudo eliminar: ' + e.message; }
+}
+function resizeImage(file) {
+  return new Promise((res, rej) => {
+    const im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, 900 / Math.max(im.width, im.height)), c = document.createElement('canvas');
+      c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      c.toBlob(b => b ? res(b) : rej(new Error('No se pudo procesar la foto')), 'image/jpeg', .8);
+    };
+    im.onerror = () => rej(new Error('La foto no es válida'));
+    im.src = URL.createObjectURL(file);
+  });
+}
+$('btnNewRecipe').onclick = () => editRecipe(null);
+$('recipeSearch').oninput = renderRecipes;
+$('recipeCat').onchange = renderRecipes;
+$('recipeList').onclick = e => { const c = e.target.closest('.rcard'); if (c) showRecipe(c.dataset.id); };
+$('recipeBody').addEventListener('change', e => {
+  if (e.target.id === 'fPhoto' && e.target.files[0]) { draft.file = e.target.files[0]; draft.removePhoto = false; drawPhoto(); }
+});
+$('recipeBody').addEventListener('click', e => {
+  const chip = e.target.closest('[data-cat]');
+  if (chip) { const n = chip.dataset.cat; draft.cats.has(n) ? draft.cats.delete(n) : draft.cats.add(n); return drawChips(); }
+  if (e.target.id === 'btnNoPhoto') { draft.file = null; draft.removePhoto = true; return drawPhoto(); }
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  ({ close: closeRecipeModal, save: saveRecipe, newcat: newCategory,
+     edit: () => editRecipe(b.dataset.id), delete: () => deleteRecipe(b.dataset.id) })[b.dataset.act]();
+});
+
 async function runDiagnosis() {
   $('who').textContent = 'Sesión: ' + db.user.email;
   $('checks').innerHTML = '<div class="notice">Comprobando…</div>';
