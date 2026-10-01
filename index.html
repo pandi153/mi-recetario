@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pandi recetas</title>
+<meta name="theme-color" content="#07192d">
+<link rel="manifest" href="./manifest.json">
+<style>
+:root{--bg:#07192d;--surface:#0d2740;--surface2:#122f4b;--text:#f3f7fb;--muted:#9eb1c5;--accent:#a7df3f;--border:#294965;--danger:#ff6b6b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,sans-serif}.app{max-width:900px;margin:auto;min-height:100vh;padding-bottom:30px}header{padding:18px 14px 10px;position:sticky;top:0;background:#07192df5;backdrop-filter:blur(10px);z-index:5;border-bottom:1px solid var(--border)}h1{margin:0;font-size:24px;text-align:center}.sub{color:var(--muted);font-size:12px;text-align:center;margin-top:4px}.cloud{display:flex;align-items:center;justify-content:center;gap:7px;margin:9px auto 0;font-size:12px;color:var(--muted)}.dot{width:9px;height:9px;border-radius:50%;background:#888}.dot.ok{background:var(--accent)}.dot.bad{background:var(--danger)}main{padding:12px}.tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}.tabbtn{padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--muted);font-weight:700}.tabbtn.active{background:var(--accent);color:#07192d;border-color:var(--accent)}.panel{display:none}.panel.active{display:block}.week-head{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:10px}.week-title{font-size:18px;font-weight:800}.btn{border:1px solid var(--border);border-radius:9px;padding:10px 12px;background:var(--surface2);color:var(--text);font-weight:700}.btn.primary{background:var(--accent);color:#07192d;border-color:var(--accent)}.btn:disabled{opacity:.5}.day{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px;margin:8px 0}.day.today{border:2px solid var(--accent)}.day h3{margin:0 0 8px;font-size:15px}.meal{display:grid;grid-template-columns:78px 1fr;gap:8px;align-items:center;margin:6px 0}.meal label{font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase}.meal select{width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font:inherit}.recipe-grid{display:grid;gap:8px}.recipe{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:11px}.recipe strong{display:block}.recipe small{color:var(--muted)}.notice{padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--muted);font-size:13px}.login{position:fixed;inset:0;background:#07192d;display:flex;align-items:center;justify-content:center;padding:18px;z-index:50}.login.hidden{display:none}.login-box{width:min(430px,100%);background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:20px}.login-box h2{text-align:center;margin-top:0}.field{margin:10px 0}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input{width:100%;padding:12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font:inherit}.login-actions{display:grid;gap:8px;margin-top:14px}.error{color:var(--danger);font-size:13px;min-height:18px}.loading{text-align:center;color:var(--muted);padding:28px}.toast{position:fixed;left:12px;right:12px;bottom:18px;max-width:600px;margin:auto;background:#102d48;border:1px solid var(--border);padding:12px;border-radius:10px;display:none;z-index:60}.toast.show{display:block}.logout{position:absolute;right:12px;top:12px}
+@media(max-width:520px){.meal{grid-template-columns:64px 1fr}.week-head{align-items:flex-start}.week-head .btn{padding:8px 9px}}
+</style>
+</head>
+<body>
+<div class="login" id="login"><div class="login-box"><h2>🐼 Pandi recetas</h2><p class="sub">Inicia sesión para cargar tus recetas y tu menú desde Supabase.</p><div class="field"><label>Email</label><input id="email" type="email" autocomplete="email"></div><div class="field"><label>Contraseña</label><input id="password" type="password" autocomplete="current-password"></div><div class="login-actions"><button class="btn primary" id="loginBtn">Entrar</button><button class="btn" id="signupBtn">Crear cuenta</button></div><div class="error" id="loginError"></div></div></div>
+<div class="app" id="app" hidden>
+<header><button class="btn logout" id="logoutBtn">Salir</button><h1>🐼 Pandi recetas</h1><div class="sub">Planificador semanal</div><div class="cloud"><span class="dot" id="cloudDot"></span><span id="cloudText">Conectando con la nube…</span></div></header>
+<main>
+<div class="tabs"><button class="tabbtn active" data-panel="menuPanel">📅 Menú</button><button class="tabbtn" data-panel="recipesPanel">🔎 Recetas</button></div>
+<section id="menuPanel" class="panel active"><div class="week-head"><div><div class="week-title">Semana actual</div><div class="sub" id="weekLabel"></div></div><button class="btn" id="goToday">📅 Semana actual</button></div><div id="menu" class="loading">Cargando menú…</div></section>
+<section id="recipesPanel" class="panel"><div class="week-head"><div><div class="week-title">Recetas</div><div class="sub" id="recipeCount"></div></div></div><input id="recipeSearch" class="field" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font:inherit" placeholder="Buscar receta…"><div id="recipes" class="recipe-grid" style="margin-top:10px"></div></section>
+</main></div>
+<div class="toast" id="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://hgjojgxspclmuwaeenjq.supabase.co';
+const SUPABASE_KEY='sb_publishable_LPRAkNBsVLKUZLDfAMD6dQ_kaMErp_2';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+const $=id=>document.getElementById(id);
+const days=['LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','SÁBADO','DOMINGO'];
+let user=null,recipes=[],menu=Array.from({length:7},()=>({}));
+let loadingWeek=false;
+const mondayOf=d=>{const x=new Date(d);x.setHours(0,0,0,0);const n=(x.getDay()+6)%7;x.setDate(x.getDate()-n);return x};
+const weekKey=d=>{const x=mondayOf(d);return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`};
+const currentWeek=()=>weekKey(new Date());
+const weekLabel=k=>{const x=new Date(k+'T00:00:00');const e=new Date(x);e.setDate(e.getDate()+6);const f=d=>String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');return f(x)+' - '+f(e)+'/'+e.getFullYear()};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2600)}
+function cloud(ok,text){$('cloudDot').className='dot '+(ok?'ok':'bad');$('cloudText').textContent=text}
+async function getSession(){const {data,error}=await sb.auth.getSession();if(error)throw error;return data.session}
+async function login(email,password){$('loginError').textContent='';$('loginBtn').disabled=true;try{const {data,error}=await sb.auth.signInWithPassword({email,password});if(error)throw error;await start(data.session)}catch(e){$('loginError').textContent=e.message||'No se pudo iniciar sesión.'}finally{$('loginBtn').disabled=false}}
+async function signup(email,password){$('loginError').textContent='';$('signupBtn').disabled=true;try{const {data,error}=await sb.auth.signUp({email,password});if(error)throw error;if(data.session)await start(data.session);else $('loginError').textContent='Cuenta creada. Revisa tu correo si Supabase solicita confirmación.'}catch(e){$('loginError').textContent=e.message||'No se pudo crear la cuenta.'}finally{$('signupBtn').disabled=false}}
+$('loginBtn').onclick=()=>login($('email').value.trim(),$('password').value);
+$('signupBtn').onclick=()=>signup($('email').value.trim(),$('password').value);
+$('password').onkeydown=e=>{if(e.key==='Enter')$('loginBtn').click()};
+$('logoutBtn').onclick=async()=>{await sb.auth.signOut();location.reload()};
+
+document.querySelectorAll('.tabbtn').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabbtn').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));$(b.dataset.panel).classList.add('active')});
+
+async function loadRecipes(){
+  const {data,error}=await sb.from('recipes').select('id,name,category,servings,time,ingredients_raw,steps,updated_at').order('name',{ascending:true});
+  if(error)throw error;recipes=(data||[]).filter(r=>String(r.name||'').trim());
+  renderRecipes();
+}
+function candidates(meal,current){const label=meal==='desayuno'?'Desayuno':meal==='comida'?'Comida':'Cena';let arr=recipes.filter(r=>String(r.category||'').split(',').some(c=>c.trim().toLowerCase()===label.toLowerCase()));if(current&&!arr.some(r=>String(r.id)===String(current))) {const r=recipes.find(r=>String(r.id)===String(current));if(r)arr=[r,...arr]}return arr.sort((a,b)=>String(a.name).localeCompare(String(b.name),'es'))}
+function renderMenu(){
+  $('weekLabel').textContent=weekLabel(currentWeek());
+  const today=mondayOf(new Date());const todayIndex=(new Date().getDay()+6)%7;
+  $('menu').innerHTML=days.map((d,i)=>{const dt=new Date(today);dt.setDate(dt.getDate()+i);const dl=String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0');return `<div class="day${i===todayIndex?' today':''}"><h3>${d} · ${dl}</h3>${['desayuno','comida','cena'].map(meal=>{const cur=menu[i]?.[meal]??'';const opts=candidates(meal,cur);return `<div class="meal"><label>${meal}</label><select data-day="${i}" data-meal="${meal}"><option value="">— Seleccionar receta —</option>${opts.map(r=>`<option value="${esc(r.id)}" ${String(cur)===String(r.id)?'selected':''}>${esc(r.name)}</option>`).join('')}</select></div>`}).join('')}</div>`}).join('');
+  document.querySelectorAll('select[data-day]').forEach(s=>s.onchange=()=>saveMeal(Number(s.dataset.day),s.dataset.meal,s.value?Number(s.value):null));
+}
+async function loadWeek(){
+  loadingWeek=true;$('menu').innerHTML='<div class="loading">Cargando menú online…</div>';
+  const key=currentWeek();
+  // Deliberately use settings, not public.weeks, so an old weeks.data schema cannot break the menu.
+  const {data,error}=await sb.from('settings').select('value').eq('user_id',user.id).eq('key','weekly_menu_'+key).maybeSingle();
+  if(error)throw error;
+  const value=data?.value;
+  menu=Array.isArray(value)?value:Array.from({length:7},()=>({}));
+  if(menu.length!==7)menu=Array.from({length:7},(_,i)=>menu[i]||{});
+  renderMenu();
+  loadingWeek=false;
+}
+async function saveWeek(){
+  if(!user)return;
+  const key='weekly_menu_'+currentWeek();
+  const {error}=await sb.from('settings').upsert({user_id:user.id,key,value:menu,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});
+  if(error){cloud(false,'Error al guardar el menú');throw error}
+  cloud(true,'Menú guardado en la nube');
+}
+let saveTimer=0,saveSeq=0;
+function saveMeal(day,meal,value){
+  menu[day]=menu[day]||{};menu[day][meal]=value;renderMenu();
+  const seq=++saveSeq;clearTimeout(saveTimer);saveTimer=setTimeout(async()=>{try{await saveWeek();if(seq===saveSeq)toast('✓ Guardado online')}catch(e){console.error(e);toast('No se pudo guardar el menú en la nube')}} ,120);
+}
+$('goToday').onclick=async()=>{try{await loadWeek();toast('Semana actual cargada')}catch(e){console.error(e);toast('No se pudo cargar la semana')}};
+
+function renderRecipes(){const q=$('recipeSearch').value.trim().toLowerCase();const arr=recipes.filter(r=>!q||[r.name,r.category,r.ingredients_raw].join(' ').toLowerCase().includes(q));$('recipeCount').textContent=arr.length+' recetas';$('recipes').innerHTML=arr.length?arr.map(r=>`<div class="recipe"><strong>${esc(r.name)}</strong><small>${esc(r.category||'')}</small></div>`).join(''):'<div class="notice">No hay recetas.</div>'}
+$('recipeSearch').oninput=renderRecipes;
+
+async function start(session){
+  if(!session?.user)return;
+  user=session.user;$('login').classList.add('hidden');$('app').hidden=false;cloud(true,'Conectando con la nube…');
+  try{await loadRecipes();await loadWeek();cloud(true,'Conectado · guardado online');}
+  catch(e){console.error(e);cloud(false,'No se pueden cargar los datos');$('menu').innerHTML='<div class="notice"><strong>No se puede cargar el menú.</strong><br>'+esc(e.message||'Error desconocido')+'</div>'}
+}
+sb.auth.onAuthStateChange((event,session)=>{if(session&&!user)start(session);if(!session){user=null;$('login').classList.remove('hidden');$('app').hidden=true}});
+(async()=>{try{const s=await getSession();if(s)await start(s);else $('login').classList.remove('hidden')}catch(e){console.error(e);$('loginError').textContent='No se pudo comprobar la sesión.'}})();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+</script>
+</body></html>
