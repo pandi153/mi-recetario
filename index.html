@@ -106,6 +106,14 @@ nav button span svg{width:23px;height:23px;vertical-align:-4px}
 #pickBody .editbar input{margin:8px 0 0}#pickBody .editbar .row{margin:8px 0 0}
 .noterow{display:flex;gap:8px;margin:12px 0 4px}.noterow input{margin:0;flex:1}.noterow .btn{flex:none}
 .slot .mr.note{font-weight:400;font-style:italic}
+.sgroup{margin:16px 2px 6px;font-size:12px;letter-spacing:.05em;color:var(--muted);text-transform:uppercase}
+.sitem{display:grid;grid-template-columns:26px 1fr auto auto;gap:8px;align-items:center;padding:10px;margin:4px 0;border:1px solid #244763;border-radius:10px;background:var(--surface2);cursor:pointer}
+.sitem .box{font-size:20px;color:var(--accent)}.sitem b{font-weight:600}
+.sitem small{display:block;color:var(--muted);font-size:11px;font-weight:400;margin-top:1px}
+.sitem .sqty{color:var(--accent);font-weight:700;font-size:13px;white-space:nowrap}
+.sitem.done{opacity:.5}.sitem.done b,.sitem.done .sqty{text-decoration:line-through}
+.sitem .xdel{padding:5px 9px}
+.progress{height:8px;border-radius:99px;background:#1b3d5e;overflow:hidden;margin:4px 0 2px}.progress i{display:block;height:100%;background:var(--accent);transition:width .25s}
 </style>
 </head>
 <body>
@@ -147,7 +155,15 @@ nav button span svg{width:23px;height:23px;vertical-align:-4px}
       <div class="count" id="recipeCount"></div>
       <div id="recipeList"></div>
     </section>
-    <section class="tab" id="tab-shop"><h2>🛒 Compra</h2><div class="empty">Se construye en la Parte 4.</div></section>
+    <section class="tab" id="tab-shop">
+      <h2>🛒 Compra</h2>
+      <div class="weeknav"><button class="btn secondary" id="shopPrev" type="button" aria-label="Semana anterior">◀</button><button class="weeklabel" id="shopLabel" type="button"></button><button class="btn secondary" id="shopNext" type="button" aria-label="Semana siguiente">▶</button></div>
+      <div class="noterow"><input id="shopAdd" maxlength="60" placeholder="Añadir a la lista (ej. papel de cocina)"><button class="btn" id="shopAddBtn" type="button">＋</button></div>
+      <div class="chips" style="margin:6px 0"><button class="chip" id="shopShare" type="button">📤 Compartir lista</button><button class="chip" id="shopUncheck" type="button">↩️ Desmarcar todo</button><button class="chip" id="shopGroup" type="button"></button></div>
+      <div class="notice" id="shopMsg"></div>
+      <div id="shopProg"></div>
+      <div id="shopList"></div>
+    </section>
     <section class="tab" id="tab-pantry"><h2>🧊 Despensa</h2><div class="empty">Se construye en la Parte 5.</div></section>
     <section class="tab" id="tab-stats"><h2>📊 Estadísticas</h2><div class="empty">Se construye en la Parte 6.</div></section>
   </main>
@@ -233,6 +249,18 @@ const db = {
   async saveRecipe(r) {
     const row = { name: r.name, categories: r.categories, servings: r.servings, time: r.time, ingredients: r.ingredients, steps: r.steps, image_url: r.image_url };
     const { error } = r.id ? await sb.from('recipes').update(row).eq('id', r.id) : await sb.from('recipes').insert(row);
+    if (error) throw error;
+  },
+  async shop() {
+    const { data, error } = await sb.from('settings').select('shopping_checked').maybeSingle();
+    if (error) throw error;
+    const v = data && data.shopping_checked;
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  },
+  async saveShop(ws, d) {
+    const all = await this.shop(); all[ws] = d;
+    Object.keys(all).sort().slice(0, -10).forEach(k => delete all[k]);
+    const { error } = await sb.from('settings').upsert({ user_id: this.user.id, shopping_checked: all }, { onConflict: 'user_id' });
     if (error) throw error;
   },
   async week(ws) {
@@ -324,7 +352,7 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   if (name === 'recipes') loadRecipes();
-  if (name === 'menu') loadWeek();
+  if (name === 'menu' || name === 'shop') loadWeek();
 }
 /* ---- Recetas ---- */
 let RECIPES = [], CATS = [], COUNTS = {};
@@ -657,19 +685,21 @@ const menuMsg = (t, err) => { const m = $('menuMsg'); m.textContent = t; m.class
 
 async function loadWeek() {
   const tok = ++weekTok;
-  try { const m = await db.week(WS); if (tok !== weekTok) return; MENU = m; menuMsg(''); }
+  try { const [m, sh] = await Promise.all([db.week(WS), db.shop().catch(() => null)]); if (tok !== weekTok) return; MENU = m; if (sh) SHOP = sh; menuMsg(''); }
   catch (e) { if (tok !== weekTok) return; MENU = emptyMenu(); menuMsg('No se pudo cargar la semana: ' + e.message, true); }
   renderMenu();
 }
 function renderMenu() {
   const mon = parseYmd(WS), fmt = d => d.toLocaleDateString('es', { day: 'numeric', month: 'short' }), cur = ymd(mondayOf(new Date()));
   $('weekLabel').innerHTML = `${fmt(mon)} – ${fmt(addDays(mon, 6))}<small>${WS === cur ? 'Esta semana' : WS > cur ? 'Semana futura' : 'Semana pasada'}</small>`;
+  $('shopLabel').innerHTML = $('weekLabel').innerHTML;
   const today = WS === cur ? (new Date().getDay() + 6) % 7 : -1;
   $('menuDays').innerHTML = MENU.map((day, i) => `<div class="day${i === today ? ' today' : ''}"><h3>${DAYS[i]} <span>${addDays(mon, i).getDate()}</span>${i === today ? '<em>Hoy</em>' : ''}</h3>` +
     MEALS.map(([k, label, ic]) => {
       const id = day[k], note = id && String(id).startsWith('~'), r = id && !note && RECIPES.find(x => x.id === id);
       return `<button class="slot${id ? ' full' : ''}" data-day="${i}" data-meal="${k}" type="button"><span>${ic}</span><span class="ml">${label}</span><span class="mr${note ? ' note' : ''}">${note ? '📝 ' + esc(id.slice(1)) : id ? (r ? esc(r.name) : 'Receta eliminada') : '＋ Añadir'}</span></button>`;
     }).join('') + '</div>').join('');
+  renderShop();
 }
 async function persistWeek() {
   const ws = WS, m = JSON.parse(JSON.stringify(MENU));
@@ -769,6 +799,128 @@ $('weekNext').onclick = () => goWeek(ymd(addDays(parseYmd(WS), 7)));
 $('weekLabel').onclick = () => goWeek(ymd(mondayOf(new Date())));
 $('mShare').onclick = shareMenu; $('mFill').onclick = fillGaps; $('mCopy').onclick = copyPrevWeek; $('mClear').onclick = clearWeek;
 document.addEventListener('visibilitychange', () => { if (!document.hidden && db.user) loadRecipes().then(loadWeek); });
+
+/* ---- Compra ---- */
+let SHOP = {}, shopChain = Promise.resolve(), shopGrouped = true;
+try { shopGrouped = localStorage.getItem('shopGrouped') !== '0'; } catch (e) {}
+const UNITS = { kg: ['g', 1000], kilo: ['g', 1000], kilos: ['g', 1000], g: ['g', 1], gr: ['g', 1], grs: ['g', 1], gramo: ['g', 1], gramos: ['g', 1],
+  l: ['ml', 1000], lt: ['ml', 1000], litro: ['ml', 1000], litros: ['ml', 1000], ml: ['ml', 1], cl: ['ml', 10], dl: ['ml', 100] };
+const UNIT_SING = { cucharadas: 'cucharada', cda: 'cucharada', cdas: 'cucharada', cucharaditas: 'cucharadita', cdta: 'cucharadita', cdtas: 'cucharadita', cdita: 'cucharadita', cditas: 'cucharadita',
+  tazas: 'taza', vasos: 'vaso', latas: 'lata', dientes: 'diente', lonchas: 'loncha', rebanadas: 'rebanada', pizcas: 'pizca', punados: 'punado', ramas: 'rama', ramitas: 'rama', rama: 'rama',
+  hojas: 'hoja', botes: 'bote', paquetes: 'paquete', sobres: 'sobre', uds: 'ud', unidades: 'ud', unidad: 'ud' };
+const ING_RE = /^(?:(\d+\/\d+|\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?|[½¼¾])\s*(?:(kg|kilos?|gramos?|grs?|g|litros?|lt|l|ml|cl|dl|cucharaditas?|cucharadas?|cdtas?|cditas?|cdas?|tazas?|vasos?|latas?|dientes?|lonchas?|rebanadas?|pizcas?|pu[nñ]ados?|ramas?|ramitas?|hojas?|botes?|paquetes?|sobres?|uds?|unidades?)(?![a-záéíóúñ])\.?\s*)?)?(?:(?:de|del)\s+)?(.+)$/i;
+const same = (a, b) => a === b || a + 's' === b || b + 's' === a || a + 'es' === b || b + 'es' === a;
+const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+function parseQty(q) {
+  q = q.replace(',', '.');
+  if (q === '½') return .5; if (q === '¼') return .25; if (q === '¾') return .75;
+  if (q.includes('/')) { const [x, y] = q.split('/').map(Number); return x / y; }
+  return Number(q.split(/[-–]/).pop());
+}
+function addIng(items, line, rname) {
+  line = line.replace(/^[\s\-–•*·✓☐☑]+/, '').trim(); if (!line) return;
+  const m = ING_RE.exec(line); if (!m) return;
+  let n = m[1] ? parseQty(m[1]) : null, ur = m[2] ? norm(m[2]) : '', unit = '';
+  const name = m[3].replace(/\([^)]*\)/g, ' ').replace(/,.*$/, '').replace(/\bal gusto\b/i, '').replace(/\s+/g, ' ').trim(); if (!name) return;
+  if (ur) { if (UNITS[ur]) { unit = UNITS[ur][0]; n *= UNITS[ur][1]; } else unit = UNIT_SING[ur] || ur; }
+  const key = norm(name); let it = items.find(x => same(x.key, key));
+  if (!it) { it = { key, name, u: {}, recipes: new Set() }; items.push(it); } else if (key.length < it.key.length) it.key = key;
+  if (n != null && !isNaN(n)) it.u[unit] = (it.u[unit] || 0) + n;
+  it.recipes.add(rname);
+}
+function buildShopList() {
+  const items = [];
+  MENU.forEach(day => MEALS.forEach(([k]) => {
+    const id = day[k]; if (!id || String(id).startsWith('~')) return;
+    const r = RECIPES.find(x => x.id === id); if (r) lines(r.ingredients).forEach(l => addIng(items, l, r.name));
+  }));
+  return items;
+}
+const fmtNum = n => String(Math.round(n * 100) / 100).replace('.', ',');
+function fmtQty(u) {
+  const order = k => k === 'g' ? 0 : k === 'ml' ? 1 : k === '' ? 3 : 2;
+  return Object.entries(u).sort((a, b) => order(a[0]) - order(b[0])).map(([k, n]) => {
+    if (k === 'g') return n >= 1000 ? fmtNum(n / 1000) + ' kg' : fmtNum(n) + ' g';
+    if (k === 'ml') return n >= 1000 ? fmtNum(n / 1000) + ' l' : fmtNum(n) + ' ml';
+    if (k === '') return fmtNum(n);
+    const lab = k === 'punado' ? 'puñado' : k;
+    return fmtNum(n) + ' ' + (n > 1 ? (k === 'ud' ? 'uds' : lab + 's') : lab);
+  }).join(' + ');
+}
+const mk = (pre, ex = []) => new RegExp('\\b(?:' + pre.join('|') + ')' + (ex.length ? '|\\b(?:' + ex.join('|') + ')\\b' : ''));
+const GROUPS = [
+  { icon: '🥦', name: 'Verduras y frutas', re: mk(['cebolla', 'ajo', 'tomate', 'lechuga', 'zanahoria', 'patata', 'papa', 'pimiento', 'calabac', 'berenjena', 'pepino', 'espinaca', 'champi', 'seta', 'limon', 'naranja', 'manzana', 'platano', 'fresa', 'aguacate', 'brocoli', 'coliflor', 'puerro', 'calabaza', 'judia', 'perejil', 'cilantro', 'albahaca', 'fruta', 'ensalada', 'verdura', 'apio', 'remolacha', 'maiz', 'guisante', 'uva', 'pera', 'melon', 'sandia', 'mango', 'kiwi', 'jengibre', 'rucula', 'canonigo', 'repollo', 'esparrago', 'alcachofa', 'nabo', 'rabano', 'boniato', 'cebollino', 'menta', 'tomillo', 'romero', 'lima', 'mandarina', 'pina', 'melocoton', 'ciruela', 'cereza', 'granada', 'acelga', 'escarola', 'endivia', 'hinojo'], ['col', 'coles', 'coco']) },
+  { icon: '🥩', name: 'Carne y pescado', re: mk(['pollo', 'pavo', 'ternera', 'cerdo', 'cordero', 'jamon', 'lomo', 'chuleta', 'salchicha', 'chorizo', 'bacon', 'panceta', 'carne', 'pescado', 'salmon', 'merluza', 'atun', 'bacalao', 'gamba', 'langostino', 'mejillon', 'calamar', 'sepia', 'pulpo', 'dorada', 'lubina', 'sardina', 'anchoa', 'marisco', 'filete', 'solomillo', 'hamburguesa', 'pechuga', 'muslo', 'costilla', 'morcilla', 'sobrasada', 'caballa', 'rape', 'almeja', 'trucha']) },
+  { icon: '🧀', name: 'Lácteos y huevos', re: mk(['leche', 'queso', 'yogur', 'huevo', 'nata', 'mantequilla', 'requeson', 'kefir', 'mozzarella', 'parmesano', 'cuajada', 'margarina', 'crema fresca']) },
+  { icon: '🍞', name: 'Panadería', re: mk(['tostad', 'baguette', 'bollo', 'croissant', 'brioche', 'colines', 'pita', 'wrap'], ['pan', 'panes']) },
+  { icon: '🥫', name: 'Despensa', re: mk(['arroz', 'macarron', 'espagueti', 'spaghetti', 'fideo', 'tallarin', 'lentej', 'garbanz', 'alubia', 'harina', 'azucar', 'aceite', 'vinagre', 'salsa', 'caldo', 'especia', 'pimenton', 'comino', 'oregano', 'pimienta', 'cereal', 'avena', 'cacao', 'nuez', 'nueces', 'almendra', 'avellana', 'pistacho', 'cacahuete', 'quinoa', 'cuscus', 'mostaza', 'mayonesa', 'ketchup', 'levadura', 'galleta', 'conserva', 'legumbre', 'pan rallado', 'tomate frito', 'tomate triturado', 'tomate natural', 'sirope', 'curry', 'laurel', 'canela', 'vainilla', 'mermelada', 'tahini', 'bulgur', 'polenta', 'maicena'], ['pasta', 'sal', 'miel', 'soja', 'latas?', 'botes?', 'pure']) },
+  { icon: '❄️', name: 'Congelados', re: mk(['congelad', 'helado', 'hielo']) },
+  { icon: '🧴', name: 'Otros', re: /$^/ }
+];
+const TEST_ORDER = [5, 4, 2, 1, 3, 0];
+const classify = name => { const n = norm(name); const g = TEST_ORDER.find(i => GROUPS[i].re.test(n)); return g === undefined ? 6 : g; };
+
+const shopMsg = (t, err) => { const m = $('shopMsg'); m.textContent = t; m.className = 'notice' + (err ? ' err' : ''); };
+const shopWeek = () => { const w = SHOP[WS] = SHOP[WS] || {}; w.c = w.c || []; w.x = w.x || []; return w; };
+function saveShop() {
+  const ws = WS, data = JSON.parse(JSON.stringify(shopWeek()));
+  shopChain = shopChain.then(() => db.saveShop(ws, data)).then(() => shopMsg('')).catch(e => shopMsg('No se pudo guardar: ' + e.message, true));
+}
+function shopItems() {
+  const w = shopWeek(), ck = new Set(w.c);
+  const items = buildShopList().map(it => ({ key: it.key, name: it.name, qty: fmtQty(it.u), src: [...it.recipes].join(' · '), done: ck.has(it.key), extra: false }));
+  w.x.forEach(x => items.push({ key: 'x:' + x.i, name: x.t, qty: '', src: 'Añadido por mí', done: !!x.d, extra: true }));
+  return items;
+}
+function renderShop() {
+  const items = shopItems(), total = items.length, done = items.filter(i => i.done).length;
+  $('shopGroup').textContent = shopGrouped ? '🗂️ Por secciones' : '📃 Lista simple';
+  $('shopProg').innerHTML = total ? `<div class="notice">${done} de ${total} comprados</div><div class="progress"><i style="width:${Math.round(done / total * 100)}%"></i></div>` : '';
+  if (!total) return ($('shopList').innerHTML = '<div class="empty">Todavía no hay nada.<br>Añade recetas al menú de esta semana y sus ingredientes aparecerán aquí solos.</div>');
+  const byName = (a, b) => a.name.localeCompare(b.name, 'es');
+  const row = i => `<div class="sitem${i.done ? ' done' : ''}" data-key="${esc(i.key)}"><span class="box">${i.done ? '☑' : '☐'}</span><span><b>${esc(cap(i.name))}</b><small>${esc(i.src)}</small></span><span class="sqty">${esc(i.qty)}</span>${i.extra ? `<button class="btn secondary xdel" data-del="${esc(i.key)}" type="button" aria-label="Quitar">✕</button>` : '<span></span>'}</div>`;
+  const todo = items.filter(i => !i.done).sort(byName), dn = items.filter(i => i.done).sort(byName);
+  let html = '';
+  if (shopGrouped) GROUPS.forEach((g, gi) => { const li = todo.filter(i => classify(i.name) === gi); if (li.length) html += `<h3 class="sgroup">${g.icon} ${g.name} (${li.length})</h3>` + li.map(row).join(''); });
+  else html = todo.map(row).join('');
+  if (!todo.length) html = '<div class="empty">¡Todo comprado! 🎉</div>';
+  if (dn.length) html += `<h3 class="sgroup">✔ Comprado (${dn.length})</h3>` + dn.map(row).join('');
+  $('shopList').innerHTML = html;
+}
+function toggleShop(key) {
+  const w = shopWeek();
+  if (key.startsWith('x:')) { const x = w.x.find(v => 'x:' + v.i === key); if (x) x.d = !x.d; }
+  else { const i = w.c.indexOf(key); i < 0 ? w.c.push(key) : w.c.splice(i, 1); }
+  renderShop(); saveShop();
+}
+function addExtra() {
+  const t = $('shopAdd').value.trim(); if (!t) return;
+  shopWeek().x.push({ i: Date.now().toString(36), t, d: false }); $('shopAdd').value = ''; renderShop(); saveShop();
+}
+async function shareShop() {
+  const items = shopItems().filter(i => !i.done); if (!items.length) return shopMsg('No queda nada por comprar.');
+  const mon = parseYmd(WS), fmt = d => d.toLocaleDateString('es', { day: 'numeric', month: 'short' });
+  const line = i => `☐ ${cap(i.name)}${i.qty ? ' — ' + i.qty : ''}`; let t = `🛒 *Compra ${fmt(mon)} – ${fmt(addDays(mon, 6))}*`;
+  if (shopGrouped) GROUPS.forEach((g, gi) => { const li = items.filter(i => classify(i.name) === gi).sort((a, b) => a.name.localeCompare(b.name, 'es')); if (li.length) t += `\n\n*${g.icon} ${g.name}*\n` + li.map(line).join('\n'); });
+  else t += '\n\n' + items.sort((a, b) => a.name.localeCompare(b.name, 'es')).map(line).join('\n');
+  try {
+    if (navigator.share) await navigator.share({ title: 'Lista de la compra', text: t });
+    else { await navigator.clipboard.writeText(t); shopMsg('Lista copiada. Pégala donde quieras.'); }
+  } catch (e) { if (e.name !== 'AbortError') shopMsg('No se pudo compartir: ' + e.message, true); }
+}
+$('shopList').onclick = e => {
+  const d = e.target.closest('[data-del]');
+  if (d) { const w = shopWeek(); w.x = w.x.filter(v => 'x:' + v.i !== d.dataset.del); renderShop(); return saveShop(); }
+  const r = e.target.closest('.sitem'); if (r) toggleShop(r.dataset.key);
+};
+$('shopAddBtn').onclick = addExtra;
+$('shopAdd').addEventListener('keydown', e => { if (e.key === 'Enter') addExtra(); });
+$('shopShare').onclick = shareShop;
+$('shopUncheck').onclick = () => { const w = shopWeek(); w.c = []; w.x.forEach(x => x.d = false); renderShop(); saveShop(); };
+$('shopGroup').onclick = () => { shopGrouped = !shopGrouped; try { localStorage.setItem('shopGrouped', shopGrouped ? '1' : '0'); } catch (e) {} renderShop(); };
+$('shopPrev').onclick = () => $('weekPrev').click();
+$('shopNext').onclick = () => $('weekNext').click();
+$('shopLabel').onclick = () => $('weekLabel').click();
 
 /* ============ 5. ARRANQUE ============ */
 function onSession(session) {
