@@ -888,7 +888,7 @@ decorate();
       for(const key of settingsKeys){const value=state(key,null);if(value==null)continue;const q=await db.from('settings').upsert({user_id:u.id,key,value,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});if(q.error)throw q.error}
       const sh=await db.from('shopping').upsert({user_id:u.id,data:state('checked',{})||{},updated_at:new Date().toISOString()},{onConflict:'user_id'});if(sh.error)throw sh.error;
       const remapped={};Object.entries(ws).forEach(([wk,ds])=>remapped[wk]=(ds||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]));});return d}));
-      setState('recipes',saved);setState('weeks',remapped);recipes=saved;weeks=remapped;menu=weeks[selectedWeek]||days.map(()=>({}));
+      setState('recipes',saved);setState('weeks',remapped);setState('weekly_menus',remapped);recipes=saved;weeks=remapped;menu=weeks[selectedWeek]||days.map(()=>({}));
       window.__pandiGetRecipeImage=name=>imgs[normal(name)]||'';status('☁️ Guardado','ok');
     }finally{saving=false}
   }
@@ -901,7 +901,7 @@ decorate();
   window.addEventListener('load',()=>setTimeout(()=>currentUser().then(u=>u?loadCloud().catch(e=>{console.error(e);status('☁️ Error de carga','err');message('No se pueden cargar los datos: '+(e.message||String(e)))}):showAuth()),150));
 })();
 </script>
-</body></html><script id="menuCloudImmediateFix">
+<script id="menuCloudImmediateFix">
 (function(){
   'use strict';
   const SUPABASE_URL='https://hgjojgxspclmuwaeenjq.supabase.co';
@@ -1055,3 +1055,64 @@ decorate();
   setTimeout(bind,500);
 })();
 </script>
+<script id="menuFinalCloudPersistenceFix">
+(function(){
+  'use strict';
+  const $=id=>document.getElementById(id);
+  let timer=null, writing=false;
+  function currentKey(){return weekKey(new Date());}
+  function blankWeek(){return days.map(()=>({}));}
+  function ensureWeek(k){if(!weeks[k])weeks[k]=blankWeek();return weeks[k];}
+  async function persistMenu(){
+    clearTimeout(timer);
+    timer=setTimeout(async()=>{
+      if(writing)return;
+      try{
+        writing=true;
+        const {data:{session}}=await db.auth.getSession();
+        if(!session?.user)return;
+        const snapshot=JSON.parse(JSON.stringify(weeks||{}));
+        // Keep the in-memory cloud-only state in sync so a later general save
+        // cannot overwrite the menu with an older snapshot.
+        try{
+          localStorage.setItem('recetario_weeks',JSON.stringify(snapshot));
+          localStorage.setItem('recetario_weekly_menus',JSON.stringify(snapshot));
+        }catch(e){}
+        const q=await db.from('settings').upsert({user_id:session.user.id,key:'weekly_menus',value:snapshot,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});
+        if(q.error)throw q.error;
+        const st=$('cloudStatus');if(st){st.textContent='☁️ Menú guardado';setTimeout(()=>{if(st.textContent==='☁️ Menú guardado')st.textContent='☁️ Conectado'},1100)}
+      }catch(e){console.error('Menú:',e);const st=$('cloudStatus');if(st)st.textContent='☁️ Error al guardar menú';}
+      finally{writing=false}
+    },120);
+  }
+  function go(k){
+    if(!k)return;
+    ensureWeek(k);selectedWeek=k;menu=weeks[k];
+    renderMenu();renderShopping();renderStats();
+  }
+  function bind(){
+    const sel=$('weekSelect'),prev=$('prevWeek'),next=$('nextWeek'),cur=$('currentWeek'),nw=$('newWeek'),cl=$('clearMenu');
+    if(sel)sel.onchange=()=>{go(sel.value);persistMenu()};
+    if(prev)prev.onclick=()=>{const d=new Date(selectedWeek+'T00:00:00');d.setDate(d.getDate()-7);go(weekKey(d));persistMenu()};
+    if(next)next.onclick=()=>{const d=new Date(selectedWeek+'T00:00:00');d.setDate(d.getDate()+7);go(weekKey(d));persistMenu()};
+    if(cur)cur.onclick=()=>{go(currentKey());persistMenu()};
+    if(nw)nw.onclick=()=>{const d=new Date(selectedWeek+'T00:00:00');d.setDate(d.getDate()+7);go(weekKey(d));persistMenu()};
+    if(cl)cl.onclick=()=>{if(!confirm('¿Seguro que quieres vaciar todas las recetas de esta semana?'))return;weeks[selectedWeek]=blankWeek();menu=weeks[selectedWeek];renderMenu();renderShopping();renderStats();persistMenu()};
+    document.querySelectorAll('select[data-day][data-meal]').forEach(s=>{
+      s.onchange=()=>{
+        ensureWeek(selectedWeek);menu=weeks[selectedWeek];
+        if(!menu[+s.dataset.day])menu[+s.dataset.day]={};
+        menu[+s.dataset.day][s.dataset.meal]=s.value?Number(s.value):null;
+        weeks[selectedWeek]=menu;
+        renderShopping();renderStats();persistMenu();
+      };
+    });
+  }
+  const base=window.renderMenu;
+  window.renderMenu=function(){if(base)base();setTimeout(bind,0)};
+  window.__pandiSaveMenuCloud=persistMenu;
+  setTimeout(bind,800);
+})();
+</script>
+
+</body></html>
