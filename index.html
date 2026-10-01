@@ -104,6 +104,8 @@ nav button span svg{width:23px;height:23px;vertical-align:-4px}
 .pick.sel{border-color:var(--accent)}.pick small{display:block;color:var(--muted);font-size:12px;font-weight:400}
 .pthumb{width:46px;height:46px;border-radius:8px;background:#1b3d5e;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:22px}.pthumb img{width:100%;height:100%;object-fit:cover}
 #pickBody .editbar input{margin:8px 0 0}#pickBody .editbar .row{margin:8px 0 0}
+.noterow{display:flex;gap:8px;margin:12px 0 4px}.noterow input{margin:0;flex:1}.noterow .btn{flex:none}
+.slot .mr.note{font-weight:400;font-style:italic}
 </style>
 </head>
 <body>
@@ -134,7 +136,7 @@ nav button span svg{width:23px;height:23px;vertical-align:-4px}
     <section class="tab active" id="tab-menu">
       <h2>📅 Menú semanal</h2>
       <div class="weeknav"><button class="btn secondary" id="weekPrev" type="button" aria-label="Semana anterior">◀</button><button class="weeklabel" id="weekLabel" type="button"></button><button class="btn secondary" id="weekNext" type="button" aria-label="Semana siguiente">▶</button></div>
-      <div class="chips" style="margin:10px 0 4px"><button class="chip" id="mFill" type="button">✨ Rellenar huecos</button><button class="chip" id="mCopy" type="button">📋 Copiar semana anterior</button><button class="chip" id="mClear" type="button">🗑️ Vaciar</button></div>
+      <div class="chips" style="margin:10px 0 4px"><button class="chip" id="mFill" type="button">✨ Rellenar huecos</button><button class="chip" id="mCopy" type="button">📋 Copiar semana anterior</button><button class="chip" id="mShare" type="button">📤 Compartir menú</button><button class="chip" id="mClear" type="button">🗑️ Vaciar</button></div>
       <div class="notice" id="menuMsg"></div>
       <div id="menuDays"></div>
     </section>
@@ -195,6 +197,7 @@ const DEFAULT_CATS = [
 const MEALS = [['desayuno', 'Desayuno', '🥞'], ['almuerzo', 'Almuerzo', '🍎'], ['comida', 'Comida', '🍽️'], ['merienda', 'Merienda', '🥪'], ['cena', 'Cena', '🌙']];
 const DAYS = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO', 'DOMINGO'];
 const LOCK = MEALS.map(m => m[1]);
+const sortCats = list => [...LOCK.map(n => list.find(c => c.name === n)).filter(Boolean), ...list.filter(c => !LOCK.includes(c.name)).sort((a, b) => a.name.localeCompare(b.name, 'es'))];
 const emptyMenu = () => DAYS.map(() => ({}));
 const normMenu = m => { const a = Array.isArray(m) ? m : []; return DAYS.map((_, i) => (a[i] && typeof a[i] === 'object') ? a[i] : {}); };
 
@@ -245,7 +248,7 @@ const db = {
     const { data, error } = await sb.from('weeks').select('menu');
     if (error) throw error;
     const n = {};
-    (data || []).forEach(w => normMenu(w.menu).forEach(d => MEALS.forEach(([k]) => { if (d[k]) n[d[k]] = (n[d[k]] || 0) + 1; })));
+    (data || []).forEach(w => normMenu(w.menu).forEach(d => MEALS.forEach(([k]) => { if (d[k] && !String(d[k]).startsWith('~')) n[d[k]] = (n[d[k]] || 0) + 1; })));
     return n;
   },
   async setFavorite(id, favorite) {
@@ -413,7 +416,7 @@ function editRecipe(id) {
   drawChips(); drawPhoto();
 }
 function drawChips() {
-  $('fCats').innerHTML = CATS.slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
+  $('fCats').innerHTML = sortCats(CATS)
     .map(c => `<button type="button" class="chip${draft.cats.has(c.name) ? ' on' : ''}" data-cat="${esc(c.name)}">${esc(catLabel(c.name))}</button>`).join('') +
     '<button type="button" class="chip add" data-act="newcat">＋ Nueva categoría</button>';
 }
@@ -508,6 +511,10 @@ function renderOptions() {
       <button class="menuitem" data-act="optcsv"><span>📥</span><span>Descargar recetas (CSV)<small>Copia de seguridad para abrir en Excel</small></span></button>
       <button class="menuitem" data-act="optimport"><span>📤</span><span>Importar recetas (CSV)<small>Añade las de un archivo descargado antes</small></span></button>
       <input type="file" id="csvFile" accept=".csv,text/csv" class="hidden">
+      <button class="menuitem" data-act="optbackup"><span>💾</span><span>Copia de seguridad completa<small>Recetas, menús, categorías y despensa en un archivo</small></span></button>
+      <button class="menuitem" data-act="optpass"><span>🔑</span><span>Cambiar contraseña</span></button>
+      <button class="menuitem" data-act="optcloud"><span>☁️</span><span>Estado de la nube<small>Comprobar que todo está conectado</small></span></button>
+      <button class="menuitem" data-act="optsignout"><span>🚪</span><span>Cerrar sesión<small>${esc((db.user && db.user.email) || '')}</small></span></button>
       <div class="notice" id="optMsg"></div>`;
     return;
   }
@@ -518,7 +525,7 @@ function renderOptions() {
   body.innerHTML = `<div class="sheet-top"><h2>🏷️ Categorías</h2><button class="btn secondary" data-act="optback">Atrás</button></div>
     <div class="notice" id="optMsg"></div>
     ${editingCat === '__new' ? form('__new') : '<button class="btn" data-act="catnew" style="margin:8px 0">＋ Nueva categoría</button>'}
-    ${CATS.slice().sort((a, b) => a.name.localeCompare(b.name, 'es')).map(c => editingCat === c.name ? form(c.name) :
+    ${sortCats(CATS).map(c => editingCat === c.name ? form(c.name) :
       `<div class="catrow"><span>${esc(c.icon)} ${esc(c.name)} <small>(${uses(c.name)})</small></span>
        <button class="btn secondary" data-act="catedit" data-name="${esc(c.name)}">✏️</button>
        ${LOCK.includes(c.name) ? '<button class="btn secondary" disabled style="opacity:.35">🔒</button>' : `<button class="btn secondary" data-act="catdel" data-name="${esc(c.name)}">🗑️</button>`}</div>`).join('')}`;
@@ -563,9 +570,28 @@ function exportCsv() {
   const head = ['Nombre', 'Categorías', 'Raciones', 'Tiempo', 'Ingredientes', 'Preparación', 'Favorita', 'Foto'];
   const rows = RECIPES.map(r => [r.name, (r.categories || []).join(', '), r.servings, r.time, r.ingredients, r.steps, r.favorite ? 'Sí' : 'No', r.image_url].map(q).join(';'));
   const blob = new Blob(['\ufeff' + [head.map(q).join(';'), ...rows].join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  saveBlob(blob, 'recetas-' + ymd(new Date()) + '.csv');
+}
+function saveBlob(blob, name) {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = 'recetas-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
+}
+async function exportBackup() {
+  try {
+    const out = { exportado: new Date().toISOString() };
+    for (const t of ['recipes', 'weeks', 'settings', 'pantry']) {
+      const { data, error } = await sb.from(t).select('*'); if (error) throw error; out[t] = data;
+    }
+    saveBlob(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }), 'recetario-copia-' + ymd(new Date()) + '.json');
+    optMsg('Copia descargada.', true);
+  } catch (e) { optMsg('No se pudo crear la copia: ' + e.message); }
+}
+async function changePassword() {
+  const pw = prompt('Nueva contraseña (mínimo 6 caracteres)'); if (!pw) return;
+  if (pw.length < 6) return optMsg('La contraseña necesita al menos 6 caracteres.');
+  const { error } = await sb.auth.updateUser({ password: pw });
+  error ? optMsg('No se pudo cambiar: ' + error.message) : optMsg('Contraseña cambiada.', true);
 }
 function parseCsv(text) {
   text = text.replace(/^\ufeff/, '');
@@ -613,7 +639,9 @@ $('optBody').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return; const n = b.dataset.name;
   ({ optclose: () => $('optModal').classList.remove('show'),
      optcats: () => { optView = 'cats'; renderOptions(); }, optback: () => { optView = 'main'; editingCat = null; renderOptions(); },
-     optcsv: exportCsv, optimport: () => $('csvFile').click(),
+     optcsv: exportCsv, optbackup: exportBackup, optpass: changePassword,
+     optcloud: () => { $('optModal').classList.remove('show'); $('cloudModal').classList.add('show'); runDiagnosis(); },
+     optsignout: () => { $('optModal').classList.remove('show'); signOut(); }, optimport: () => $('csvFile').click(),
      catnew: () => { editingCat = '__new'; renderOptions(); }, catedit: () => { editingCat = n; renderOptions(); },
      catcancel: () => { editingCat = null; renderOptions(); },
      catsave: () => saveCat(n), catdel: () => delCat(n) })[b.dataset.act]();
@@ -639,8 +667,8 @@ function renderMenu() {
   const today = WS === cur ? (new Date().getDay() + 6) % 7 : -1;
   $('menuDays').innerHTML = MENU.map((day, i) => `<div class="day${i === today ? ' today' : ''}"><h3>${DAYS[i]} <span>${addDays(mon, i).getDate()}</span>${i === today ? '<em>Hoy</em>' : ''}</h3>` +
     MEALS.map(([k, label, ic]) => {
-      const id = day[k], r = id && RECIPES.find(x => x.id === id);
-      return `<button class="slot${id ? ' full' : ''}" data-day="${i}" data-meal="${k}" type="button"><span>${ic}</span><span class="ml">${label}</span><span class="mr">${id ? (r ? esc(r.name) : 'Receta eliminada') : '＋ Añadir'}</span></button>`;
+      const id = day[k], note = id && String(id).startsWith('~'), r = id && !note && RECIPES.find(x => x.id === id);
+      return `<button class="slot${id ? ' full' : ''}" data-day="${i}" data-meal="${k}" type="button"><span>${ic}</span><span class="ml">${label}</span><span class="mr${note ? ' note' : ''}">${note ? '📝 ' + esc(id.slice(1)) : id ? (r ? esc(r.name) : 'Receta eliminada') : '＋ Añadir'}</span></button>`;
     }).join('') + '</div>').join('');
 }
 async function persistWeek() {
@@ -661,6 +689,8 @@ function openPicker(day, meal) {
   $('pickBody').innerHTML = `<div class="editbar"><div class="sheet-top"><h2>${ic} ${DAYS[day]} · ${label}</h2><button class="btn secondary" data-pact="close">Cerrar</button></div>
     <input id="pickSearch" type="search" placeholder="Buscar receta…" autocomplete="off">
     ${cur ? `<div class="row">${RECIPES.some(r => r.id === cur) ? '<button class="btn secondary" data-pact="view">Ver receta</button>' : ''}<button class="btn danger" data-pact="remove">Quitar</button></div>` : ''}</div>
+    <div class="noterow"><input id="pickNote" maxlength="60" placeholder="Nota: comer fuera, sobras…" value="${cur && String(cur).startsWith('~') ? esc(cur.slice(1)) : ''}"><button class="btn" data-pact="note" type="button">Poner</button></div>
+    <div class="chips" style="margin-bottom:6px"><button class="chip" data-pact="quick" data-text="Comer fuera" type="button">🍴 Comer fuera</button><button class="chip" data-pact="quick" data-text="Sobras" type="button">🥡 Sobras</button><button class="chip" data-pact="quick" data-text="Ayuno" type="button">⏭️ Saltar</button></div>
     <div id="pickList"></div>`;
   renderPickList(); $('pickModal').classList.add('show');
 }
@@ -680,24 +710,45 @@ $('pickBody').addEventListener('click', e => {
   const it = e.target.closest('.pick');
   if (it) { setSlot(pick.day, pick.meal, it.dataset.id); return $('pickModal').classList.remove('show'); }
   const b = e.target.closest('[data-pact]'); if (!b) return;
+  if (b.dataset.pact === 'note') { const t = $('pickNote').value.trim(); if (!t) return; setSlot(pick.day, pick.meal, '~' + t); }
+  if (b.dataset.pact === 'quick') setSlot(pick.day, pick.meal, '~' + b.dataset.text);
   if (b.dataset.pact === 'remove') setSlot(pick.day, pick.meal, null);
   $('pickModal').classList.remove('show');
   if (b.dataset.pact === 'view') showRecipe(MENU[pick.day][pick.meal]);
 });
 
 /* acciones de la semana */
-function fillGaps() {
-  const used = new Set(MENU.flatMap(d => MEALS.map(([k]) => d[k]).filter(Boolean))); let n = 0;
+async function fillGaps() {
+  const isRec = x => x && !String(x).startsWith('~');
+  let last = new Set();
+  try { last = new Set((await db.week(ymd(addDays(parseYmd(WS), -7)))).flatMap(d => MEALS.map(([k]) => d[k])).filter(isRec)); } catch (e) {}
+  const used = new Set(MENU.flatMap(d => MEALS.map(([k]) => d[k]).filter(isRec))); let n = 0;
   MENU.forEach(d => MEALS.forEach(([k, label]) => {
     if (d[k]) return;
     const cand = RECIPES.filter(r => (r.categories || []).includes(label));
-    const fresh = cand.filter(r => !used.has(r.id)), base = fresh.length ? fresh : cand;
-    const pool = base.flatMap(r => r.favorite ? [r, r] : [r]);
+    const tiers = [cand.filter(r => !used.has(r.id) && !last.has(r.id)), cand.filter(r => !used.has(r.id)), cand];
+    const base = tiers.find(t => t.length) || [], pool = base.flatMap(r => r.favorite ? [r, r] : [r]);
     if (!pool.length) return;
     const r = pool[Math.floor(Math.random() * pool.length)]; d[k] = r.id; used.add(r.id); n++;
   }));
   renderMenu(); if (n) persistWeek();
-  menuMsg(n ? `Se han rellenado ${n} hueco${n === 1 ? '' : 's'} (las favoritas tienen más probabilidad). Toca cualquiera para cambiarla.` : 'No hay huecos que rellenar con las categorías que tienes.');
+  menuMsg(n ? `Se han rellenado ${n} hueco${n === 1 ? '' : 's'}, evitando repetir y priorizando favoritas. Toca cualquiera para cambiarla.` : 'No hay huecos que rellenar con las categorías que tienes.');
+}
+async function shareMenu() {
+  const mon = parseYmd(WS), fmt = d => d.toLocaleDateString('es', { day: 'numeric', month: 'short' });
+  let t = `*Menú ${fmt(mon)} – ${fmt(addDays(mon, 6))}*`, any = false;
+  MENU.forEach((d, i) => {
+    const items = MEALS.filter(([k]) => d[k]).map(([k, l, ic]) => {
+      const v = d[k], r = !String(v).startsWith('~') && RECIPES.find(x => x.id === v);
+      const name = String(v).startsWith('~') ? v.slice(1) : r && r.name; return name ? `${ic} ${l}: ${name}` : null;
+    }).filter(Boolean);
+    if (items.length) { any = true; t += `\n\n*${DAYS[i][0] + DAYS[i].slice(1).toLowerCase()} ${addDays(mon, i).getDate()}*\n` + items.join('\n'); }
+  });
+  if (!any) return menuMsg('Esta semana no tiene nada que compartir.');
+  try {
+    if (navigator.share) await navigator.share({ title: 'Menú semanal', text: t });
+    else { await navigator.clipboard.writeText(t); menuMsg('Menú copiado. Pégalo donde quieras.'); }
+  } catch (e) { if (e.name !== 'AbortError') menuMsg('No se pudo compartir: ' + e.message, true); }
 }
 async function copyPrevWeek() {
   try {
@@ -716,7 +767,7 @@ $('menuDays').onclick = e => { const b = e.target.closest('.slot'); if (b) openP
 $('weekPrev').onclick = () => goWeek(ymd(addDays(parseYmd(WS), -7)));
 $('weekNext').onclick = () => goWeek(ymd(addDays(parseYmd(WS), 7)));
 $('weekLabel').onclick = () => goWeek(ymd(mondayOf(new Date())));
-$('mFill').onclick = fillGaps; $('mCopy').onclick = copyPrevWeek; $('mClear').onclick = clearWeek;
+$('mShare').onclick = shareMenu; $('mFill').onclick = fillGaps; $('mCopy').onclick = copyPrevWeek; $('mClear').onclick = clearWeek;
 document.addEventListener('visibilitychange', () => { if (!document.hidden && db.user) loadRecipes().then(loadWeek); });
 
 /* ============ 5. ARRANQUE ============ */
