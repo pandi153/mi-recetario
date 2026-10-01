@@ -511,59 +511,135 @@ decorate();
   }
   async function mergeAndSync(user){
     const l=localState(), c=await fetchCloud(user);
-    const deleted=new Set((l.deletedNames||[]).map(normName));
-    for(const cr of c.recipes){if(deleted.has(normName(cr.name))){const d=await db.from('recipes').delete().eq('id',cr.id).eq('user_id',user.id);if(d.error)throw d.error}}
-    c.recipes=c.recipes.filter(r=>!deleted.has(normName(r.name)));
-    const cloudByName=new Map(c.recipes.map(r=>[normName(r.name),r]));
-    const merged=[]; const idMap=new Map();
-    for(const lr of l.recipes){
-      const cr=cloudByName.get(normName(lr.name));
-      if(cr){idMap.set(String(lr.id),cr.id);merged.push({...cr,image:(lr.image||((c.settings.recipe_images||{})[String(cr.id)]))||null});}
-      else {
-        const row={user_id:user.id,name:lr.name,category:lr.category||'',servings:lr.servings,time:lr.time||'',ingredients_raw:lr.ingredients_raw||'',steps:lr.steps||'',updated_at:new Date().toISOString()};
-        const ins=await db.from('recipes').insert(row).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();
-        if(ins.error)throw ins.error;
-        idMap.set(String(lr.id),ins.data.id);merged.push({...ins.data,image:lr.image||null});
+    const normKey=x=>norm(String(x||'')).trim();
+    const deleted=new Set((l.deletedNames||[]).map(normKey));
+
+    /* Clean deleted names first. */
+    for(const cr of c.recipes){
+      if(deleted.has(normKey(cr.name))){
+        const d=await db.from('recipes').delete().eq('id',cr.id).eq('user_id',user.id);
+        if(d.error)throw d.error;
       }
     }
-    const localNames=new Set(l.recipes.map(r=>normName(r.name)));
-    for(const cr of c.recipes)if(!localNames.has(normName(cr.name)))merged.push({...cr,image:(c.settings.recipe_images||{})[String(cr.id)]||null});
+
+    /* Collapse duplicate cloud rows by recipe name. Keep the newest row;
+       when dates tie, keep the lowest id so the reference is stable. */
+    const groups=new Map();
+    for(const cr of c.recipes.filter(r=>!deleted.has(normKey(r.name)))){
+      const k=normKey(cr.name);
+      if(!k)continue;
+      if(!groups.has(k))groups.set(k,[]);
+      groups.get(k).push(cr);
+    }
+    const cloudByName=new Map();
+    for(const [k,list] of groups){
+      list.sort((a,b)=>{
+        const ta=Date.parse(a.updated_at||a.created_at||'')||0;
+        const tb=Date.parse(b.updated_at||b.created_at||'')||0;
+        return tb-ta || Number(a.id)-Number(b.id);
+      });
+      const survivor=list[0];
+      cloudByName.set(k,survivor);
+      for(const dup of list.slice(1)){
+        const d=await db.from('recipes').delete().eq('id',dup.id).eq('user_id',user.id);
+        if(d.error)throw d.error;
+      }
+    }
+
+    /* Local recipes are also collapsed before they can be uploaded. */
+    const localGroups=new Map();
+    for(const lr of l.recipes){
+      const k=normKey(lr.name);
+      if(!k)continue;
+      if(!localGroups.has(k))localGroups.set(k,[]);
+      localGroups.get(k).push(lr);
+    }
+    const localRecipes=[],localIdMap=new Map();
+    for(const [k,list] of localGroups){
+      list.sort((a,b)=>{
+        const ai=a.image?1:0,bi=b.image?1:0;
+        if(ai!==bi)return bi-ai;
+        const ta=Date.parse(a.updated_at||a.created_at||'')||0;
+        const tb=Date.parse(b.updated_at||b.created_at||'')||0;
+        return tb-ta || Number(a.id)-Number(b.id);
+      });
+      const survivor=list[0];
+      localRecipes.push(survivor);
+      for(const lr of list)localIdMap.set(String(lr.id),survivor.id);
+    }
+
+    const merged=[],idMap=new Map();
+    for(const lr of localRecipes){
+      const k=normKey(lr.name),cr=cloudByName.get(k);
+      if(cr){
+        idMap.set(String(lr.id),cr.id);
+        merged.push({...cr,...lr,id:cr.id,name:lr.name,image:lr.image||((c.settings.recipe_images_by_name||{})[k])||((c.settings.recipe_images||{})[String(cr.id)])||null,updated_at:new Date().toISOString()});
+      }else{
+        const row={user_id:user.id,name:lr.name,category:lr.category||'',servings:lr.servings||2,time:lr.time||'',ingredients_raw:lr.ingredients_raw||'',steps:lr.steps||'',updated_at:new Date().toISOString()};
+        const ins=await db.from('recipes').insert(row).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();
+        if(ins.error)throw ins.error;
+        idMap.set(String(lr.id),ins.data.id);
+        merged.push({...ins.data,image:lr.image||null});
+      }
+    }
+
+    /* Cloud-only recipes are kept. */
+    for(const [k,cr] of cloudByName){
+      if(!localGroups.has(k))merged.push({...cr,image:(c.settings.recipe_images_by_name||{})[k]||((c.settings.recipe_images||{})[String(cr.id)])||null});
+    }
+
+    /* Remap every menu reference away from duplicate/local ids. */
     const remapWeeks=Object.assign({},c.weeks);
-    Object.entries(l.weeks||{}).forEach(([wk,days])=>{
-      const base=Array.isArray(remapWeeks[wk])?remapWeeks[wk]:days.map(()=>({}));
-      const localDays=days||[];
+    Object.entries(l.weeks||{}).forEach(([wk,daysData])=>{
+      const base=Array.isArray(remapWeeks[wk])?remapWeeks[wk]:((daysData||[]).map(()=>({})));
+      const localDays=daysData||[];
       remapWeeks[wk]=base.map((day,i)=>{
-        const d={...(day||{})}; const ld=localDays[i]||{};
-        ['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(ld[m]!=null&&idMap.has(String(ld[m])))d[m]=idMap.get(String(ld[m]));});
+        const d={...(day||{})},ld=localDays[i]||{};
+        ['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{
+          if(ld[m]!=null){
+            const sid=localIdMap.get(String(ld[m]))||ld[m];
+            if(idMap.has(String(sid)))d[m]=idMap.get(String(sid));
+          }
+        });
         return d;
       });
     });
+
+    /* Update existing cloud rows by id and insert only genuinely new rows.
+       No upsert(onConflict user_id,name): the schema intentionally has no such
+       unique constraint, and that was allowing duplicate recipes. */
+    for(const r of merged){
+      const x={name:r.name,category:r.category||'',servings:r.servings||2,time:r.time||'',ingredients_raw:r.ingredients_raw||'',steps:r.steps||'',user_id:user.id,updated_at:new Date().toISOString()};
+      if(r.id){
+        const up=await db.from('recipes').update(x).eq('id',r.id).eq('user_id',user.id);
+        if(up.error)throw up.error;
+      }else{
+        const ins=await db.from('recipes').insert(x).select('id').single();
+        if(ins.error)throw ins.error;
+        r.id=ins.data.id;
+      }
+    }
+
     const images=Object.fromEntries(merged.filter(r=>r.image).map(r=>[String(r.id),r.image]));
+    const imagesByName=Object.fromEntries(merged.filter(r=>r.image).map(r=>[normKey(r.name),r.image]));
     const settings=[
       ['categories',l.settings.find(x=>x[0]==='categories')?.[1]??c.settings.categories],
       ['goals',l.settings.find(x=>x[0]==='goals')?.[1]??c.settings.goals],
       ['inventory',l.settings.find(x=>x[0]==='inventory')?.[1]??c.settings.inventory],
       ['restock',l.settings.find(x=>x[0]==='restock')?.[1]??c.settings.restock],
       ['recipe_images',images],
+      ['recipe_images_by_name',imagesByName],
       ['weekly_menus',remapWeeks]
     ].filter(x=>x[1]!=null);
-    // Save recipes before the optional legacy weeks table so a weeks-schema problem
-    // can never block recipe synchronization.
-    const rows=merged.map(r=>{const x={...r};delete x.id;delete x.image;return {...x,user_id:user.id,updated_at:new Date().toISOString()}});
-    if(rows.length){
-      const up=await db.from('recipes').upsert(rows,{onConflict:'user_id,name'});
-      if(up.error){
-        for(const r of merged){
-          const x={name:r.name,category:r.category||'',servings:r.servings,time:r.time||'',ingredients_raw:r.ingredients_raw||'',steps:r.steps||'',user_id:user.id,updated_at:new Date().toISOString()};
-          const up1=await db.from('recipes').update(x).eq('id',r.id).eq('user_id',user.id);
-          if(up1.error)throw up1.error;
-        }
-      }
-    }
+
     await pushWeeks(user,remapWeeks);
     await pushShopping(user,l.checked && Object.keys(l.checked).length?l.checked:c.checked);
     await pushSettings(user,settings);
-    writeLocal('recetario_recipes',merged);writeLocal('recetario_weeks',remapWeeks);writeLocal('recetario_checked',l.checked && Object.keys(l.checked).length?l.checked:c.checked);writeLocal('recetario_deleted_recipe_names',[]);
+
+    writeLocal('recetario_recipes',merged);
+    writeLocal('recetario_weeks',remapWeeks);
+    writeLocal('recetario_checked',l.checked && Object.keys(l.checked).length?l.checked:c.checked);
+    writeLocal('recetario_deleted_recipe_names',[]);
     for(const [k,v] of settings)writeLocal('recetario_'+k,v);
     if(window.renderInventory)window.renderInventory();
   }
@@ -702,6 +778,166 @@ decorate();
   const oldShopping=window.renderShopping;
   if(typeof oldShopping==='function')window.renderShopping=function(){oldShopping();const box=document.getElementById('shopping');if(!box)return;const rest=readJson(RESTOCK,[]);if(!Array.isArray(rest)||!rest.length)return;const existing=new Set([...box.querySelectorAll('.shop .item')].map(x=>clean(x.textContent).replace(/✓ ya en despensa|🔄 reponer/g,'').trim()));rest.forEach(x=>{const n=clean(x.name);if(!n||existing.has(n))return;const qty=Number(x.qty)||1,q=Math.abs(qty-Math.round(qty))<.001?String(Math.round(qty)):String(Math.round(qty*100)/100),key='restock|'+n+'|'+clean(x.unit),qtyText=qty===1?'':'× '+q+(x.unit?' '+esc(x.unit):'');const row=document.createElement('label');row.className='shop restock-item';row.innerHTML=`<input type="checkbox" data-key="${escAttr(key)}"><span class="item">${esc(x.name)}<span class="pantry-badge">🔄 Reponer</span></span><span class="qty">${qtyText}</span>`;const input=row.querySelector('input');input.onchange=()=>{const current=readJson(RESTOCK,[]);if(input.checked)writeJson(RESTOCK,current.filter(y=>!(clean(y.name)===n&&clean(y.unit)===clean(x.unit))));window.renderShopping();};box.appendChild(row);});const notice=document.querySelector('#shopTab .notice');if(notice&&!document.getElementById('restockNotice')){notice.id='restockNotice';notice.textContent='Al usar una receta desde su ficha, la app descuenta automáticamente lo que encuentre en la despensa y añade a Compra lo que falte o se agote.';}};
   window.renderShopping?.();
+})();
+</script>
+
+<script id="recipeStabilityFix">
+(function(){
+  'use strict';
+  const $=id=>document.getElementById(id);
+  const keyName=x=>norm(String(x||'')).replace(/\s+/g,' ').trim();
+  const recipeKey='recetario_recipes';
+
+  function readRecipes(){
+    try{const v=JSON.parse(localStorage.getItem(recipeKey)||'[]');return Array.isArray(v)?v:[]}
+    catch(e){return[]}
+  }
+  function writeRecipes(v){localStorage.setItem(recipeKey,JSON.stringify(v))}
+  function dedupeLocalRecipes(){
+    const all=readRecipes(),groups=new Map(),idMap=new Map(),out=[];
+    all.forEach(r=>{const k=keyName(r.name);if(!k)return;if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r)});
+    groups.forEach(list=>{
+      list.sort((a,b)=>{
+        if(Boolean(a.image)!==Boolean(b.image))return Boolean(b.image)-Boolean(a.image);
+        const ta=Date.parse(a.updated_at||a.created_at||'')||0,tb=Date.parse(b.updated_at||b.created_at||'')||0;
+        return tb-ta||Number(a.id)-Number(b.id);
+      });
+      const keep=list[0];out.push(keep);
+      list.forEach(r=>idMap.set(String(r.id),keep.id));
+    });
+    if(out.length!==all.length){
+      try{
+        const weeks=JSON.parse(localStorage.getItem('recetario_weeks')||'{}')||{};
+        Object.keys(weeks).forEach(k=>weeks[k]=(weeks[k]||[]).map(day=>{
+          const d={...(day||{})};
+          ['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]))});
+          return d;
+        }));
+        localStorage.setItem('recetario_weeks',JSON.stringify(weeks));
+      }catch(e){}
+      writeRecipes(out);
+    }
+    return out;
+  }
+
+  recipes=dedupeLocalRecipes();
+
+  function imageInputHtml(src){
+    return '<div class="field"><label>Foto de la receta</label><div id="recipePhotoPreview" style="height:150px;border:1px solid var(--border);border-radius:14px;background:var(--surface2);display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:9px">'+
+      (src?'<img src="'+escAttr(src)+'" alt="" style="width:100%;height:100%;object-fit:cover">':'<span style="font-size:48px">🥘</span>')+
+      '</div><input id="recipePhotoInput" type="file" accept="image/*" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:11px;background:var(--surface2);color:var(--text)"><small style="display:block;color:var(--muted);margin-top:6px">La foto se guarda con la receta y se sincroniza por nombre.</small></div>';
+  }
+
+  function attachPhoto(){
+    const inp=$('recipePhotoInput');if(!inp)return;
+    inp.onchange=e=>{
+      const f=e.target.files&&e.target.files[0];if(!f)return;
+      const rd=new FileReader();
+      rd.onload=()=>{const im=new Image();im.onload=()=>{
+        const k=Math.min(1,900/Math.max(im.width,im.height)),c=document.createElement('canvas');
+        c.width=Math.max(1,Math.round(im.width*k));c.height=Math.max(1,Math.round(im.height*k));
+        c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+        window.__pandiPendingImage=c.toDataURL('image/jpeg',.8);
+        const pv=$('recipePhotoPreview');if(pv)pv.innerHTML='<img src="'+escAttr(window.__pandiPendingImage)+'" alt="" style="width:100%;height:100%;object-fit:cover">';
+      };im.src=rd.result};
+      rd.readAsDataURL(f);
+    };
+  }
+
+  editRecipe=function(id){
+    const current=recipes.find(r=>String(r.id)===String(id));
+    const r=current||{id:null,name:'',category:'',servings:2,time:'',ingredients_raw:'',steps:'',image:null};
+    window.__pandiEditingRecipeId=r.id;
+    window.__pandiPendingImage=r.image||'';
+    const ingredients=parseIngredients(r.ingredients_raw);
+    const list=ingredients.length?ingredients:[''];
+    $('modalTitle').textContent=r.id?'Editar receta':'Nueva receta';
+    $('modalBody').innerHTML=
+      '<div class="field"><label>Nombre</label><input id="fName" value="'+escAttr(r.name)+'"></div>'+
+      '<div class="field"><label>Categorías</label><input id="fCat" value="'+escAttr(r.category||'')+'" placeholder="Ej.: Comida, Pescado"></div>'+
+      '<div class="field"><label>Raciones</label><input id="fServ" type="number" min="1" value="'+escAttr(r.servings||2)+'"></div>'+
+      '<div class="field"><label>Tiempo</label><input id="fTime" value="'+escAttr(r.time||'')+'"></div>'+
+      imageInputHtml(window.__pandiPendingImage)+
+      '<div class="field"><label>Ingredientes</label><div id="ingredientList" style="display:grid;gap:8px"></div><button type="button" class="btn secondary" id="addIngredient" style="margin-top:9px;width:100%;text-align:left">＋ Ingrediente</button></div>'+
+      '<div class="field"><label>Preparación</label><textarea id="fSteps">'+esc(r.steps||'')+'</textarea></div>'+
+      '<div class="actions"><button type="button" class="btn secondary" id="cancelEdit">Cancelar</button><button type="button" class="btn" id="saveEdit">Guardar</button></div>'+
+      (r.id?'<button type="button" class="btn secondary" id="deleteRecipeBtn" style="width:100%;margin-top:8px;color:#ffb4ab;border-color:#8b3b33">🗑️ Eliminar receta</button>':'');
+    const renderIngredients=()=>{
+      $('ingredientList').innerHTML=list.map((x,i)=>
+        '<div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid var(--border);border-radius:12px;background:var(--surface2)"><span style="font-size:20px;color:var(--muted)">☰</span><input data-stable-ing="'+i+'" value="'+escAttr(x)+'" placeholder="Ingrediente '+(i+1)+'" style="flex:1;border:0;outline:0;background:transparent;color:var(--text);font:inherit;min-width:0"><button type="button" data-stable-del="'+i+'" style="border:0;background:none;font-size:20px;color:var(--muted);cursor:pointer">×</button></div>'
+      ).join('');
+      document.querySelectorAll('[data-stable-ing]').forEach(inp=>inp.oninput=()=>{list[+inp.dataset.stableIng]=inp.value});
+      document.querySelectorAll('[data-stable-del]').forEach(btn=>btn.onclick=()=>{list.splice(+btn.dataset.stableDel,1);if(!list.length)list.push('');renderIngredients()});
+    };
+    renderIngredients();
+    $('addIngredient').onclick=()=>{list.push('');renderIngredients();document.querySelector('[data-stable-ing="'+(list.length-1)+'"]')?.focus()};
+    $('cancelEdit').onclick=closeModal;
+    $('saveEdit').onclick=()=>{
+      const name=$('fName').value.trim();if(!name)return alert('Escribe un nombre');
+      const obj={id:r.id||('local_'+Date.now()),name,category:$('fCat').value.trim(),servings:Number($('fServ').value)||2,time:$('fTime').value.trim(),ingredients_raw:list.map(x=>x.trim()).filter(Boolean).join('\n'),steps:$('fSteps').value.trim(),image:window.__pandiPendingImage||null,updated_at:new Date().toISOString()};
+      const idx=recipes.findIndex(x=>String(x.id)===String(r.id));
+      if(idx>=0)recipes[idx]=obj;else recipes.push(obj);
+      recipes=dedupeLocalRecipes();
+      writeRecipes(recipes);closeModal();renderRecipes();renderMenu();renderShopping();renderStats();
+    };
+    if($('deleteRecipeBtn'))$('deleteRecipeBtn').onclick=()=>deleteRecipeStable(r.id);
+    $('modal').classList.add('show');
+    attachPhoto();
+  };
+
+  function deleteRecipeStable(id){
+    const target=recipes.find(r=>String(r.id)===String(id));if(!target)return;
+    if(!confirm('¿Eliminar "'+target.name+'"? También se quitará de los menús semanales.'))return;
+    const name=target.name;
+    recipes=recipes.filter(r=>String(r.id)!==String(id));
+    try{
+      const weeks=JSON.parse(localStorage.getItem('recetario_weeks')||'{}')||{};
+      Object.keys(weeks).forEach(k=>weeks[k]=(weeks[k]||[]).map(day=>{
+        const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(String(d[m]||'')===String(id))d[m]=null});return d;
+      }));
+      localStorage.setItem('recetario_weeks',JSON.stringify(weeks));
+    }catch(e){}
+    const deleted=(()=>{try{return JSON.parse(localStorage.getItem('recetario_deleted_recipe_names')||'[]')}catch(e){return[]}})();
+    if(!deleted.some(x=>keyName(x)===keyName(name)))deleted.push(name);
+    localStorage.setItem('recetario_deleted_recipe_names',JSON.stringify(deleted));
+    closeModal();renderRecipes();renderMenu();renderShopping();renderStats();
+    window.dispatchEvent(new CustomEvent('pandi:recipe-deleted',{detail:{name}}));
+  }
+
+  openRecipe=function(id){
+    const r=recipes.find(x=>String(x.id)===String(id));if(!r)return;
+    $('modalTitle').textContent=r.name;
+    const ings=parseIngredients(r.ingredients_raw);
+    $('modalBody').innerHTML=
+      (r.image?'<div style="height:180px;border-radius:14px;overflow:hidden;margin-bottom:12px"><img src="'+escAttr(r.image)+'" alt="" style="width:100%;height:100%;object-fit:cover"></div>':'')+
+      '<div class="meta"><span>👥 '+(r.servings||'—')+' raciones</span><span>⏱️ '+esc(r.time||'—')+'</span><span>🏷️ '+esc(r.category||'')+'</span></div>'+
+      '<h3>Ingredientes</h3><div class="ingredients">'+(ings.length?ings.map(x=>'<div class="ing">'+esc(x)+'</div>').join(''):'<div class="empty">Esta receta todavía no tiene ingredientes.</div>')+'</div>'+
+      '<h3>Preparación</h3><div>'+(r.steps?esc(r.steps).split(/\n/).map(x=>'<div class="step">'+x+'</div>').join(''):'<div class="empty">Todavía no hay pasos de preparación.</div>')+'</div>'+
+      '<div class="actions"><button type="button" class="btn secondary" id="stableEditRecipe">✏️ Editar</button><button type="button" class="btn secondary" id="stableDeleteRecipe" style="color:#ffb4ab;border-color:#8b3b33">🗑️ Eliminar</button></div>';
+    $('stableEditRecipe').onclick=()=>editRecipe(r.id);
+    $('stableDeleteRecipe').onclick=()=>deleteRecipeStable(r.id);
+    $('modal').classList.add('show');
+  };
+
+  renderRecipes=function(){
+    const q=norm($('search')?.value||'');
+    let arr=recipes.filter(r=>{
+      const hay=norm([r.name,r.category,r.ingredients_raw,r.steps].join(' '));
+      return !q||q.split(/\s+/).filter(Boolean).every(w=>hay.includes(w));
+    });
+    $('recipeCount').textContent=arr.length+' receta'+(arr.length===1?'':'s')+' · '+recipes.length+' en total';
+    const grid=$('recipeGrid');
+    if(!arr.length){grid.innerHTML='<div class="empty">No encuentro recetas con esos filtros.</div>';return}
+    grid.innerHTML=arr.map(r=>'<article class="card" data-id="'+escAttr(r.id)+'"><div class="photo">'+(r.image?'<img src="'+escAttr(r.image)+'" alt="" style="width:100%;height:100%;object-fit:cover">':'🥘')+'</div><h3>'+esc(r.name)+'</h3><div class="meta"><span>👥 '+(r.servings||'—')+'</span><span>⏱️ '+esc(r.time||'—')+'</span></div><div class="tags">'+String(r.category||'').split(',').filter(Boolean).slice(0,4).map(x=>'<span class="tag">'+esc(x.trim())+'</span>').join('')+'</div></article>').join('');
+    grid.querySelectorAll('.card').forEach(c=>c.onclick=()=>openRecipe(c.dataset.id));
+  };
+  window.renderRecipes=renderRecipes;
+
+  /* Re-render once after cleaning duplicates. */
+  renderRecipes();
+
+  /* The previous automation added this button to recipe sheets. The stable
+     recipe view above deliberately does not include it. */
 })();
 </script>
 </body></html>
