@@ -122,8 +122,8 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 let pendingRecipeImage='';const baseEditRecipe=editRecipe;editRecipe=function(id){const old=recipes.find(x=>x.id===id);pendingRecipeImage=old?.image||'';try{baseEditRecipe(id)}catch(e){console.error(e);alert('No se ha podido abrir el editor de recetas.')}if(!document.getElementById('modalBody'))return;const body=document.getElementById('modalBody');const first=body.querySelector('.field');if(!first)return;const photo=document.createElement('div');photo.className='field';photo.innerHTML=`<label>Foto de la receta</label><div id="recipePhotoPreview" style="height:150px;border:1px solid var(--border);border-radius:14px;background:var(--surface2);display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:9px">${pendingRecipeImage?`<img src="${escAttr(pendingRecipeImage)}" alt="" style="width:100%;height:100%;object-fit:cover">`:'<span style="font-size:48px">🥘</span>'}</div><input id="recipePhotoInput" type="file" accept="image/*" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:11px;background:var(--surface2);color:var(--text)"><small style="display:block;color:var(--muted);margin-top:6px">Añade una foto y aparecerá en la ficha del recetario.</small>`;body.insertBefore(photo,first);document.getElementById('recipePhotoInput').onchange=e=>{const file=e.target.files?.[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{pendingRecipeImage=reader.result;document.getElementById('recipePhotoPreview').innerHTML=`<img src="${escAttr(pendingRecipeImage)}" alt="" style="width:100%;height:100%;object-fit:cover">`};reader.readAsDataURL(file)};document.getElementById('saveEdit')?.addEventListener('click',()=>setTimeout(()=>{const name=document.getElementById('fName')?.value.trim();const target=id?recipes.find(x=>x.id===id):recipes.find(x=>x.name===name);if(target){target.image=pendingRecipeImage||null;save();renderRecipes();}},0));};const baseRenderRecipes=renderRecipes;renderRecipes=function(){baseRenderRecipes();document.querySelectorAll('#recipeGrid .card').forEach(c=>{const r=recipes.find(x=>x.id===+c.dataset.id);if(r?.image){const p=c.querySelector('.photo');p.innerHTML=`<img src="${escAttr(r.image)}" alt="">`;}})};
 function exportRecipesToExcel(){const rows=recipes.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.category||'')}</td><td>${esc(r.servings||'')}</td><td>${esc(r.time||'')}</td><td>${esc(r.ingredients_raw||'').replace(/\n/g,'<br>')}</td><td>${esc(r.steps||'').replace(/\n/g,'<br>')}</td></tr>`).join('');const html=`<html><head><meta charset="UTF-8"></head><body><table border="1"><tr><th>Receta</th><th>Categorías</th><th>Raciones</th><th>Tiempo</th><th>Ingredientes</th><th>Preparación</th></tr>${rows}</table>
 
-</body></html>`;const blob=new Blob(['\ufeff',html],{type:'application/vnd.ms-excel;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='Panda-recetas.xls';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},0)}
-document.getElementById('search').oninput=renderRecipes;document.getElementById('downloadExcel').onclick=exportRecipesToExcel;document.getElementById('openDatabase').onclick=()=>window.open('https://github.com/pandi153/mi-recetario','_blank','noopener');document.getElementById('addBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('fab').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('closeModal').onclick=closeModal;document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')closeModal()};document.getElementById('clearMenu').onclick=()=>{menu=days.map(()=>({}));save();renderMenu();renderShopping();renderStats()};document.getElementById('newWeek').onclick=()=>{const d=new Date(`${selectedWeek}T00:00:00`);d.setDate(d.getDate()+7);const k=weekKey(d);if(!weeks[k])weeks[k]=days.map(()=>({}));selectedWeek=k;menu=weeks[k];save();renderMenu();renderShopping();renderStats()};document.getElementById('clearShop').onclick=()=>{checked={};save();renderShopping()};document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.getElementById(b.dataset.tab).classList.add('active');document.body.classList.toggle('menu-mode',b.dataset.tab==='menuTab');const fab=document.getElementById('fab');if(fab){if(b.dataset.tab==='pantryTab'){fab.textContent='🧊';fab.title='Añadir alimento';fab.setAttribute('aria-label','Añadir alimento');fab.onclick=e=>{e.preventDefault();e.stopPropagation();window.__newInventory()}}else{fab.textContent='＋';fab.title='Crear receta';fab.setAttribute('aria-label','Crear receta');fab.onclick=e=>{e.preventDefault();e.stopPropagation();editRecipe(null)}}}if(b.dataset.tab==='statsTab')renderStats();if(b.dataset.tab==='pantryTab'&&window.renderInventory)window.renderInventory()});refreshRecipeFilters();if('serviceWorker' in navigator){navigator.serviceWorker.register('./service-worker.js?v=19',{updateViaCache:'none'}).catch(()=>{});}
+>`;const blob=new Blob(['\ufeff',html],{type:'application/vnd.ms-excel;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='Panda-recetas.xls';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},0)}
+document.getElementById('search').oninput=renderRecipes;document.getElementById('downloadExcel').onclick=exportRecipesToExcel;document.getElementById('openDatabase').onclick=()=>window.open('https://github.com/pandi153/mi-recetario','_blank','noopener');document.getElementById('addBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('fab').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('closeModal').onclick=closeModal;document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')closeModal()};document.getElementById('clearMenu').onclick=()=>{menu=days.map(()=>({}));save();renderMenu();renderShopping();renderStats()};document.getElementById('newWeek').onclick=()=>{const d=new Date(`${selectedWeek}T00:00:00`);d.setDate(d.getDate()+7);const k=weekKey(d);if(!weeks[k])weeks[k]=days.map(()=>({}));selectedWeek=k;menu=weeks[k];save();renderMenu();renderShopping();renderStats()};document.getElementById('clearShop').onclick=()=>{checked={};save();renderShopping()};document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.getElementById(b.dataset.tab).classList.add('active');document.body.classList.toggle('menu-mode',b.dataset.tab==='menuTab');const fab=document.getElementById('fab');if(fab){if(b.dataset.tab==='pantryTab'){fab.textContent='🧊';fab.title='Añadir alimento';fab.setAttribute('aria-label','Añadir alimento');fab.onclick=e=>{e.preventDefault();e.stopPropagation();window.__newInventory()}}else{fab.textContent='＋';fab.title='Crear receta';fab.setAttribute('aria-label','Crear receta');fab.onclick=e=>{e.preventDefault();e.stopPropagation();editRecipe(null)}}}if(b.dataset.tab==='statsTab')renderStats();if(b.dataset.tab==='pantryTab'&&window.renderInventory)window.renderInventory()});refreshRecipeFilters();if('serviceWorker' in navigator){navigator.serviceWorker.register('./service-worker.js?v=23',{updateViaCache:'none'}).catch(()=>{});}
 renderRecipes();renderMenu();renderShopping();
 </script>
 <script>
@@ -883,7 +883,6 @@ decorate();
         if(q.error)throw q.error;row=q.data;idMap.set(String(r.id),row.id);saved.push({...row,image:r.image||imgs[k]||null});
       }
       const ws=state('weeks',{})||{};
-      for(const [wk,daysData] of Object.entries(ws)){const data=(daysData||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]));});return d});const q=await db.from('weeks').upsert({user_id:u.id,week_key:wk,data,updated_at:new Date().toISOString()},{onConflict:'user_id,week_key'});if(q.error&&!/weeks|data|column|schema cache/i.test(String(q.error.message||q.error)))throw q.error}
       const settingsKeys=['categories','goals','inventory','restock','recipe_images_by_name','weekly_menus'];
       for(const key of settingsKeys){const value=state(key,null);if(value==null)continue;const q=await db.from('settings').upsert({user_id:u.id,key,value,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});if(q.error)throw q.error}
       const sh=await db.from('shopping').upsert({user_id:u.id,data:state('checked',{})||{},updated_at:new Date().toISOString()},{onConflict:'user_id'});if(sh.error)throw sh.error;
@@ -901,6 +900,11 @@ decorate();
   window.addEventListener('load',()=>setTimeout(()=>currentUser().then(u=>u?loadCloud().catch(e=>{console.error(e);status('☁️ Error de carga','err');message('No se pueden cargar los datos: '+(e.message||String(e)))}):showAuth()),150));
 })();
 </script>
+
+
+
+
+
 <script id="pandiFinalMenuCloudFix">
 (function(){
   'use strict';
@@ -951,10 +955,11 @@ decorate();
   }
   function goWeekFixed(key,save){
     if(!key)return;
-    if(!weeks[key])weeks[key]=days.map(()=>({}));
+    const created=!weeks[key];
+    if(created)weeks[key]=days.map(()=>({}));
     selectedWeek=key;menu=weeks[key];
     renderMenu();renderShopping();renderStats();
-    if(save)queueMenus();
+    if(save||created)queueMenus();
   }
   function renderMenuFixed(){
     addMenuCloudButton();
@@ -1060,6 +1065,116 @@ decorate();
   if(oldSetTab){window.setTab=function(...a){const r=oldSetTab.apply(this,a);setTimeout(()=>{if($('menuTab')?.classList.contains('active'))addMenuCloudButton()},0);return r};}
   document.addEventListener('click',()=>{if($('menuTab')?.classList.contains('active'))addMenuCloudButton()},{passive:true});
   setTimeout(()=>{addMenuCloudButton();bindButtons();if(typeof weeks!=='undefined'&&typeof recipes!=='undefined')renderMenu();},50);
+})();
+</script>
+
+
+<script id="menuCurrentWeekOnlyV24">
+(function(){
+  'use strict';
+  const SUPABASE_URL='https://hgjojgxspclmuwaeenjq.supabase.co';
+  const SUPABASE_KEY='sb_publishable_LPRAkNBsVLKUZLDfAMD6dQ_kaMErp_2';
+  const cloudV24=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+  const $=id=>document.getElementById(id);
+  let saveTimer=null, saving=false;
+  const clone=x=>JSON.parse(JSON.stringify(x==null?{}:x));
+  function currentKey(){return weekKey(new Date());}
+  function ensureCurrent(){
+    const k=currentKey();
+    selectedWeek=k;
+    if(!weeks[k])weeks[k]=days.map(()=>({}));
+    menu=weeks[k];
+    return k;
+  }
+  function cloudMsg(t,err){
+    const a=$('cloudStatus'),b=$('menuCloudStatus');
+    [a,b].forEach(e=>{if(e){e.textContent=t;e.classList.toggle('err',!!err);e.classList.toggle('ok',!err)}});
+  }
+  async function saveCurrentMenu(){
+    if(saving)return;
+    saving=true;
+    try{
+      const {data:{session},error:se}=await cloudV24.auth.getSession();
+      if(se)throw se;
+      if(!session?.user)throw new Error('No hay una sesión iniciada.');
+      const k=ensureCurrent();
+      const snapshot={[k]:clone(weeks[k])};
+      const r=await cloudV24.from('settings').upsert({
+        user_id:session.user.id,
+        key:'weekly_menus',
+        value:snapshot,
+        updated_at:new Date().toISOString()
+      },{onConflict:'user_id,key'});
+      if(r.error)throw r.error;
+      cloudMsg('☁️ Menú guardado',false);
+    }catch(e){
+      console.error('Menú v24:',e);
+      cloudMsg('☁️ Error al guardar',true);
+      const m=$('authMessage');if(m)m.textContent='Error al guardar el menú: '+(e.message||String(e));
+    }finally{saving=false}
+  }
+  function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveCurrentMenu,120)}
+  window.__pandiSaveMenuCloud=saveCurrentMenu;
+  window.__pandiSaveMenuCloudNow=saveCurrentMenu;
+
+  function bindCurrentWeek(){
+    document.querySelectorAll('select[data-day][data-meal]').forEach(s=>{
+      s.onchange=()=>{
+        const k=ensureCurrent();
+        if(!weeks[k][+s.dataset.day])weeks[k][+s.dataset.day]={};
+        weeks[k][+s.dataset.day][s.dataset.meal]=s.value?Number(s.value):null;
+        menu=weeks[k];
+        renderShopping();renderStats();
+        scheduleSave();
+      };
+    });
+  }
+
+  const baseRender=window.renderMenu;
+  window.renderMenu=function(){
+    ensureCurrent();
+    baseRender?.();
+    const bar=document.querySelector('.weekbar');
+    if(bar)bar.style.display='none';
+    const title=document.querySelector('#menuTab .section-head h2');
+    if(title)title.textContent='Menú · Semana actual';
+    const nw=$('newWeek'),prev=$('prevWeek'),next=$('nextWeek'),cur=$('currentWeek'),sel=$('weekSelect');
+    [nw,prev,next,cur].forEach(e=>{if(e)e.style.display='none'});
+    if(sel){sel.style.display='none'}
+    bindCurrentWeek();
+  };
+
+  // Only the current week is exposed. Existing cloud data for other weeks is ignored.
+  async function normalizeAfterCloudLoad(){
+    try{
+      const u=(await cloudV24.auth.getSession()).data.session?.user;
+      if(!u)return;
+      const r=await cloudV24.from('settings').select('value').eq('user_id',u.id).eq('key','weekly_menus').maybeSingle();
+      if(r.error)throw r.error;
+      const k=ensureCurrent();
+      const v=r.data?.value;
+      if(v&&typeof v==='object'&&Array.isArray(v[k])){
+        weeks={[k]:v[k]};menu=weeks[k];
+      }else{
+        weeks={[k]:weeks[k]||days.map(()=>({}))};menu=weeks[k];
+      }
+      renderMenu();renderShopping();renderStats();
+    }catch(e){console.error('Carga menú v24:',e)}
+  }
+  const oldCloudLoad=window.__pandiCloudLoad;
+  window.__pandiCloudLoad=async function(){
+    const result=await oldCloudLoad?.();
+    await normalizeAfterCloudLoad();
+    return result;
+  };
+
+  // If the user is already logged in when this script runs, apply immediately.
+  setTimeout(async()=>{
+    try{
+      const s=await cloudV24.auth.getSession();
+      if(s.data.session){ensureCurrent();renderMenu();}
+    }catch(e){}
+  },150);
 })();
 </script>
 </body></html>
