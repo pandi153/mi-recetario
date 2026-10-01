@@ -145,9 +145,17 @@ document.getElementById('generateAi').onclick=makeAiProposal;document.getElement
   document.getElementById('configureGoals').onclick=()=>{statsConfigOpen=true;renderStats();setTimeout(()=>document.querySelector('.goals-card')?.scrollIntoView({behavior:'smooth',block:'start'}),50)};
   document.getElementById('downloadExcel').textContent='⬇️';
   document.getElementById('downloadExcel').onclick=async()=>{
-    try{if(window.__syncNow)await window.__syncNow()}catch(e){console.warn('No se pudo sincronizar antes de exportar',e)}
+    try{if(window.__syncRecipesDirect)await window.__syncRecipesDirect();else if(window.__syncNow)await window.__syncNow()}catch(e){console.warn('No se pudo sincronizar antes de exportar',e)}
     const q=v=>`"${String(v??'').replace(/"/g,'""').replace(/\n/g,' ')}`+'"';
-    const rows=[['Receta','Categorías','Raciones','Tiempo','Ingredientes','Preparación'],...recipes.map(r=>[r.name,r.category||'',r.servings||'',r.time||'',r.ingredients_raw||'',r.steps||''])];
+    const seen=new Set();
+    const exportRecipes=(Array.isArray(recipes)?recipes:[]).filter(r=>{
+      const name=String(r?.name||'').trim();
+      const key=norm(name).replace(/\s+/g,' ');
+      if(!key||seen.has(key))return false;
+      seen.add(key);
+      return true;
+    });
+    const rows=[['Receta','Categorías','Raciones','Tiempo','Ingredientes','Preparación'],...exportRecipes.map(r=>[r.name,r.category||'',r.servings||'',r.time||'',r.ingredients_raw||'',r.steps||''])];
     const csv='\ufeff'+rows.map(row=>row.map(q).join(';')).join('\r\n');
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
     a.href=url;a.download='Panda-recetas.csv';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},1000);
@@ -478,6 +486,7 @@ decorate();
   });
   const writeLocal=(k,v)=>{suppress=true;try{localStorage.setItem(k,JSON.stringify(v))}finally{suppress=false}};
   const normName=x=>norm(String(x||''));
+  let recipeSyncing=false;
   async function session(){return (await db.auth.getSession()).data.session}
   async function pushWeeks(user,weeks){
     const rows=Object.entries(weeks||{}).map(([week_key,data])=>({user_id:user.id,week_key,data,updated_at:new Date().toISOString()}));
@@ -643,11 +652,72 @@ decorate();
     for(const [k,v] of settings)writeLocal('recetario_'+k,v);
     if(window.renderInventory)window.renderInventory();
   }
+  async function syncRecipesDirect(){
+    if(recipeSyncing)return;
+    const s=await session();if(!s)return;
+    recipeSyncing=true;
+    try{
+      const l=localState();
+      const cr=await db.from('recipes').select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').eq('user_id',s.user.id).order('id');
+      if(cr.error)throw cr.error;
+      const deleted=new Set((l.deletedNames||[]).map(normName));
+      for(const row of cr.data||[]){
+        if(deleted.has(normName(row.name))){
+          const d=await db.from('recipes').delete().eq('id',row.id).eq('user_id',s.user.id);
+          if(d.error)throw d.error;
+        }
+      }
+      const cloud=(cr.data||[]).filter(r=>!deleted.has(normName(r.name)));
+      const groups=new Map();
+      cloud.forEach(r=>{const k=normName(r.name);if(!k)return;(groups.get(k)||groups.set(k,[]).get(k)).push(r)});
+      const survivors=new Map();
+      for(const [k,list] of groups){
+        list.sort((a,b)=>(Date.parse(b.updated_at||b.created_at||'')||0)-(Date.parse(a.updated_at||a.created_at||'')||0)||Number(a.id)-Number(b.id));
+        survivors.set(k,list[0]);
+        for(const dup of list.slice(1)){
+          const d=await db.from('recipes').delete().eq('id',dup.id).eq('user_id',s.user.id);
+          if(d.error)throw d.error;
+        }
+      }
+      const local=l.recipes||[];
+      const merged=[];const idMap=new Map();
+      for(const lr of local){
+        const k=normName(lr.name);if(!k||deleted.has(k))continue;
+        const old=survivors.get(k);
+        const data={name:lr.name,category:lr.category||'',servings:Number(lr.servings)||2,time:lr.time||'',ingredients_raw:lr.ingredients_raw||'',steps:lr.steps||'',user_id:s.user.id,updated_at:new Date().toISOString()};
+        let saved;
+        if(old){
+          const up=await db.from('recipes').update(data).eq('id',old.id).eq('user_id',s.user.id).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();
+          if(up.error)throw up.error;saved=up.data;
+        }else{
+          const ins=await db.from('recipes').insert(data).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();
+          if(ins.error)throw ins.error;saved=ins.data;
+        }
+        idMap.set(String(lr.id),saved.id);
+        merged.push({...saved,image:lr.image||((l.settings.find(x=>x[0]==='recipe_images_by_name')?.[1]||{})[k])||null});
+      }
+      for(const [k,row] of survivors){if(!local.some(r=>normName(r.name)===k))merged.push({...row,image:((l.settings.find(x=>x[0]==='recipe_images_by_name')?.[1]||{})[k])||null});}
+      const weeks=JSON.parse(localStorage.getItem('recetario_weeks')||'{}')||{};
+      Object.keys(weeks).forEach(wk=>weeks[wk]=(weeks[wk]||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]));});return d;}));
+      const images=Object.fromEntries(merged.filter(r=>r.image).map(r=>[String(r.id),r.image]));
+      const imagesByName=Object.fromEntries(merged.filter(r=>r.image).map(r=>[normName(r.name),r.image]));
+      await pushSettings(s.user,[['recipe_images',images],['recipe_images_by_name',imagesByName]].filter(x=>x[1]!=null));
+      writeLocal('recetario_recipes',merged);writeLocal('recetario_weeks',weeks);writeLocal('recetario_deleted_recipe_names',[]);localStorage.removeItem('recetario_recipes_dirty');
+      recipes=merged;
+      window.renderRecipes?.();window.renderMenu?.();window.renderShopping?.();window.renderStats?.();
+    }finally{recipeSyncing=false}
+  }
+  window.__syncRecipesDirect=syncRecipesDirect;
+
   async function syncNow(){
     if(syncing)return;const s=await session();if(!s)return;syncing=true;
     if(!recipes.length){const g=document.getElementById('recipeGrid');if(g)g.innerHTML='<div class="empty">☁️ Cargando tus recetas…</div>';}
     const activeTab=document.querySelector('nav button.active')?.dataset.tab||'menuTab';
     try{
+      if(localStorage.getItem('recetario_recipes_dirty')==='1'){
+        await syncRecipesDirect();
+        if(localStorage.getItem('recetario_recipes_dirty')==='1')throw new Error('No se pudieron guardar los cambios de recetas.');
+      }
       await mergeAndSync(s.user);
       setStatus('Cuenta conectada','ok');
       msg.textContent='Datos sincronizados correctamente.';
@@ -904,8 +974,8 @@ decorate();
       if(idx>=0)recipes[idx]=obj;else recipes.push(obj);
       recipes=dedupeLocalRecipes();
       try{const deleted=JSON.parse(localStorage.getItem('recetario_deleted_recipe_names')||'[]')||[];localStorage.setItem('recetario_deleted_recipe_names',JSON.stringify(deleted.filter(x=>keyName(x)!==keyName(name))))}catch(e){}
-      writeRecipes(recipes);closeModal();renderRecipes();renderMenu();renderShopping();renderStats();
-      setTimeout(()=>window.__syncNow?.(),60);
+      writeRecipes(recipes);localStorage.setItem('recetario_recipes_dirty','1');closeModal();renderRecipes();renderMenu();renderShopping();renderStats();
+      setTimeout(()=>window.__syncRecipesDirect?.(),80);
     };
     if($('deleteRecipeBtn'))$('deleteRecipeBtn').onclick=()=>deleteRecipeStable(r.id);
     $('modal').classList.add('show');
@@ -927,6 +997,7 @@ decorate();
     const deleted=(()=>{try{return JSON.parse(localStorage.getItem('recetario_deleted_recipe_names')||'[]')}catch(e){return[]}})();
     if(!deleted.some(x=>keyName(x)===keyName(name)))deleted.push(name);
     localStorage.setItem('recetario_deleted_recipe_names',JSON.stringify(deleted));
+    localStorage.setItem('recetario_recipes_dirty','1');
     closeModal();renderRecipes();renderMenu();renderShopping();renderStats();
     window.dispatchEvent(new CustomEvent('pandi:recipe-deleted',{detail:{name}}));
   }
