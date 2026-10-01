@@ -728,16 +728,16 @@ decorate();
   function schedule(){if(suppress)return;clearTimeout(syncTimer);syncTimer=setTimeout(async()=>{try{await syncNow()}catch(e){console.error(e)}},700)}
   window.__syncNow=syncNow;
   $('closeAuth').onclick=closeAuth;$('authOverlay').onclick=e=>{if(e.target===overlay)closeAuth()};
-  $('signInBtn').onclick=async()=>{const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||password.length<6){msg.textContent='Introduce un correo y una contraseña de al menos 6 caracteres.';return}if(!navigator.onLine){msg.textContent='Ahora mismo no hay conexión a Internet. Conéctate para iniciar sesión.';return}msg.textContent='Entrando…';const r=await db.auth.signInWithPassword({email,password});if(r.error){msg.textContent=r.error.message;return}msg.textContent='Conectado. Sincronizando…';await syncNow();closeAuth()};
-  $('signUpBtn').onclick=async()=>{const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||password.length<6){msg.textContent='Introduce un correo y una contraseña de al menos 6 caracteres.';return}if(!navigator.onLine){msg.textContent='Ahora mismo no hay conexión a Internet. Conéctate para crear la cuenta.';return}msg.textContent='Creando cuenta…';const r=await db.auth.signUp({email,password});if(r.error){msg.textContent=r.error.message;return}if(r.data.session){msg.textContent='Cuenta creada. Sincronizando…';await syncNow();closeAuth()}else msg.textContent='Cuenta creada. Revisa tu correo si Supabase pide confirmar la cuenta y después entra.'};
+  $('signInBtn').onclick=async()=>{const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||password.length<6){msg.textContent='Introduce un correo y una contraseña de al menos 6 caracteres.';return}if(!navigator.onLine){msg.textContent='Ahora mismo no hay conexión a Internet. Conéctate para iniciar sesión.';return}msg.textContent='Entrando…';const r=await db.auth.signInWithPassword({email,password});if(r.error){msg.textContent=r.error.message;return}msg.textContent='Conectado. Cargando datos…';if(window.__pandiCloudLoad)await window.__pandiCloudLoad();else await syncNow();closeAuth()};
+  $('signUpBtn').onclick=async()=>{const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||password.length<6){msg.textContent='Introduce un correo y una contraseña de al menos 6 caracteres.';return}if(!navigator.onLine){msg.textContent='Ahora mismo no hay conexión a Internet. Conéctate para crear la cuenta.';return}msg.textContent='Creando cuenta…';const r=await db.auth.signUp({email,password});if(r.error){msg.textContent=r.error.message;return}if(r.data.session){msg.textContent='Cuenta creada. Cargando datos…';if(window.__pandiCloudLoad)await window.__pandiCloudLoad();else await syncNow();closeAuth()}else msg.textContent='Cuenta creada. Revisa tu correo si Supabase pide confirmar la cuenta y después entra.'};
   $('signOutBtn').onclick=async()=>{await db.auth.signOut();closeAuth()};
-  db.auth.onAuthStateChange((event,s)=>{if(s){setStatus('Cuenta conectada','ok');if(event==='SIGNED_IN')setTimeout(syncNow,100)}else setStatus('No conectado','err')});
+  db.auth.onAuthStateChange((event,s)=>{if(s){setStatus('Cuenta conectada','ok');if(event==='SIGNED_IN')setTimeout(()=>window.__pandiCloudLoad?window.__pandiCloudLoad():syncNow(),100)}else setStatus('No conectado','err')});
   const originalSetItem=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){originalSetItem.call(this,key,value);if(this===localStorage&&!suppress&&/^recetario_(recipes|weeks|checked|categories|goals|inventory|restock|deleted_recipe_names|recipe_images_by_name)$/.test(key))schedule()};
   function cloudLoginNotice(){db.auth.getSession().then(({data})=>{if(!data.session&&navigator.onLine){msg.textContent='No estás conectado a la nube. Inicia sesión para guardar tus datos y usarlos en otro móvil.';$('authInfo').textContent='☁️ No estás conectado. Inicia sesión o crea una cuenta para sincronizar tus recetas, menús, lista y objetivos.';showAuth()}})}
   window.addEventListener('online',cloudLoginNotice);window.addEventListener('offline',()=>{msg.textContent='⚠️ Sin conexión a Internet. Puedes seguir usando tus datos locales; la nube se sincronizará al volver a estar conectado.';showAuth()});
   window.addEventListener('pandi:recipe-deleted',()=>{const n=window.__pandiDeletedRecipeName;if(n){writeLocal('recetario_deleted_recipe_names',[...new Set([...localState().deletedNames,n])]);schedule()}});
   window.addEventListener('load',()=>{if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.update().catch(()=>{}))).catch(()=>{});}});
-  window.addEventListener('load',()=>setTimeout(async()=>{const s=await session();setStatus(s?'Cuenta conectada':'No conectado',s?'ok':'err');cloudLoginNotice();let tab=null;try{tab=sessionStorage.getItem('pandi_active_tab');sessionStorage.removeItem('pandi_active_tab')}catch(e){};if(tab){const b=document.querySelector('nav button[data-tab=\"'+tab+'\"]');if(b)b.click()}},500));
+  window.addEventListener('load',()=>setTimeout(async()=>{const s=await session();setStatus(s?'Cuenta conectada':'No conectado',s?'ok':'err');if(s&&window.__pandiCloudLoad)window.__pandiCloudLoad().catch(e=>console.error('Carga nube',e));else cloudLoginNotice();let tab=null;try{tab=sessionStorage.getItem('pandi_active_tab');sessionStorage.removeItem('pandi_active_tab')}catch(e){};if(tab){const b=document.querySelector('nav button[data-tab=\"'+tab+'\"]');if(b)b.click()}},500));
 })();
 </script>
 <script id="finalPantryFabFix">
@@ -1143,7 +1143,7 @@ decorate();
     window.__pandiSetRecipeImage=(name,image)=>{const by={...state('recipe_images_by_name',{})},k=n(name);if(image)by[k]=image;else delete by[k];setState('recipe_images_by_name',by);const r=recipes.find(x=>n(x.name)===k),ids={...state('recipe_images',{})};if(r){if(image)ids[String(r.id)]=image;else delete ids[String(r.id)]}setState('recipe_images',ids);scheduleSave()};
     loaded=true;
     try{renderRecipes();renderMenu();renderShopping();renderStats();window.renderInventory?.()}catch(e){}
-    setStatus?.('Cuenta conectada','ok');
+    const statusEl=document.getElementById('cloudStatus');if(statusEl){statusEl.textContent='Cuenta conectada';statusEl.className='cloud-status ok'}
     return true;
   }
   async function saveCloud(){
@@ -1168,9 +1168,11 @@ decorate();
       setState('recipes',saved);recipes=saved;const remapped={};Object.entries(ws).forEach(([wk,ds])=>remapped[wk]=(ds||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]));});return d}));setState('weeks',remapped);weeks=remapped;menu=weeks[selectedWeek]||days.map(()=>({}));setState('deleted_recipe_names',[]);
     }finally{saving=false}
   }
-  window.__syncNow=async()=>{try{await loadCloud();await saveCloud();renderRecipes();renderMenu();renderShopping();renderStats();window.renderInventory?.()}catch(e){console.error(e);setStatus?.('Error de sincronización','err')}};
+  window.__pandiCloudLoad=loadCloud;
+  window.__pandiCloudSave=saveCloud;
+  window.__syncNow=async()=>{try{if(!loaded){await loadCloud();}else{await saveCloud();await loadCloud();}renderRecipes();renderMenu();renderShopping();renderStats();window.renderInventory?.()}catch(e){console.error(e);const statusEl=document.getElementById('cloudStatus');if(statusEl){statusEl.textContent='Error de sincronización';statusEl.className='cloud-status err'}}};
   window.__syncRecipesDirect=window.__syncNow;window.__pandiCloudOnly=true;
-  db.auth.getSession().then(async r=>{if(r.data?.session){try{await loadCloud()}catch(e){console.error('Carga nube',e)}}else{loaded=true;setStatus?.('No conectado','err')}}).catch(console.error);
+  db.auth.getSession().then(async r=>{if(r.data?.session){try{await loadCloud()}catch(e){console.error('Carga nube',e)}}else{loaded=true;const statusEl=document.getElementById('cloudStatus');if(statusEl){statusEl.textContent='No conectado';statusEl.className='cloud-status err'}}}).catch(console.error);
   db.auth.onAuthStateChange((event,s)=>{if(s)setTimeout(()=>loadCloud().catch(console.error),0)});
   window.addEventListener('online',()=>{if(loaded)loadCloud().catch(console.error)});
 })();
