@@ -88,6 +88,22 @@ nav button span svg{width:23px;height:23px;vertical-align:-4px}
 .rcard{position:relative}.rcard h3{padding-right:30px}
 .star{position:absolute;top:2px;right:2px;border:0;background:none;font-size:21px;padding:7px;cursor:pointer;color:var(--accent)}
 .btns2{display:flex;gap:8px}.sheet-top .btns2 .btn{padding:9px 12px}
+.weeknav{display:grid;grid-template-columns:48px 1fr 48px;gap:8px;align-items:stretch}
+.weeknav .btn{padding:0;font-size:16px}
+.weeklabel{border:1px solid #355570;border-radius:10px;background:var(--surface2);color:var(--text);font:inherit;font-weight:700;padding:8px;cursor:pointer}
+.weeklabel small{display:block;color:var(--accent);font-size:11px;font-weight:600}
+.day{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:10px;margin-bottom:10px}
+.day.today{border-color:var(--accent)}
+.day h3{margin:0 0 6px;font-size:13px;letter-spacing:.06em;color:var(--muted);display:flex;gap:8px;align-items:center}
+.day h3 span{color:var(--text)}.day h3 em{font-style:normal;background:var(--accent);color:#07192d;border-radius:99px;padding:1px 8px;font-size:11px;font-weight:700}
+.slot{display:grid;grid-template-columns:24px 78px 1fr;align-items:center;gap:6px;width:100%;text-align:left;margin:4px 0;padding:10px;border:1px dashed #355570;border-radius:9px;background:transparent;color:var(--muted);font:inherit;font-size:14px;cursor:pointer}
+.slot.full{border:1px solid #244763;background:var(--surface2);color:var(--text)}
+.slot .ml{font-size:12px;color:var(--muted)}.slot .mr{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.slot:not(.full) .mr{font-weight:400}
+.pick{display:grid;grid-template-columns:46px 1fr;gap:10px;align-items:center;width:100%;text-align:left;margin:5px 0;padding:7px;border:1px solid #244763;border-radius:10px;background:var(--surface2);color:var(--text);font:inherit;cursor:pointer}
+.pick.sel{border-color:var(--accent)}.pick small{display:block;color:var(--muted);font-size:12px;font-weight:400}
+.pthumb{width:46px;height:46px;border-radius:8px;background:#1b3d5e;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:22px}.pthumb img{width:100%;height:100%;object-fit:cover}
+#pickBody .editbar input{margin:8px 0 0}#pickBody .editbar .row{margin:8px 0 0}
 </style>
 </head>
 <body>
@@ -115,7 +131,13 @@ nav button span svg{width:23px;height:23px;vertical-align:-4px}
     <button class="btn secondary" id="optBtn" type="button" title="Opciones" aria-label="Opciones">⚙️</button>
   </header>
   <main>
-    <section class="tab active" id="tab-menu"><h2>📅 Menú semanal</h2><div class="empty">Se construye en la Parte 3.</div></section>
+    <section class="tab active" id="tab-menu">
+      <h2>📅 Menú semanal</h2>
+      <div class="weeknav"><button class="btn secondary" id="weekPrev" type="button" aria-label="Semana anterior">◀</button><button class="weeklabel" id="weekLabel" type="button"></button><button class="btn secondary" id="weekNext" type="button" aria-label="Semana siguiente">▶</button></div>
+      <div class="chips" style="margin:10px 0 4px"><button class="chip" id="mFill" type="button">✨ Rellenar huecos</button><button class="chip" id="mCopy" type="button">📋 Copiar semana anterior</button><button class="chip" id="mClear" type="button">🗑️ Vaciar</button></div>
+      <div class="notice" id="menuMsg"></div>
+      <div id="menuDays"></div>
+    </section>
     <section class="tab" id="tab-recipes">
       <div class="sheet-top"><h2>Recetas</h2><button class="btn" id="btnNewRecipe" type="button">＋ Nueva</button></div>
       <div class="tools"><input id="recipeSearch" type="search" placeholder="Buscar por nombre, ingrediente o categoría…" autocomplete="off"></div>
@@ -149,6 +171,7 @@ nav button span svg{width:23px;height:23px;vertical-align:-4px}
   </div>
 </div>
 
+<div class="modal" id="pickModal"><div class="sheet" id="pickBody"></div></div>
 <div class="modal" id="optModal"><div class="sheet" id="optBody"></div></div>
 <div class="modal" id="recipeModal"><div class="sheet" id="recipeBody"></div></div>
 
@@ -168,6 +191,12 @@ const DEFAULT_CATS = [
   ['Marisco','🦐'],['Pasta','🍝'],['Pescado','🐟'],['Pescado azul','🐟'],['Pescado blanco','🐠'],
   ['Postres','🍰'],['Salsas','🥫'],['Sopas','🥣'],['Vegano','🌿'],['Vegetariano','🌱'],['Verduras','🥦']
 ].map(([name, icon]) => ({ name, icon }));
+
+const MEALS = [['desayuno', 'Desayuno', '🥞'], ['almuerzo', 'Almuerzo', '🍎'], ['comida', 'Comida', '🍽️'], ['merienda', 'Merienda', '🥪'], ['cena', 'Cena', '🌙']];
+const DAYS = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO', 'DOMINGO'];
+const LOCK = MEALS.map(m => m[1]);
+const emptyMenu = () => DAYS.map(() => ({}));
+const normMenu = m => { const a = Array.isArray(m) ? m : []; return DAYS.map((_, i) => (a[i] && typeof a[i] === 'object') ? a[i] : {}); };
 
 /* ============ 2. CAPA DE DATOS (todo online) ============
    Aquí vivirá TODA la comunicación con Supabase. El resto de la app
@@ -202,6 +231,22 @@ const db = {
     const row = { name: r.name, categories: r.categories, servings: r.servings, time: r.time, ingredients: r.ingredients, steps: r.steps, image_url: r.image_url };
     const { error } = r.id ? await sb.from('recipes').update(row).eq('id', r.id) : await sb.from('recipes').insert(row);
     if (error) throw error;
+  },
+  async week(ws) {
+    const { data, error } = await sb.from('weeks').select('menu').eq('week_start', ws).maybeSingle();
+    if (error) throw error;
+    return normMenu(data && data.menu);
+  },
+  async saveWeek(ws, menu) {
+    const { error } = await sb.from('weeks').upsert({ user_id: this.user.id, week_start: ws, menu }, { onConflict: 'user_id,week_start' });
+    if (error) throw error;
+  },
+  async cookCounts() {
+    const { data, error } = await sb.from('weeks').select('menu');
+    if (error) throw error;
+    const n = {};
+    (data || []).forEach(w => normMenu(w.menu).forEach(d => MEALS.forEach(([k]) => { if (d[k]) n[d[k]] = (n[d[k]] || 0) + 1; })));
+    return n;
   },
   async setFavorite(id, favorite) {
     const { error } = await sb.from('recipes').update({ favorite }).eq('id', id);
@@ -276,15 +321,16 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   if (name === 'recipes') loadRecipes();
+  if (name === 'menu') loadWeek();
 }
 /* ---- Recetas ---- */
-let RECIPES = [], CATS = [];
+let RECIPES = [], CATS = [], COUNTS = {};
 const norm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const icon = n => (CATS.find(c => c.name === n) || {}).icon || '🏷️';
 const catLabel = n => icon(n) + ' ' + n;
 
 async function loadRecipes() {
-  try { [RECIPES, CATS] = await Promise.all([db.recipes(), db.categories()]); }
+  try { [RECIPES, CATS, COUNTS] = await Promise.all([db.recipes(), db.categories(), db.cookCounts().catch(() => ({}))]); }
   catch (e) { $('recipeList').innerHTML = `<div class="empty">No se pudieron cargar las recetas: ${esc(e.message)}</div>`; return; }
   renderRecipes();
 }
@@ -293,15 +339,17 @@ function renderRecipes() {
   const q = norm($('recipeSearch').value).split(/\s+/).filter(Boolean);
   const list = RECIPES.filter(r => (!favOnly || r.favorite) &&
     q.every(w => norm([r.name, r.ingredients, (r.categories || []).join(' ')].join(' ')).includes(w)));
-  list.sort(sortMode === 'new' ? (a, b) => String(b.created_at).localeCompare(String(a.created_at)) : (a, b) => a.name.localeCompare(b.name, 'es'));
+  const byName = (a, b) => a.name.localeCompare(b.name, 'es');
+  list.sort(sortMode === 'new' ? (a, b) => String(b.created_at).localeCompare(String(a.created_at))
+    : sortMode === 'cooked' ? (a, b) => (COUNTS[b.id] || 0) - (COUNTS[a.id] || 0) || byName(a, b) : byName);
   $('favFilter').classList.toggle('on', favOnly);
-  $('sortBtn').textContent = sortMode === 'new' ? '↕️ Recientes' : '↕️ A–Z';
+  $('sortBtn').textContent = { az: '↕️ A–Z', new: '↕️ Recientes', cooked: '↕️ Más cocinadas' }[sortMode];
   $('recipeCount').textContent = `${list.length} receta${list.length === 1 ? '' : 's'} · ${RECIPES.length} en total`;
   $('recipeList').innerHTML = list.length ? list.map(r => `
     <div class="rcard" data-id="${r.id}">
       <button class="star" data-fav="${r.id}" aria-label="Favorita">${r.favorite ? '⭐' : '☆'}</button>
       <div class="thumb">${r.image_url ? `<img src="${esc(r.image_url)}" alt="" loading="lazy">` : '🥘'}</div>
-      <div><h3>${esc(r.name)}</h3><small>👥 ${esc(r.servings || '—')} · ⏱️ ${esc(r.time || '—')}</small>
+      <div><h3>${esc(r.name)}</h3><small>👥 ${esc(r.servings || '—')} · ⏱️ ${esc(r.time || '—')}${COUNTS[r.id] ? ` · 🍳 ${COUNTS[r.id]}` : ''}</small>
       <div class="tags">${esc((r.categories || []).slice(0, 4).map(catLabel).join(' · '))}</div></div></div>`).join('')
     : `<div class="empty">${RECIPES.length ? 'No hay recetas con esos filtros.' : 'Todavía no tienes recetas. Pulsa ＋ Nueva para crear la primera.'}</div>`;
 }
@@ -425,7 +473,7 @@ $('recipeList').onclick = e => {
   const c = e.target.closest('.rcard'); if (c) showRecipe(c.dataset.id);
 };
 $('favFilter').onclick = () => { favOnly = !favOnly; renderRecipes(); };
-$('sortBtn').onclick = () => { sortMode = sortMode === 'az' ? 'new' : 'az'; renderRecipes(); };
+$('sortBtn').onclick = () => { sortMode = { az: 'new', new: 'cooked', cooked: 'az' }[sortMode]; renderRecipes(); };
 $('recipeBody').addEventListener('change', e => {
   if (e.target.id === 'fPhoto' && e.target.files[0]) { draft.file = e.target.files[0]; draft.removePhoto = false; drawPhoto(); }
 });
@@ -473,7 +521,7 @@ function renderOptions() {
     ${CATS.slice().sort((a, b) => a.name.localeCompare(b.name, 'es')).map(c => editingCat === c.name ? form(c.name) :
       `<div class="catrow"><span>${esc(c.icon)} ${esc(c.name)} <small>(${uses(c.name)})</small></span>
        <button class="btn secondary" data-act="catedit" data-name="${esc(c.name)}">✏️</button>
-       <button class="btn secondary" data-act="catdel" data-name="${esc(c.name)}">🗑️</button></div>`).join('')}`;
+       ${LOCK.includes(c.name) ? '<button class="btn secondary" disabled style="opacity:.35">🔒</button>' : `<button class="btn secondary" data-act="catdel" data-name="${esc(c.name)}">🗑️</button>`}</div>`).join('')}`;
 }
 async function recipesWithCat(name, fn) {
   for (const r of RECIPES.filter(r => (r.categories || []).includes(name)))
@@ -482,6 +530,7 @@ async function recipesWithCat(name, fn) {
 async function saveCat(old) {
   const name = $('cName').value.trim(), ic = $('cIcon').value.trim() || '🏷️';
   if (!name) return optMsg('Escribe un nombre.');
+  if (LOCK.includes(old) && name !== old) return optMsg(`"${old}" se usa en el menú semanal: puedes cambiar su icono, pero no su nombre.`);
   const clash = CATS.find(c => norm(c.name) === norm(name) && c.name !== old);
   try {
     if (old === '__new') {
@@ -499,6 +548,7 @@ async function saveCat(old) {
   } catch (e) { optMsg('No se pudo guardar: ' + e.message); }
 }
 async function delCat(name) {
+  if (LOCK.includes(name)) return optMsg(`"${name}" se usa en el menú semanal y no se puede borrar.`);
   const n = RECIPES.filter(r => (r.categories || []).includes(name)).length;
   if (!confirm(n ? `"${name}" se quitará de ${n} receta${n === 1 ? '' : 's'} (las recetas no se borran). ¿Continuar?` : `¿Borrar la categoría "${name}"?`)) return;
   try {
@@ -569,12 +619,112 @@ $('optBody').addEventListener('click', e => {
      catsave: () => saveCat(n), catdel: () => delCat(n) })[b.dataset.act]();
 });
 
+/* ---- Menú semanal ---- */
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const parseYmd = t => { const [y, m, d] = t.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const mondayOf = d => addDays(new Date(d.getFullYear(), d.getMonth(), d.getDate()), -((d.getDay() + 6) % 7));
+let WS = ymd(mondayOf(new Date())), MENU = emptyMenu(), weekTok = 0;
+const menuMsg = (t, err) => { const m = $('menuMsg'); m.textContent = t; m.className = 'notice' + (err ? ' err' : ''); };
+
+async function loadWeek() {
+  const tok = ++weekTok;
+  try { const m = await db.week(WS); if (tok !== weekTok) return; MENU = m; menuMsg(''); }
+  catch (e) { if (tok !== weekTok) return; MENU = emptyMenu(); menuMsg('No se pudo cargar la semana: ' + e.message, true); }
+  renderMenu();
+}
+function renderMenu() {
+  const mon = parseYmd(WS), fmt = d => d.toLocaleDateString('es', { day: 'numeric', month: 'short' }), cur = ymd(mondayOf(new Date()));
+  $('weekLabel').innerHTML = `${fmt(mon)} – ${fmt(addDays(mon, 6))}<small>${WS === cur ? 'Esta semana' : WS > cur ? 'Semana futura' : 'Semana pasada'}</small>`;
+  const today = WS === cur ? (new Date().getDay() + 6) % 7 : -1;
+  $('menuDays').innerHTML = MENU.map((day, i) => `<div class="day${i === today ? ' today' : ''}"><h3>${DAYS[i]} <span>${addDays(mon, i).getDate()}</span>${i === today ? '<em>Hoy</em>' : ''}</h3>` +
+    MEALS.map(([k, label, ic]) => {
+      const id = day[k], r = id && RECIPES.find(x => x.id === id);
+      return `<button class="slot${id ? ' full' : ''}" data-day="${i}" data-meal="${k}" type="button"><span>${ic}</span><span class="ml">${label}</span><span class="mr">${id ? (r ? esc(r.name) : 'Receta eliminada') : '＋ Añadir'}</span></button>`;
+    }).join('') + '</div>').join('');
+}
+async function persistWeek() {
+  const ws = WS, m = JSON.parse(JSON.stringify(MENU));
+  try { await db.saveWeek(ws, m); }
+  catch (e) { menuMsg('No se pudo guardar el cambio: ' + e.message, true); }
+}
+function setSlot(day, meal, id) {
+  if (id) MENU[day][meal] = id; else delete MENU[day][meal];
+  renderMenu(); persistWeek();
+}
+function goWeek(ws) { WS = ws; MENU = emptyMenu(); renderMenu(); loadWeek(); }
+
+/* selector de receta */
+let pick = null;
+function openPicker(day, meal) {
+  pick = { day, meal }; const [, label, ic] = MEALS.find(m => m[0] === meal), cur = MENU[day][meal];
+  $('pickBody').innerHTML = `<div class="editbar"><div class="sheet-top"><h2>${ic} ${DAYS[day]} · ${label}</h2><button class="btn secondary" data-pact="close">Cerrar</button></div>
+    <input id="pickSearch" type="search" placeholder="Buscar receta…" autocomplete="off">
+    ${cur ? `<div class="row">${RECIPES.some(r => r.id === cur) ? '<button class="btn secondary" data-pact="view">Ver receta</button>' : ''}<button class="btn danger" data-pact="remove">Quitar</button></div>` : ''}</div>
+    <div id="pickList"></div>`;
+  renderPickList(); $('pickModal').classList.add('show');
+}
+function renderPickList() {
+  const [, label, ic] = MEALS.find(m => m[0] === pick.meal), cur = MENU[pick.day][pick.meal];
+  const q = norm($('pickSearch').value).split(/\s+/).filter(Boolean);
+  const all = RECIPES.filter(r => q.every(w => norm([r.name, r.ingredients, (r.categories || []).join(' ')].join(' ')).includes(w)))
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  const match = all.filter(r => (r.categories || []).includes(label)), other = all.filter(r => !match.includes(r));
+  const item = r => `<button class="pick${r.id === cur ? ' sel' : ''}" data-id="${r.id}" type="button"><span class="pthumb">${r.image_url ? `<img src="${esc(r.image_url)}" alt="" loading="lazy">` : '🥘'}</span><span><b>${esc(r.name)}</b><small>${esc((r.categories || []).slice(0, 3).join(' · '))}</small></span></button>`;
+  $('pickList').innerHTML = (match.length ? `<h3>${ic} Recomendadas para ${esc(label)}</h3>${match.map(item).join('')}` : '') +
+    (other.length ? `<h3>${match.length ? 'Otras recetas' : 'Recetas'}</h3>${other.map(item).join('')}` : '') ||
+    `<div class="empty">${RECIPES.length ? 'No hay recetas con esa búsqueda.' : 'Todavía no tienes recetas. Créalas en la pestaña Recetas.'}</div>`;
+}
+$('pickBody').addEventListener('input', e => { if (e.target.id === 'pickSearch') renderPickList(); });
+$('pickBody').addEventListener('click', e => {
+  const it = e.target.closest('.pick');
+  if (it) { setSlot(pick.day, pick.meal, it.dataset.id); return $('pickModal').classList.remove('show'); }
+  const b = e.target.closest('[data-pact]'); if (!b) return;
+  if (b.dataset.pact === 'remove') setSlot(pick.day, pick.meal, null);
+  $('pickModal').classList.remove('show');
+  if (b.dataset.pact === 'view') showRecipe(MENU[pick.day][pick.meal]);
+});
+
+/* acciones de la semana */
+function fillGaps() {
+  const used = new Set(MENU.flatMap(d => MEALS.map(([k]) => d[k]).filter(Boolean))); let n = 0;
+  MENU.forEach(d => MEALS.forEach(([k, label]) => {
+    if (d[k]) return;
+    const cand = RECIPES.filter(r => (r.categories || []).includes(label));
+    const fresh = cand.filter(r => !used.has(r.id)), base = fresh.length ? fresh : cand;
+    const pool = base.flatMap(r => r.favorite ? [r, r] : [r]);
+    if (!pool.length) return;
+    const r = pool[Math.floor(Math.random() * pool.length)]; d[k] = r.id; used.add(r.id); n++;
+  }));
+  renderMenu(); if (n) persistWeek();
+  menuMsg(n ? `Se han rellenado ${n} hueco${n === 1 ? '' : 's'} (las favoritas tienen más probabilidad). Toca cualquiera para cambiarla.` : 'No hay huecos que rellenar con las categorías que tienes.');
+}
+async function copyPrevWeek() {
+  try {
+    const prev = await db.week(ymd(addDays(parseYmd(WS), -7)));
+    if (!prev.some(d => MEALS.some(([k]) => d[k]))) return menuMsg('La semana anterior está vacía.');
+    if (MENU.some(d => MEALS.some(([k]) => d[k])) && !confirm('Esta semana ya tiene recetas. ¿Sustituirlas por las de la semana anterior?')) return;
+    MENU = prev; renderMenu(); persistWeek(); menuMsg('Semana anterior copiada.');
+  } catch (e) { menuMsg('No se pudo copiar: ' + e.message, true); }
+}
+function clearWeek() {
+  if (!MENU.some(d => MEALS.some(([k]) => d[k]))) return menuMsg('Esta semana ya está vacía.');
+  if (!confirm('¿Vaciar todas las recetas de esta semana?')) return;
+  MENU = emptyMenu(); renderMenu(); persistWeek(); menuMsg('');
+}
+$('menuDays').onclick = e => { const b = e.target.closest('.slot'); if (b) openPicker(+b.dataset.day, b.dataset.meal); };
+$('weekPrev').onclick = () => goWeek(ymd(addDays(parseYmd(WS), -7)));
+$('weekNext').onclick = () => goWeek(ymd(addDays(parseYmd(WS), 7)));
+$('weekLabel').onclick = () => goWeek(ymd(mondayOf(new Date())));
+$('mFill').onclick = fillGaps; $('mCopy').onclick = copyPrevWeek; $('mClear').onclick = clearWeek;
+document.addEventListener('visibilitychange', () => { if (!document.hidden && db.user) loadRecipes().then(loadWeek); });
+
 /* ============ 5. ARRANQUE ============ */
 function onSession(session) {
   db.user = session ? session.user : null;
   $('login').classList.toggle('hidden', !!session);
   $('app').classList.toggle('hidden', !session);
-  if (session) { setLoginMsg(''); runDiagnosis().catch(e => { $('cloudBtn').className = 'btn secondary err'; }); loadRecipes(); }
+  if (session) { setLoginMsg(''); runDiagnosis().catch(e => { $('cloudBtn').className = 'btn secondary err'; }); loadRecipes().then(loadWeek); }
 }
 $('btnSignIn').onclick = signIn;
 $('btnSignUp').onclick = signUp;
