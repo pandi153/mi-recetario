@@ -62,16 +62,16 @@ body:has(#menuTab.active) main,body:has(#shopTab.active) main,body:has(#statsTab
 </head>
 <body>
 <div class="app">
-<header><div class="brand"><button type="button" class="btn secondary cloud-status" id="cloudStatus" aria-label="Pandi en la nube" title="Pandi en la nube">☁️</button><div><h1>Pandi recetas</h1></div><button type="button" class="btn secondary" id="addBtn" aria-label="Nueva receta" title="Nueva receta" onclick="editRecipe(null)">＋</button></div></header>
+<header><div class="brand"><button type="button" class="btn secondary cloud-status" id="cloudStatus" aria-label="Pandi en la nube" title="Pandi en la nube">☁️</button><div><h1>Pandi recetas</h1></div><button type="button" class="btn secondary" id="addBtn" aria-label="Nueva receta" title="Nueva receta" onclick="editRecipe(null)">🍳</button></div></header>
 <main>
-<section id="recipesTab" class="tab"><div class="section-head"><div><h2>Recetas</h2><span class="count" id="recipeCount"></span></div><div style="display:flex;gap:7px;align-items:center"><button type="button" class="btn secondary" id="clearRecipeFilters">Limpiar filtros</button><button type="button" class="btn secondary" id="downloadExcel" aria-label="Descargar recetas" title="Descargar recetas">⬇️</button></div></div><div class="search"><input id="search" placeholder="Buscar receta o ingrediente…" autocomplete="off"></div><div id="recipeGrid" class="grid"></div></section>
+<section id="recipesTab" class="tab"><div class="section-head"><div><h2>Recetas</h2><span class="count" id="recipeCount"></span></div><div style="display:flex;gap:7px;align-items:center"><button type="button" class="btn secondary" id="downloadExcel" aria-label="Descargar recetas" title="Descargar recetas">⬇️</button></div></div><div class="search"><input id="search" placeholder="Buscar receta o ingrediente…" autocomplete="off"></div><div id="recipeGrid" class="grid"></div></section>
 <section id="menuTab" class="tab active"><div class="section-head"><div><h2>Menú semanal</h2></div><div style="display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end"><button class="btn secondary" id="openAiFromMenu">🤖 Crear con IA</button><button class="btn secondary" id="newWeek">＋ Semana</button><button class="btn secondary" id="clearMenu">Vaciar</button></div></div><div class="weekbar"><select id="weekSelect"></select></div><div id="week" class="week"></div><div id="menuAiBox" class="ai-box" style="margin-top:14px"><p style="margin-top:0"><strong>🤖 Crear menú con indicaciones</strong></p><textarea id="aiGoals" placeholder="Ej.: Quiero 3 días de pescado, 2 de legumbres, máximo 2 comidas con carne roja y no repetir las comidas de esta semana."></textarea><div class="actions"><button class="btn" id="generateAi">Preparar menú</button></div><div class="ai-note">Esta primera versión prepara una propuesta usando tus recetas, categorías y el menú anterior. La conexión con una IA conversacional real la añadiremos después.</div><div id="aiResult" class="ai-result"></div></div></section>
 <section id="shopTab" class="tab"><div class="section-head"><div><h2>🛒 Lista de compra</h2><span class="count" id="shopCount"></span></div><button class="btn secondary" id="clearShop">Desmarcar</button></div><div id="shopping" class="shopping"></div><div class="notice">La lista se calcula automáticamente a partir de las recetas seleccionadas en el menú.</div></section>
 <section id="statsTab" class="tab"><div class="section-head"><div><h2>📊 Estadísticas</h2><span class="count">Semana, histórico y objetivos</span></div><button type="button" class="btn secondary" id="configureGoals">⚙️ Objetivos</button></div><div id="statsContent"></div></section>
 <section id="pantryTab" class="tab"><div class="section-head"><div><h2>🧊 Despensa</h2><span class="count">Controla lo que tienes en casa</span></div><button type="button" class="btn inventory-add" id="addInventory" aria-label="Añadir alimento a la despensa" title="Añadir alimento a la despensa" style="display:none">🧊 ＋ Alimento</button></div><div id="inventorySummary" class="stats-grid" style="margin-bottom:12px"></div><div class="search pantry-search"><input id="inventorySearch" placeholder="Buscar alimento…" autocomplete="off"></div><div class="recipe-tools"><select id="inventorySort"><option value="newest">Entrada: más recientes</option><option value="oldest">Entrada: más antiguos</option><option value="expirySoon">Caducidad: más próximas</option><option value="expiryLate">Caducidad: más lejanas</option><option value="name">Nombre</option></select></div><div id="inventoryList" class="shopping"></div></section>
 </main>
 <nav><button type="button" data-tab="menuTab" class="active"><span>📅</span>Menú</button><button type="button" data-tab="recipesTab"><span>🔎</span>Buscar</button><button type="button" data-tab="shopTab"><span>🛒</span>Compra</button><button type="button" data-tab="pantryTab"><span>🧊</span>Despensa</button><button type="button" data-tab="statsTab"><span>📊</span>Estadísticas</button></nav>
-<button type="button" class="btn fab" id="fab" onclick="editRecipe(null)">＋</button>
+<button type="button" class="btn fab" id="fab" onclick="editRecipe(null)">🍳</button>
 <span id="openDatabase" hidden></span>
 <div id="modal" class="modal"><div class="sheet"><div class="section-head"><h2 id="modalTitle">Receta</h2><button class="btn secondary" id="closeModal">Cerrar</button></div><div id="modalBody"></div></div></div>
 </div>
@@ -123,7 +123,7 @@ let pendingRecipeImage='';const baseEditRecipe=editRecipe;editRecipe=function(id
 function exportRecipesToExcel(){const rows=recipes.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.category||'')}</td><td>${esc(r.servings||'')}</td><td>${esc(r.time||'')}</td><td>${esc(r.ingredients_raw||'').replace(/\n/g,'<br>')}</td><td>${esc(r.steps||'').replace(/\n/g,'<br>')}</td></tr>`).join('');const html=`<html><head><meta charset="UTF-8"></head><body><table border="1"><tr><th>Receta</th><th>Categorías</th><th>Raciones</th><th>Tiempo</th><th>Ingredientes</th><th>Preparación</th></tr>${rows}</table>
 
 </body></html>`;const blob=new Blob(['\ufeff',html],{type:'application/vnd.ms-excel;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='Panda-recetas.xls';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},0)}
-document.getElementById('search').oninput=renderRecipes;document.getElementById('clearRecipeFilters').onclick=()=>{document.getElementById('search').value='';document.querySelector('#categoryChips .category-chip.active')?.classList.remove('active');document.querySelector('#categoryChips .category-chip[data-cat=""]')?.classList.add('active');renderRecipes()};document.getElementById('downloadExcel').onclick=exportRecipesToExcel;document.getElementById('openDatabase').onclick=()=>window.open('https://github.com/pandi153/mi-recetario','_blank','noopener');document.getElementById('addBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('fab').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('closeModal').onclick=closeModal;document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')closeModal()};document.getElementById('clearMenu').onclick=()=>{menu=days.map(()=>({}));save();renderMenu();renderShopping();renderStats()};document.getElementById('newWeek').onclick=()=>{const d=new Date(`${selectedWeek}T00:00:00`);d.setDate(d.getDate()+7);const k=weekKey(d);if(!weeks[k])weeks[k]=days.map(()=>({}));selectedWeek=k;menu=weeks[k];save();renderMenu();renderShopping();renderStats()};document.getElementById('clearShop').onclick=()=>{checked={};save();renderShopping()};document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.getElementById(b.dataset.tab).classList.add('active');document.body.classList.toggle('menu-mode',b.dataset.tab==='menuTab');const fab=document.getElementById('fab');if(fab){if(b.dataset.tab==='pantryTab'){fab.textContent='🧊';fab.title='Añadir alimento';fab.setAttribute('aria-label','Añadir alimento');fab.onclick=e=>{e.preventDefault();e.stopPropagation();window.__newInventory()}}else{fab.textContent='＋';fab.title='Crear receta';fab.setAttribute('aria-label','Crear receta');fab.onclick=e=>{e.preventDefault();e.stopPropagation();editRecipe(null)}}}if(b.dataset.tab==='statsTab')renderStats();if(b.dataset.tab==='pantryTab'&&window.renderInventory)window.renderInventory()});refreshRecipeFilters();if('serviceWorker' in navigator){navigator.serviceWorker.register('./service-worker.js?v=3',{updateViaCache:'none'}).catch(()=>{});}
+document.getElementById('search').oninput=renderRecipes;document.getElementById('downloadExcel').onclick=exportRecipesToExcel;document.getElementById('openDatabase').onclick=()=>window.open('https://github.com/pandi153/mi-recetario','_blank','noopener');document.getElementById('addBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('fab').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('closeModal').onclick=closeModal;document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')closeModal()};document.getElementById('clearMenu').onclick=()=>{menu=days.map(()=>({}));save();renderMenu();renderShopping();renderStats()};document.getElementById('newWeek').onclick=()=>{const d=new Date(`${selectedWeek}T00:00:00`);d.setDate(d.getDate()+7);const k=weekKey(d);if(!weeks[k])weeks[k]=days.map(()=>({}));selectedWeek=k;menu=weeks[k];save();renderMenu();renderShopping();renderStats()};document.getElementById('clearShop').onclick=()=>{checked={};save();renderShopping()};document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.getElementById(b.dataset.tab).classList.add('active');document.body.classList.toggle('menu-mode',b.dataset.tab==='menuTab');const fab=document.getElementById('fab');if(fab){if(b.dataset.tab==='pantryTab'){fab.textContent='🧊';fab.title='Añadir alimento';fab.setAttribute('aria-label','Añadir alimento');fab.onclick=e=>{e.preventDefault();e.stopPropagation();window.__newInventory()}}else{fab.textContent='＋';fab.title='Crear receta';fab.setAttribute('aria-label','Crear receta');fab.onclick=e=>{e.preventDefault();e.stopPropagation();editRecipe(null)}}}if(b.dataset.tab==='statsTab')renderStats();if(b.dataset.tab==='pantryTab'&&window.renderInventory)window.renderInventory()});refreshRecipeFilters();if('serviceWorker' in navigator){navigator.serviceWorker.register('./service-worker.js?v=3',{updateViaCache:'none'}).catch(()=>{});}
 renderRecipes();renderMenu();renderShopping();
 </script>
 <script>
@@ -141,7 +141,6 @@ document.getElementById('generateAi').onclick=makeAiProposal;document.getElement
   const add=document.getElementById('addBtn'),fab=document.getElementById('fab');
   if(add){add.textContent='＋';add.onclick=e=>{e.preventDefault();e.stopPropagation();newRecipe()}}
   if(fab)fab.onclick=e=>{e.preventDefault();e.stopPropagation();newRecipe()};
-  document.getElementById('clearRecipeFilters').textContent='Limpiar filtros';
   document.getElementById('clearMenu').onclick=()=>{if(confirm('¿Seguro que quieres vaciar todas las recetas de esta semana?')){menu=days.map(()=>({}));save();renderMenu();renderShopping();renderStats()}};
   document.getElementById('configureGoals').onclick=()=>{statsConfigOpen=true;renderStats();setTimeout(()=>document.querySelector('.goals-card')?.scrollIntoView({behavior:'smooth',block:'start'}),50)};
   document.getElementById('downloadExcel').textContent='⬇️';
@@ -425,6 +424,7 @@ decorate();
       if(typeof menu!=='undefined')menu=weeks[selectedWeek]||menu;
       save();closeModal();renderRecipes();refreshRecipeFilters();renderMenu();renderShopping();renderStats();
       window.dispatchEvent(new CustomEvent('pandi:recipe-deleted',{detail:{name}}));
+    setTimeout(()=>window.__syncNow?.(),60);
     };
   }
   const mo=new MutationObserver(addDeleteButton); if($('modal'))mo.observe($('modal'),{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
@@ -645,6 +645,7 @@ decorate();
   }
   async function syncNow(){
     if(syncing)return;const s=await session();if(!s)return;syncing=true;
+    if(!recipes.length){const g=document.getElementById('recipeGrid');if(g)g.innerHTML='<div class="empty">☁️ Cargando tus recetas…</div>';}
     const activeTab=document.querySelector('nav button.active')?.dataset.tab||'menuTab';
     try{
       await mergeAndSync(s.user);
@@ -822,6 +823,17 @@ decorate();
 
   recipes=dedupeLocalRecipes();
 
+  function categoryCatalog(){
+    const defaults=['Desayuno','Almuerzo','Comida','Merienda','Cena','A la parrilla','A la sartén','Al horno','Al vapor','Alto en proteínas','Aperitivos y entrantes','Arroces','Asiática','Carne blanca','Carne roja','Carnes','Ensaladas','Fruta','Guarnición','Legumbres','Pasta','Pescado','Pescado azul','Pescado blanco','Postres','Salsas','Sopas','Verduras','Vegetariano','Vegano','Huevos','Marisco','Frutos secos','Lácteos','Cereales integrales','Guisos','Entrante'];
+    const out=[];const seen=new Set();
+    try{const saved=JSON.parse(localStorage.getItem('recetario_categories')||'[]');
+      if(Array.isArray(saved))saved.forEach(x=>{const n=typeof x==='string'?x:String(x?.name||'').trim();if(n&&!seen.has(keyName(n))){seen.add(keyName(n));out.push(n)}});
+    }catch(e){}
+    defaults.forEach(n=>{if(!seen.has(keyName(n))){seen.add(keyName(n));out.push(n)}});
+    recipes.forEach(r=>String(r.category||'').split(',').map(x=>x.trim()).filter(Boolean).forEach(n=>{if(!seen.has(keyName(n))){seen.add(keyName(n));out.push(n)}}));
+    return out;
+  }
+
   function imageInputHtml(src){
     return '<div class="field"><label>Foto de la receta</label><div id="recipePhotoPreview" style="height:150px;border:1px solid var(--border);border-radius:14px;background:var(--surface2);display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:9px">'+
       (src?'<img src="'+escAttr(src)+'" alt="" style="width:100%;height:100%;object-fit:cover">':'<span style="font-size:48px">🥘</span>')+
@@ -854,7 +866,7 @@ decorate();
     $('modalTitle').textContent=r.id?'Editar receta':'Nueva receta';
     $('modalBody').innerHTML=
       '<div class="field"><label>Nombre</label><input id="fName" value="'+escAttr(r.name)+'"></div>'+
-      '<div class="field"><label>Categorías</label><input id="fCat" value="'+escAttr(r.category||'')+'" placeholder="Ej.: Comida, Pescado"></div>'+
+      '<div class="field"><label>Categorías</label><input id="fCat" type="hidden" value="'+escAttr(r.category||'')+'"><div id="stableCatSelected" style="display:flex;gap:7px;flex-wrap:wrap;min-height:44px;padding:9px;border:1px solid var(--border);border-radius:11px;background:var(--surface2)"></div><button type="button" class="btn secondary" id="stableCatOpen" style="margin-top:8px;width:100%;text-align:left">＋ Categorías</button></div>'+
       '<div class="field"><label>Raciones</label><input id="fServ" type="number" min="1" value="'+escAttr(r.servings||2)+'"></div>'+
       '<div class="field"><label>Tiempo</label><input id="fTime" value="'+escAttr(r.time||'')+'"></div>'+
       imageInputHtml(window.__pandiPendingImage)+
@@ -862,6 +874,19 @@ decorate();
       '<div class="field"><label>Preparación</label><textarea id="fSteps">'+esc(r.steps||'')+'</textarea></div>'+
       '<div class="actions"><button type="button" class="btn secondary" id="cancelEdit">Cancelar</button><button type="button" class="btn" id="saveEdit">Guardar</button></div>'+
       (r.id?'<button type="button" class="btn secondary" id="deleteRecipeBtn" style="width:100%;margin-top:8px;color:#ffb4ab;border-color:#8b3b33">🗑️ Eliminar receta</button>':'');
+    const catSelected=$('stableCatSelected'),catOpen=$('stableCatOpen');
+    const selectedCats=new Set(String(r.category||'').split(',').map(x=>x.trim()).filter(Boolean));
+    const drawCatSummary=()=>{catSelected.innerHTML=selectedCats.size?[...selectedCats].map(c=>'<span style="padding:6px 10px;border-radius:999px;background:var(--accent);color:#07192d;font-size:13px;font-weight:700">'+esc(c)+'</span>').join(''):'<span style="color:var(--muted)">No se han añadido categorías</span>';};
+    const openCatPicker=()=>{
+      const wrap=document.createElement('div');wrap.id='stableCatPicker';wrap.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:70;display:flex;align-items:flex-end';
+      const opts=categoryCatalog();
+      wrap.innerHTML='<div style="width:100%;max-height:82vh;overflow:auto;background:var(--surface);border-radius:24px 24px 0 0;padding:20px"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><h2 style="margin:0">Seleccionar categorías</h2><button type="button" class="btn secondary" id="stableCatClose">✕</button></div><input id="stableCatSearch" placeholder="Buscar categoría..." style="width:100%;margin-top:14px;padding:12px;border:1px solid var(--border);border-radius:11px;background:var(--surface2);color:var(--text);font:inherit"><div id="stableCatOptions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px"></div><div class="actions"><button type="button" class="btn secondary" id="stableCatClear">Limpiar</button><button type="button" class="btn" id="stableCatApply">Aplicar</button></div></div>';
+      document.body.appendChild(wrap);const search=wrap.querySelector('#stableCatSearch'),box=wrap.querySelector('#stableCatOptions');
+      const draw=()=>{const q=norm(search.value);box.innerHTML=opts.filter(c=>!q||norm(c).includes(q)).map(c=>'<button type="button" data-cat="'+escAttr(c)+'" style="border:0;border-radius:12px;padding:10px 13px;background:'+(selectedCats.has(c)?'var(--accent)':'#5f84bd')+';color:#fff;font:inherit;cursor:pointer">'+esc(c)+'</button>').join('');box.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{selectedCats.has(b.dataset.cat)?selectedCats.delete(b.dataset.cat):selectedCats.add(b.dataset.cat);draw()});};
+      wrap.querySelector('#stableCatClose').onclick=()=>wrap.remove();wrap.onclick=e=>{if(e.target===wrap)wrap.remove()};search.oninput=draw;wrap.querySelector('#stableCatClear').onclick=()=>{selectedCats.clear();draw()};wrap.querySelector('#stableCatApply').onclick=()=>{drawCatSummary();wrap.remove()};draw();search.focus();
+    };
+    catOpen.onclick=openCatPicker;drawCatSummary();
+
     const renderIngredients=()=>{
       $('ingredientList').innerHTML=list.map((x,i)=>
         '<div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid var(--border);border-radius:12px;background:var(--surface2)"><span style="font-size:20px;color:var(--muted)">☰</span><input data-stable-ing="'+i+'" value="'+escAttr(x)+'" placeholder="Ingrediente '+(i+1)+'" style="flex:1;border:0;outline:0;background:transparent;color:var(--text);font:inherit;min-width:0"><button type="button" data-stable-del="'+i+'" style="border:0;background:none;font-size:20px;color:var(--muted);cursor:pointer">×</button></div>'
@@ -874,11 +899,13 @@ decorate();
     $('cancelEdit').onclick=closeModal;
     $('saveEdit').onclick=()=>{
       const name=$('fName').value.trim();if(!name)return alert('Escribe un nombre');
-      const obj={id:r.id||('local_'+Date.now()),name,category:$('fCat').value.trim(),servings:Number($('fServ').value)||2,time:$('fTime').value.trim(),ingredients_raw:list.map(x=>x.trim()).filter(Boolean).join('\n'),steps:$('fSteps').value.trim(),image:window.__pandiPendingImage||null,updated_at:new Date().toISOString()};
+      const obj={id:r.id||('local_'+Date.now()),name,category:[...selectedCats].join(', '),servings:Number($('fServ').value)||2,time:$('fTime').value.trim(),ingredients_raw:list.map(x=>x.trim()).filter(Boolean).join('\n'),steps:$('fSteps').value.trim(),image:window.__pandiPendingImage||null,updated_at:new Date().toISOString()};
       const idx=recipes.findIndex(x=>String(x.id)===String(r.id));
       if(idx>=0)recipes[idx]=obj;else recipes.push(obj);
       recipes=dedupeLocalRecipes();
+      try{const deleted=JSON.parse(localStorage.getItem('recetario_deleted_recipe_names')||'[]')||[];localStorage.setItem('recetario_deleted_recipe_names',JSON.stringify(deleted.filter(x=>keyName(x)!==keyName(name))))}catch(e){}
       writeRecipes(recipes);closeModal();renderRecipes();renderMenu();renderShopping();renderStats();
+      setTimeout(()=>window.__syncNow?.(),60);
     };
     if($('deleteRecipeBtn'))$('deleteRecipeBtn').onclick=()=>deleteRecipeStable(r.id);
     $('modal').classList.add('show');
@@ -932,6 +959,7 @@ decorate();
     grid.querySelectorAll('.card').forEach(c=>c.onclick=()=>openRecipe(c.dataset.id));
   };
   window.renderRecipes=renderRecipes;
+  const recipeSearch=$('search');if(recipeSearch)recipeSearch.oninput=renderRecipes;
 
   /* Re-render once after cleaning duplicates. */
   renderRecipes();
