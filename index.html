@@ -114,6 +114,16 @@ nav button span svg{width:23px;height:23px;vertical-align:-4px}
 .sitem.done{opacity:.5}.sitem.done b,.sitem.done .sqty{text-decoration:line-through}
 .sitem .xdel{padding:5px 9px}
 .progress{height:8px;border-radius:99px;background:#1b3d5e;overflow:hidden;margin:4px 0 2px}.progress i{display:block;height:100%;background:var(--accent);transition:width .25s}
+.weeknav{position:sticky;top:var(--hh,64px);z-index:4;background:var(--bg);padding:6px 0 8px;margin-top:-4px}
+.day{scroll-margin-top:calc(var(--hh,64px) + 66px)}
+.loc4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.locbtn{border:1px solid #355570;border-radius:12px;background:var(--surface2);color:var(--text);padding:9px 2px 7px;font:inherit;font-size:10.5px;font-weight:700;cursor:pointer;line-height:1.2}
+.locbtn span{display:block;font-size:21px;margin-bottom:2px}.locbtn small{display:block;color:var(--muted);font-size:11px;font-weight:600}
+.locbtn.on{background:var(--accent);border-color:var(--accent);color:#07192d}.locbtn.on small{color:#07192d}
+.alertbar{width:100%;margin:10px 0 0;padding:10px;border:1px solid #9b4a57;border-radius:10px;background:#3a1d26;color:#ffd3d9;font:inherit;font-weight:600;cursor:pointer;text-align:left}
+.pcard{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;padding:10px;margin-bottom:7px;border:1px solid #244763;border-radius:11px;background:var(--surface2);cursor:pointer}
+.pico{font-size:24px;text-align:center}.pcard small{display:block;color:var(--muted);font-size:12px}
+.exp{display:inline-block;margin-top:3px;font-style:normal;font-size:11px;font-weight:700;color:var(--muted)}.exp.warn{color:#f0b24a}.exp.bad{color:var(--danger)}
 </style>
 </head>
 <body>
@@ -159,12 +169,20 @@ nav button span svg{width:23px;height:23px;vertical-align:-4px}
       <h2>🛒 Compra</h2>
       <div class="weeknav"><button class="btn secondary" id="shopPrev" type="button" aria-label="Semana anterior">◀</button><button class="weeklabel" id="shopLabel" type="button"></button><button class="btn secondary" id="shopNext" type="button" aria-label="Semana siguiente">▶</button></div>
       <div class="noterow"><input id="shopAdd" maxlength="60" placeholder="Añadir a la lista (ej. papel de cocina)"><button class="btn" id="shopAddBtn" type="button">＋</button></div>
-      <div class="chips" style="margin:6px 0"><button class="chip" id="shopShare" type="button">📤 Compartir lista</button><button class="chip" id="shopUncheck" type="button">↩️ Desmarcar todo</button><button class="chip" id="shopGroup" type="button"></button></div>
+      <div class="chips" style="margin:6px 0"><button class="chip" id="shopShare" type="button">📤 Compartir lista</button><button class="chip" id="shopStock" type="button">🏠 Guardar comprados en casa</button><button class="chip" id="shopUncheck" type="button">↩️ Desmarcar todo</button><button class="chip" id="shopGroup" type="button"></button></div>
       <div class="notice" id="shopMsg"></div>
       <div id="shopProg"></div>
       <div id="shopList"></div>
     </section>
-    <section class="tab" id="tab-pantry"><h2>🧊 Despensa</h2><div class="empty">Se construye en la Parte 5.</div></section>
+    <section class="tab" id="tab-pantry">
+      <div class="sheet-top"><h2>Despensa</h2><button class="btn" id="btnNewPantry" type="button">＋ Añadir</button></div>
+      <div class="loc4" id="locBar"></div>
+      <div class="tools" style="margin-top:10px"><input id="pantrySearch" type="search" placeholder="Buscar en casa…" autocomplete="off"></div>
+      <div class="chips" style="margin:2px 0 8px"><button class="chip" id="pantrySort" type="button"></button><button class="chip" id="pantryCook" type="button">🍳 Cocinar con lo que tengo</button></div>
+      <div id="pantryAlert"></div>
+      <div class="count" id="pantryCount"></div>
+      <div id="pantryList"></div>
+    </section>
     <section class="tab" id="tab-stats"><h2>📊 Estadísticas</h2><div class="empty">Se construye en la Parte 6.</div></section>
   </main>
   <nav id="nav">
@@ -190,6 +208,7 @@ nav button span svg{width:23px;height:23px;vertical-align:-4px}
 </div>
 
 <div class="modal" id="pickModal"><div class="sheet" id="pickBody"></div></div>
+<div class="modal" id="pModal"><div class="sheet" id="pBody"></div></div>
 <div class="modal" id="optModal"><div class="sheet" id="optBody"></div></div>
 <div class="modal" id="recipeModal"><div class="sheet" id="recipeBody"></div></div>
 
@@ -249,6 +268,24 @@ const db = {
   async saveRecipe(r) {
     const row = { name: r.name, categories: r.categories, servings: r.servings, time: r.time, ingredients: r.ingredients, steps: r.steps, image_url: r.image_url };
     const { error } = r.id ? await sb.from('recipes').update(row).eq('id', r.id) : await sb.from('recipes').insert(row);
+    if (error) throw error;
+  },
+  async pantry() {
+    const { data, error } = await sb.from('pantry').select('*');
+    if (error) throw error;
+    return data;
+  },
+  async savePantry(it) {
+    const row = { name: it.name, quantity: it.quantity, location: it.location, entry_date: it.entry_date || null, expiry_date: it.expiry_date || null };
+    const { error } = it.id ? await sb.from('pantry').update(row).eq('id', it.id) : await sb.from('pantry').insert(row);
+    if (error) throw error;
+  },
+  async deletePantry(id) {
+    const { error } = await sb.from('pantry').delete().eq('id', id);
+    if (error) throw error;
+  },
+  async addPantry(rows) {
+    const { error } = await sb.from('pantry').insert(rows);
     if (error) throw error;
   },
   async shop() {
@@ -317,6 +354,8 @@ const db = {
     }
     const fv = await sb.from('recipes').select('favorite', { head: true, count: 'exact' });
     add('Columna favoritas', !fv.error, fv.error ? 'Falta ejecutar el SQL de favoritas' : 'correcta');
+    const pl = await sb.from('pantry').select('location', { head: true, count: 'exact' });
+    add('Columna ubicación (despensa)', !pl.error, pl.error ? 'Falta ejecutar el SQL de ubicaciones' : 'correcta');
     const w = await sb.from('settings').upsert({ user_id: this.user.id }, { onConflict: 'user_id' });
     add('Guardar datos', !w.error, w.error ? w.error.message : 'escritura correcta');
     const st = await sb.storage.from('recipe-photos').list('', { limit: 1 });
@@ -352,7 +391,9 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   if (name === 'recipes') loadRecipes();
+  if (name === 'menu') wantScroll = true;
   if (name === 'menu' || name === 'shop') loadWeek();
+  if (name === 'pantry' || name === 'shop') loadPantry();
 }
 /* ---- Recetas ---- */
 let RECIPES = [], CATS = [], COUNTS = {};
@@ -680,7 +721,7 @@ const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')
 const parseYmd = t => { const [y, m, d] = t.split('-').map(Number); return new Date(y, m - 1, d); };
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const mondayOf = d => addDays(new Date(d.getFullYear(), d.getMonth(), d.getDate()), -((d.getDay() + 6) % 7));
-let WS = ymd(mondayOf(new Date())), MENU = emptyMenu(), weekTok = 0;
+let WS = ymd(mondayOf(new Date())), MENU = emptyMenu(), weekTok = 0, wantScroll = true;
 const menuMsg = (t, err) => { const m = $('menuMsg'); m.textContent = t; m.className = 'notice' + (err ? ' err' : ''); };
 
 async function loadWeek() {
@@ -688,6 +729,7 @@ async function loadWeek() {
   try { const [m, sh] = await Promise.all([db.week(WS), db.shop().catch(() => null)]); if (tok !== weekTok) return; MENU = m; if (sh) SHOP = sh; menuMsg(''); }
   catch (e) { if (tok !== weekTok) return; MENU = emptyMenu(); menuMsg('No se pudo cargar la semana: ' + e.message, true); }
   renderMenu();
+  if (wantScroll) { wantScroll = false; requestAnimationFrame(() => { const el = document.querySelector('#menuDays .day.today'); if (el && $('tab-menu').classList.contains('active')) el.scrollIntoView({ block: 'start' }); }); }
 }
 function renderMenu() {
   const mon = parseYmd(WS), fmt = d => d.toLocaleDateString('es', { day: 'numeric', month: 'short' }), cur = ymd(mondayOf(new Date()));
@@ -710,7 +752,7 @@ function setSlot(day, meal, id) {
   if (id) MENU[day][meal] = id; else delete MENU[day][meal];
   renderMenu(); persistWeek();
 }
-function goWeek(ws) { WS = ws; MENU = emptyMenu(); renderMenu(); loadWeek(); }
+function goWeek(ws) { wantScroll = ws === ymd(mondayOf(new Date())); WS = ws; MENU = emptyMenu(); renderMenu(); loadWeek(); }
 
 /* selector de receta */
 let pick = null;
@@ -798,7 +840,9 @@ $('weekPrev').onclick = () => goWeek(ymd(addDays(parseYmd(WS), -7)));
 $('weekNext').onclick = () => goWeek(ymd(addDays(parseYmd(WS), 7)));
 $('weekLabel').onclick = () => goWeek(ymd(mondayOf(new Date())));
 $('mShare').onclick = shareMenu; $('mFill').onclick = fillGaps; $('mCopy').onclick = copyPrevWeek; $('mClear').onclick = clearWeek;
-document.addEventListener('visibilitychange', () => { if (!document.hidden && db.user) loadRecipes().then(loadWeek); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && db.user) { loadRecipes().then(loadWeek); loadPantry(); } });
+const setHH = () => document.documentElement.style.setProperty('--hh', document.querySelector('header').offsetHeight + 'px');
+window.addEventListener('resize', setHH);
 
 /* ---- Compra ---- */
 let SHOP = {}, shopChain = Promise.resolve(), shopGrouped = true;
@@ -853,7 +897,7 @@ const GROUPS = [
   { icon: '🥩', name: 'Carne y pescado', re: mk(['pollo', 'pavo', 'ternera', 'cerdo', 'cordero', 'jamon', 'lomo', 'chuleta', 'salchicha', 'chorizo', 'bacon', 'panceta', 'carne', 'pescado', 'salmon', 'merluza', 'atun', 'bacalao', 'gamba', 'langostino', 'mejillon', 'calamar', 'sepia', 'pulpo', 'dorada', 'lubina', 'sardina', 'anchoa', 'marisco', 'filete', 'solomillo', 'hamburguesa', 'pechuga', 'muslo', 'costilla', 'morcilla', 'sobrasada', 'caballa', 'rape', 'almeja', 'trucha']) },
   { icon: '🧀', name: 'Lácteos y huevos', re: mk(['leche', 'queso', 'yogur', 'huevo', 'nata', 'mantequilla', 'requeson', 'kefir', 'mozzarella', 'parmesano', 'cuajada', 'margarina', 'crema fresca']) },
   { icon: '🍞', name: 'Panadería', re: mk(['tostad', 'baguette', 'bollo', 'croissant', 'brioche', 'colines', 'pita', 'wrap'], ['pan', 'panes']) },
-  { icon: '🥫', name: 'Despensa', re: mk(['arroz', 'macarron', 'espagueti', 'spaghetti', 'fideo', 'tallarin', 'lentej', 'garbanz', 'alubia', 'harina', 'azucar', 'aceite', 'vinagre', 'salsa', 'caldo', 'especia', 'pimenton', 'comino', 'oregano', 'pimienta', 'cereal', 'avena', 'cacao', 'nuez', 'nueces', 'almendra', 'avellana', 'pistacho', 'cacahuete', 'quinoa', 'cuscus', 'mostaza', 'mayonesa', 'ketchup', 'levadura', 'galleta', 'conserva', 'legumbre', 'pan rallado', 'tomate frito', 'tomate triturado', 'tomate natural', 'sirope', 'curry', 'laurel', 'canela', 'vainilla', 'mermelada', 'tahini', 'bulgur', 'polenta', 'maicena'], ['pasta', 'sal', 'miel', 'soja', 'latas?', 'botes?', 'pure']) },
+  { icon: '🥫', name: 'Básicos y conservas', re: mk(['arroz', 'macarron', 'espagueti', 'spaghetti', 'fideo', 'tallarin', 'lentej', 'garbanz', 'alubia', 'harina', 'azucar', 'aceite', 'vinagre', 'salsa', 'caldo', 'especia', 'pimenton', 'comino', 'oregano', 'pimienta', 'cereal', 'avena', 'cacao', 'nuez', 'nueces', 'almendra', 'avellana', 'pistacho', 'cacahuete', 'quinoa', 'cuscus', 'mostaza', 'mayonesa', 'ketchup', 'levadura', 'galleta', 'conserva', 'legumbre', 'pan rallado', 'tomate frito', 'tomate triturado', 'tomate natural', 'sirope', 'curry', 'laurel', 'canela', 'vainilla', 'mermelada', 'tahini', 'bulgur', 'polenta', 'maicena'], ['pasta', 'sal', 'miel', 'soja', 'latas?', 'botes?', 'pure']) },
   { icon: '❄️', name: 'Congelados', re: mk(['congelad', 'helado', 'hielo']) },
   { icon: '🧴', name: 'Otros', re: /$^/ }
 ];
@@ -868,22 +912,24 @@ function saveShop() {
 }
 function shopItems() {
   const w = shopWeek(), ck = new Set(w.c);
-  const items = buildShopList().map(it => ({ key: it.key, name: it.name, qty: fmtQty(it.u), src: [...it.recipes].join(' · '), done: ck.has(it.key), extra: false }));
+  const items = buildShopList().map(it => ({ key: it.key, name: it.name, qty: fmtQty(it.u), src: [...it.recipes].join(' · '), done: ck.has(it.key), extra: false,
+    home: PANTRY.find(p => fuzzy(norm(p.name), it.key)) }));
   w.x.forEach(x => items.push({ key: 'x:' + x.i, name: x.t, qty: '', src: 'Añadido por mí', done: !!x.d, extra: true }));
   return items;
 }
 function renderShop() {
-  const items = shopItems(), total = items.length, done = items.filter(i => i.done).length;
+  const items = shopItems(), done = items.filter(i => i.done).length, total = items.filter(i => i.done || !i.home).length;
   $('shopGroup').textContent = shopGrouped ? '🗂️ Por secciones' : '📃 Lista simple';
   $('shopProg').innerHTML = total ? `<div class="notice">${done} de ${total} comprados</div><div class="progress"><i style="width:${Math.round(done / total * 100)}%"></i></div>` : '';
-  if (!total) return ($('shopList').innerHTML = '<div class="empty">Todavía no hay nada.<br>Añade recetas al menú de esta semana y sus ingredientes aparecerán aquí solos.</div>');
+  if (!items.length) return ($('shopList').innerHTML = '<div class="empty">Todavía no hay nada.<br>Añade recetas al menú de esta semana y sus ingredientes aparecerán aquí solos.</div>');
   const byName = (a, b) => a.name.localeCompare(b.name, 'es');
   const row = i => `<div class="sitem${i.done ? ' done' : ''}" data-key="${esc(i.key)}"><span class="box">${i.done ? '☑' : '☐'}</span><span><b>${esc(cap(i.name))}</b><small>${esc(i.src)}</small></span><span class="sqty">${esc(i.qty)}</span>${i.extra ? `<button class="btn secondary xdel" data-del="${esc(i.key)}" type="button" aria-label="Quitar">✕</button>` : '<span></span>'}</div>`;
-  const todo = items.filter(i => !i.done).sort(byName), dn = items.filter(i => i.done).sort(byName);
+  const todo = items.filter(i => !i.done && !i.home).sort(byName), dn = items.filter(i => i.done).sort(byName), inHome = items.filter(i => !i.done && i.home).sort(byName);
   let html = '';
   if (shopGrouped) GROUPS.forEach((g, gi) => { const li = todo.filter(i => classify(i.name) === gi); if (li.length) html += `<h3 class="sgroup">${g.icon} ${g.name} (${li.length})</h3>` + li.map(row).join(''); });
   else html = todo.map(row).join('');
   if (!todo.length) html = '<div class="empty">¡Todo comprado! 🎉</div>';
+  if (inHome.length) html += `<h3 class="sgroup">🏠 Ya tienes en casa · revisa (${inHome.length})</h3>` + inHome.map(i => row({ ...i, src: 'En casa: ' + (i.home.quantity || 'sí') + ' · ' + (LOCS.find(l => l[0] === pLocOf(i.home)) || ['', '', ''])[1] })).join('');
   if (dn.length) html += `<h3 class="sgroup">✔ Comprado (${dn.length})</h3>` + dn.map(row).join('');
   $('shopList').innerHTML = html;
 }
@@ -913,6 +959,16 @@ $('shopList').onclick = e => {
   if (d) { const w = shopWeek(); w.x = w.x.filter(v => 'x:' + v.i !== d.dataset.del); renderShop(); return saveShop(); }
   const r = e.target.closest('.sitem'); if (r) toggleShop(r.dataset.key);
 };
+const HOME_LOC = ['frigorifico', 'frigorifico', 'frigorifico', 'despensa', 'despensa', 'congelador', 'despensa'];
+async function stockBought() {
+  const list = shopItems().filter(i => i.done && !i.extra && !PANTRY.some(p => fuzzy(norm(p.name), i.key)));
+  if (!list.length) return shopMsg('No hay comprados nuevos que guardar (o ya están en casa).');
+  try {
+    await db.addPantry(list.map(i => ({ name: cap(i.name), quantity: i.qty, location: HOME_LOC[classify(i.name)], entry_date: ymd(new Date()) })));
+    await loadPantry(); shopMsg(`Guardados ${list.length} en casa. En Despensa puedes ponerles la caducidad.`);
+  } catch (e) { shopMsg('No se pudo guardar en casa: ' + e.message, true); }
+}
+$('shopStock').onclick = stockBought;
 $('shopAddBtn').onclick = addExtra;
 $('shopAdd').addEventListener('keydown', e => { if (e.key === 'Enter') addExtra(); });
 $('shopShare').onclick = shareShop;
@@ -922,12 +978,105 @@ $('shopPrev').onclick = () => $('weekPrev').click();
 $('shopNext').onclick = () => $('weekNext').click();
 $('shopLabel').onclick = () => $('weekLabel').click();
 
+/* ---- Despensa (congelador, frigorífico, despensa) ---- */
+const LOCS = [['congelador', 'Congelador', '❄️'], ['frigorifico', 'Frigorífico', '🧊'], ['despensa', 'Despensa', '🥫']];
+let PANTRY = [], pLoc = 'all', pSort = 'exp', pEdit = null;
+const pLocOf = p => p.location || 'despensa';
+const locIcon = k => (LOCS.find(l => l[0] === k) || ['', '', '🏠'])[2];
+const fuzzy = (a, b) => { if (same(a, b)) return true; const fa = a.split(' ')[0], fb = b.split(' ')[0]; return same(fa, fb) && (a === fa || b === fb); };
+const fdate = d => parseYmd(d).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' });
+const daysTo = d => { const t = new Date(); return Math.round((parseYmd(d) - new Date(t.getFullYear(), t.getMonth(), t.getDate())) / 86400000); };
+function expInfo(p) {
+  if (!p.expiry_date) return null; const d = daysTo(p.expiry_date);
+  return { d, cls: d <= 0 ? 'bad' : d <= 3 ? 'warn' : '',
+    txt: d < 0 ? `Caducado hace ${-d} día${d === -1 ? '' : 's'}` : d === 0 ? 'Caduca hoy' : d === 1 ? 'Caduca mañana' : d <= 14 ? `Caduca en ${d} días` : 'Caduca el ' + fdate(p.expiry_date) };
+}
+async function loadPantry() {
+  try { PANTRY = await db.pantry(); }
+  catch (e) { $('pantryList').innerHTML = `<div class="empty">No se pudo cargar la despensa: ${esc(e.message)}</div>`; return; }
+  renderPantry(); renderShop();
+}
+function renderPantry() {
+  const counts = { all: PANTRY.length }; LOCS.forEach(([k]) => counts[k] = PANTRY.filter(p => pLocOf(p) === k).length);
+  $('locBar').innerHTML = [['all', 'Todo', '🏠'], ...LOCS].map(([k, l, ic]) => `<button class="locbtn${pLoc === k ? ' on' : ''}" data-loc="${k}" type="button"><span>${ic}</span>${l}<small>${counts[k]}</small></button>`).join('');
+  const ds = PANTRY.filter(p => p.expiry_date).map(p => daysTo(p.expiry_date)), bad = ds.filter(d => d < 0).length, soon = ds.filter(d => d >= 0 && d <= 3).length;
+  $('pantryAlert').innerHTML = bad || soon ? `<button class="alertbar" id="pantryWarn" type="button">⚠️ ${bad ? bad + (bad > 1 ? ' caducados' : ' caducado') : ''}${bad && soon ? ' · ' : ''}${soon ? soon + (soon > 1 ? ' caducan' : ' caduca') + ' en 3 días' : ''}</button>` : '';
+  const q = norm($('pantrySearch').value).split(/\s+/).filter(Boolean);
+  const list = PANTRY.filter(p => (pLoc === 'all' || pLocOf(p) === pLoc) && q.every(w => norm(p.name + ' ' + (p.quantity || '')).includes(w)));
+  const byName = (a, b) => a.name.localeCompare(b.name, 'es');
+  list.sort(pSort === 'az' ? byName : pSort === 'new' ? (a, b) => String(b.entry_date || '').localeCompare(String(a.entry_date || '')) || byName(a, b)
+    : (a, b) => (a.expiry_date ? 0 : 1) - (b.expiry_date ? 0 : 1) || String(a.expiry_date).localeCompare(String(b.expiry_date)) || byName(a, b));
+  $('pantrySort').textContent = { exp: '⏰ Por caducidad', az: '↕️ A–Z', new: '🆕 Recientes' }[pSort];
+  $('pantryCount').textContent = `${list.length} producto${list.length === 1 ? '' : 's'}`;
+  $('pantryList').innerHTML = list.length ? list.map(p => { const e = expInfo(p); return `<div class="pcard" data-id="${p.id}"><span class="pico">${locIcon(pLocOf(p))}</span>
+    <span><b>${esc(p.name)}</b><small>${esc(p.quantity ? p.quantity + ' · ' : '')}${p.entry_date ? 'desde ' + esc(fdate(p.entry_date)) : ''}</small>${e ? `<em class="exp ${e.cls}">${esc(e.txt)}</em>` : ''}</span><span>›</span></div>`; }).join('')
+    : `<div class="empty">${PANTRY.length ? 'No hay productos con esos filtros.' : 'No hay nada apuntado todavía.<br>Pulsa ＋ Añadir, o marca lo que compras en Compra y pásalo aquí con "Guardar comprados en casa".'}</div>`;
+}
+const openP = html => { $('pBody').innerHTML = html; $('pModal').classList.add('show'); };
+function drawPLoc() { $('pLocChips').innerHTML = LOCS.map(([k, l, ic]) => `<button type="button" class="chip${pEdit.loc === k ? ' on' : ''}" data-ploc="${k}">${ic} ${l}</button>`).join(''); }
+function editPantry(id) {
+  const p = PANTRY.find(x => x.id === id) || { name: '', quantity: '', location: pLoc === 'all' ? 'despensa' : pLoc, entry_date: ymd(new Date()), expiry_date: '' };
+  pEdit = { id: p.id || null, loc: pLocOf(p) };
+  openP(`<div class="editbar"><div class="sheet-top"><h2>${id ? 'Editar' : 'Añadir a casa'}</h2><div class="btns"><button class="btn secondary" data-pa="close">Cancelar</button><button class="btn" id="btnPSave" data-pa="save">Guardar</button></div></div><div class="notice" id="pMsg"></div></div>
+    <div class="field"><label>Qué es</label><input id="pName" value="${esc(p.name)}" placeholder="Ej.: Pollo, leche, arroz…"></div>
+    <div class="field"><label>Cantidad</label><input id="pQty" value="${esc(p.quantity)}" placeholder="Ej.: 500 g, 2 paquetes, 6"></div>
+    <div class="field"><label>Dónde está</label><div class="chips" id="pLocChips"></div></div>
+    <div class="field"><label>Fecha de entrada</label><input id="pEntry" type="date" value="${esc(p.entry_date || '')}"></div>
+    <div class="field"><label>Caducidad</label><input id="pExp" type="date" value="${esc(p.expiry_date || '')}">
+      <div class="chips" style="margin-top:6px"><button type="button" class="chip" data-pa="exp" data-days="3">+3 días</button><button type="button" class="chip" data-pa="exp" data-days="7">+1 semana</button><button type="button" class="chip" data-pa="exp" data-days="30">+1 mes</button><button type="button" class="chip" data-pa="exp" data-days="90">+3 meses</button><button type="button" class="chip" data-pa="exp" data-days="0">Sin fecha</button></div></div>
+    ${id ? '<button class="btn danger" data-pa="del" type="button" style="width:100%">Eliminar</button>' : ''}`);
+  drawPLoc();
+}
+async function savePantryItem() {
+  const msg = $('pMsg'), btn = $('btnPSave'), name = $('pName').value.trim();
+  if (!name) { msg.className = 'notice err'; return (msg.textContent = 'Escribe qué es.'); }
+  btn.disabled = true; msg.className = 'notice'; msg.textContent = 'Guardando…';
+  try {
+    await db.savePantry({ id: pEdit.id, name, quantity: $('pQty').value.trim(), location: pEdit.loc, entry_date: $('pEntry').value, expiry_date: $('pExp').value });
+    $('pModal').classList.remove('show'); await loadPantry();
+  } catch (e) { btn.disabled = false; msg.className = 'notice err'; msg.textContent = 'No se pudo guardar: ' + e.message; }
+}
+async function delPantryItem() {
+  const p = PANTRY.find(x => x.id === pEdit.id); if (!p || !confirm(`¿Eliminar "${p.name}" de casa?`)) return;
+  try { await db.deletePantry(p.id); $('pModal').classList.remove('show'); await loadPantry(); }
+  catch (e) { const m = $('pMsg'); m.className = 'notice err'; m.textContent = 'No se pudo eliminar: ' + e.message; }
+}
+function cookIdeas() {
+  if (!PANTRY.length) return openP('<div class="sheet-top"><h2>🍳 Cocinar con lo que tengo</h2><button class="btn secondary" data-pa="close">Cerrar</button></div><div class="empty" style="margin-top:12px">Apunta primero lo que tienes en casa y te propongo recetas.</div>');
+  const have = PANTRY.map(p => ({ k: norm(p.name), n: p.name, d: p.expiry_date ? daysTo(p.expiry_date) : null })), BASIC = ['sal', 'agua', 'aceite', 'pimienta', 'azucar'];
+  const res = RECIPES.map(r => {
+    const items = []; lines(r.ingredients).forEach(l => addIng(items, l, r.name));
+    const real = items.filter(i => !BASIC.some(b => i.key === b || i.key.startsWith(b + ' ')));
+    const hit = real.map(i => ({ i, h: have.find(h => fuzzy(h.k, i.key)) })).filter(x => x.h);
+    return { r, total: real.length, hit, urgent: hit.filter(x => x.h.d !== null && x.h.d <= 5) };
+  }).filter(x => x.hit.length && x.total)
+    .sort((a, b) => b.urgent.length - a.urgent.length || b.hit.length / b.total - a.hit.length / a.total || b.hit.length - a.hit.length).slice(0, 20);
+  openP(`<div class="editbar"><div class="sheet-top"><h2>🍳 Cocinar con lo que tengo</h2><button class="btn secondary" data-pa="close">Cerrar</button></div><div class="notice">Primero las que usan lo que caduca antes.</div></div>` +
+    (res.length ? res.map(x => `<button class="pick" data-id="${x.r.id}" type="button"><span class="pthumb">${x.r.image_url ? `<img src="${esc(x.r.image_url)}" alt="" loading="lazy">` : '🥘'}</span><span><b>${esc(x.r.name)}</b>
+      <small>Tienes ${x.hit.length} de ${x.total} ingredientes</small>${x.urgent.length ? `<small class="exp warn">⏰ Usa: ${esc(x.urgent.map(u => cap(u.h.n)).join(', '))}</small>` : ''}</span></button>`).join('')
+      : '<div class="empty" style="margin-top:12px">Ninguna receta usa lo que tienes apuntado. Prueba a añadir más cosas o a revisar los ingredientes de tus recetas.</div>'));
+}
+$('locBar').onclick = e => { const b = e.target.closest('[data-loc]'); if (b) { pLoc = b.dataset.loc; renderPantry(); } };
+$('pantryAlert').onclick = e => { if (e.target.closest('#pantryWarn')) { pLoc = 'all'; pSort = 'exp'; $('pantrySearch').value = ''; renderPantry(); } };
+$('pantryList').onclick = e => { const c = e.target.closest('.pcard'); if (c) editPantry(c.dataset.id); };
+$('pantrySearch').oninput = renderPantry;
+$('pantrySort').onclick = () => { pSort = { exp: 'az', az: 'new', new: 'exp' }[pSort]; renderPantry(); };
+$('pantryCook').onclick = cookIdeas;
+$('btnNewPantry').onclick = () => editPantry(null);
+$('pBody').addEventListener('click', e => {
+  const lc = e.target.closest('[data-ploc]'); if (lc) { pEdit.loc = lc.dataset.ploc; return drawPLoc(); }
+  const pk = e.target.closest('.pick'); if (pk) return showRecipe(pk.dataset.id);
+  const b = e.target.closest('[data-pa]'); if (!b) return;
+  ({ close: () => $('pModal').classList.remove('show'), save: savePantryItem, del: delPantryItem,
+     exp: () => { $('pExp').value = b.dataset.days === '0' ? '' : ymd(addDays(new Date(), +b.dataset.days)); } })[b.dataset.pa]();
+});
+
 /* ============ 5. ARRANQUE ============ */
 function onSession(session) {
   db.user = session ? session.user : null;
   $('login').classList.toggle('hidden', !!session);
   $('app').classList.toggle('hidden', !session);
-  if (session) { setLoginMsg(''); runDiagnosis().catch(e => { $('cloudBtn').className = 'btn secondary err'; }); loadRecipes().then(loadWeek); }
+  if (session) { setLoginMsg(''); runDiagnosis().catch(e => { $('cloudBtn').className = 'btn secondary err'; }); loadRecipes().then(loadWeek); loadPantry(); requestAnimationFrame(setHH); }
 }
 $('btnSignIn').onclick = signIn;
 $('btnSignUp').onclick = signUp;
