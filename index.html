@@ -147,7 +147,8 @@ document.getElementById('generateAi').onclick=makeAiProposal;document.getElement
   document.getElementById('downloadExcel').onclick=async()=>{
     try{if(window.__syncNow)await window.__syncNow()}catch(e){console.warn('No se pudo sincronizar antes de exportar',e)}
     const q=v=>`"${String(v??'').replace(/"/g,'""').replace(/\n/g,' ')}`+'"';
-    const rows=[['Receta','Categorías','Raciones','Tiempo','Ingredientes','Preparación'],...recipes.map(r=>[r.name,r.category||'',r.servings||'',r.time||'',r.ingredients_raw||'',r.steps||''])];
+    const exportRecipes=[...(Array.isArray(recipes)?recipes:[])].filter(r=>String(r?.name||'').trim()).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'es',{sensitivity:'base'}));
+    const rows=[['Receta','Categorías','Raciones','Tiempo','Ingredientes','Preparación','Foto'],...exportRecipes.map(r=>[r.name,r.category||'',r.servings||'',r.time||'',r.ingredients_raw||'',r.steps||'',(window.__pandiGetRecipeImage&&window.__pandiGetRecipeImage(r.name))||r.image||''])];
     const csv='\ufeff'+rows.map(row=>row.map(q).join(';')).join('\r\n');
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
     a.href=url;a.download='Panda-recetas.csv';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},1000);
@@ -854,10 +855,30 @@ decorate();
   const keyName=x=>norm(String(x||'')).replace(/\s+/g,' ').trim();
   const recipeKey='recetario_recipes';
   const photoKey='recetario_recipe_images_by_name';
-  function readPhotoCache(){try{const v=JSON.parse(localStorage.getItem(photoKey)||'{}');return v&&typeof v==='object'?v:{}}catch(e){return {}}}
+  const photoDBName='pandi_recipes_photos_v1';
+  const photoStoreName='photos';
+  let photoCache={};
+  try{const v=JSON.parse(localStorage.getItem(photoKey)||'{}');if(v&&typeof v==='object')photoCache=v}catch(e){}
+  try{
+    const raw=JSON.parse(localStorage.getItem(recipeKey)||'[]')||[];
+    raw.forEach(r=>{const k=keyName(r.name);if(k&&r.image&&!photoCache[k])photoCache[k]=r.image});
+  }catch(e){}
   function photoNameKey(name){return keyName(name)}
-  window.__pandiGetRecipeImage=function(name){const c=readPhotoCache();return c[photoNameKey(name)]||''};
-  window.__pandiSetRecipeImage=function(name,image){try{const c=readPhotoCache(),k=photoNameKey(name);if(image)c[k]=image;else delete c[k];localStorage.setItem(photoKey,JSON.stringify(c))}catch(e){console.warn('No se pudo guardar la foto local',e)}};
+  function openPhotoDB(){return new Promise((resolve,reject)=>{if(!('indexedDB' in window))return reject(new Error('IndexedDB no disponible'));const req=indexedDB.open(photoDBName,1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(photoStoreName))req.result.createObjectStore(photoStoreName)};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('No se pudo abrir IndexedDB'))})}
+  function idbPutPhoto(k,v){return openPhotoDB().then(db=>new Promise((resolve,reject)=>{const tx=db.transaction(photoStoreName,'readwrite');tx.objectStore(photoStoreName).put(v,k);tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>{db.close();reject(tx.error||new Error('No se pudo guardar la foto'))}}))}
+  function idbDeletePhoto(k){return openPhotoDB().then(db=>new Promise((resolve,reject)=>{const tx=db.transaction(photoStoreName,'readwrite');tx.objectStore(photoStoreName).delete(k);tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>{db.close();reject(tx.error||new Error('No se pudo borrar la foto'))}}))}
+  function idbReadPhotos(){return openPhotoDB().then(db=>new Promise((resolve,reject)=>{const tx=db.transaction(photoStoreName,'readonly'),st=tx.objectStore(photoStoreName),out={};const req=st.openCursor();req.onsuccess=()=>{const c=req.result;if(c){out[c.key]=c.value;c.continue()}else{db.close();resolve(out)}};req.onerror=()=>{db.close();reject(req.error||new Error('No se pudieron leer las fotos'))}}))}
+  window.__pandiGetRecipeImage=function(name){return photoCache[photoNameKey(name)]||''};
+  window.__pandiSetRecipeImage=function(name,image){const k=photoNameKey(name);if(!k)return;if(image)photoCache[k]=image;else delete photoCache[k];try{localStorage.setItem(photoKey,JSON.stringify(photoCache))}catch(e){console.warn('Almacenamiento local de fotos lleno; usando almacenamiento de fotos dedicado.')}
+    if(image)idbPutPhoto(k,image).catch(e=>console.warn('No se pudo guardar la foto en IndexedDB',e));else idbDeletePhoto(k).catch(e=>{});
+  };
+  /* Cargamos las fotos desde IndexedDB al arrancar. Esto evita que las fotos
+     llenen el límite de localStorage y permite guardar nuevas fotos aunque ya
+     haya muchas recetas antiguas con imágenes. */
+  idbReadPhotos().then(dbPhotos=>{let changed=false;Object.keys(dbPhotos).forEach(k=>{if(photoCache[k]!==dbPhotos[k]){photoCache[k]=dbPhotos[k];changed=true}});if(changed){try{localStorage.setItem(photoKey,JSON.stringify(photoCache))}catch(e){/* IndexedDB sigue siendo la fuente */}};try{window.renderRecipes?.();window.renderMenu?.();}catch(e){}}).catch(()=>{});
+  /* Migramos las fotos que estaban en localStorage y después liberamos ese
+     espacio. Las fotos permanecen disponibles en IndexedDB. */
+  setTimeout(()=>{const legacy={};Object.keys(photoCache).forEach(k=>legacy[k]=photoCache[k]);const keys=Object.keys(legacy);if(keys.length){Promise.all(keys.map(k=>idbPutPhoto(k,legacy[k]))).then(()=>{try{localStorage.removeItem(photoKey)}catch(e){};try{window.renderRecipes?.()}catch(e){}}).catch(()=>{})}},100);
 
   function readRecipes(){
     try{const v=JSON.parse(localStorage.getItem(recipeKey)||'[]');return Array.isArray(v)?v:[]}
@@ -1053,7 +1074,7 @@ decorate();
     let arr=recipes.filter(r=>{
       const hay=norm([r.name,r.category,r.ingredients_raw,r.steps].join(' '));
       return !q||q.split(/\s+/).filter(Boolean).every(w=>hay.includes(w));
-    });
+    }).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'es',{sensitivity:'base'}));
     $('recipeCount').textContent=arr.length+' receta'+(arr.length===1?'':'s')+' · '+recipes.length+' en total';
     const grid=$('recipeGrid');
     if(!arr.length){grid.innerHTML='<div class="empty">No encuentro recetas con esos filtros.</div>';return}
@@ -1069,5 +1090,90 @@ decorate();
   /* The previous automation added this button to recipe sheets. The stable
      recipe view above deliberately does not include it. */
 })();
+</script>
+<script id="cloudOnlyMode">
+(function(){
+  'use strict';
+  const APP=/^recetario_/;
+  const mem=Object.create(null);
+  let loaded=false, saving=false, saveTimer=null;
+  const appKeys=['recetario_recipes','recetario_weeks','recetario_checked','recetario_categories','recetario_goals','recetario_inventory','recetario_restock','recetario_deleted_recipe_names','recetario_recipe_images','recetario_recipe_images_by_name','recetario_selected_week'];
+  const keyToState=k=>k.replace(/^recetario_/,'');
+  const safeParse=(v,f)=>{try{const x=JSON.parse(v);return x??f}catch(e){return f}};
+  appKeys.forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
+  try{indexedDB?.deleteDatabase('pandi_recipes_photos_v1')}catch(e){}
+  const nativeGet=Storage.prototype.getItem,nativeSet=Storage.prototype.setItem,nativeRemove=Storage.prototype.removeItem;
+  function virtualGet(key){
+    if(this!==localStorage||!APP.test(key))return nativeGet.call(this,key);
+    const k=keyToState(key);return Object.prototype.hasOwnProperty.call(mem,k)?JSON.stringify(mem[k]):null;
+  }
+  function scheduleSave(){if(!loaded)return;clearTimeout(saveTimer);saveTimer=setTimeout(()=>saveCloud().catch(e=>console.warn('No se pudo guardar en la nube',e)),350)}
+  Storage.prototype.getItem=virtualGet;
+  Storage.prototype.setItem=function(key,value){
+    if(this!==localStorage||!APP.test(key))return nativeSet.call(this,key,value);
+    mem[keyToState(key)]=safeParse(value,null);scheduleSave();
+  };
+  Storage.prototype.removeItem=function(key){
+    if(this!==localStorage||!APP.test(key))return nativeRemove.call(this,key);
+    delete mem[keyToState(key)];scheduleSave();
+  };
+  function state(k,f){return Object.prototype.hasOwnProperty.call(mem,k)?mem[k]:f}
+  function setState(k,v){mem[k]=v}
+  function n(x){return norm(String(x||'')).replace(/\s+/g,' ').trim()}
+  async function cloudUser(){const r=await db.auth.getSession();return r.data?.session?.user||null}
+  async function loadCloud(){
+    const user=await cloudUser();if(!user)return false;
+    const [rr,ww,ss,sh]=await Promise.all([
+      db.from('recipes').select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').eq('user_id',user.id).order('id'),
+      db.from('weeks').select('week_key,data').eq('user_id',user.id),
+      db.from('settings').select('key,value').eq('user_id',user.id),
+      db.from('shopping').select('data').eq('user_id',user.id).maybeSingle()
+    ]);
+    if(rr.error)throw rr.error;if(ww.error)throw ww.error;if(ss.error)throw ss.error;if(sh.error)throw sh.error;
+    const settings=Object.fromEntries((ss.data||[]).map(x=>[x.key,x.value]));
+    const cloudWeeks=Object.fromEntries((ww.data||[]).map(x=>[x.week_key,x.data]));
+    if(!Object.keys(cloudWeeks).length&&settings.weekly_menus)Object.assign(cloudWeeks,settings.weekly_menus);
+    setState('recipes',rr.data||[]);setState('weeks',cloudWeeks);setState('checked',sh.data?.data||{});
+    Object.keys(settings).forEach(k=>setState(k,settings[k]));
+    setState('deleted_recipe_names',[]);setState('selected_week',state('selected_week',weekKey(new Date())));
+    recipes=state('recipes',[]);weeks=state('weeks',{});checked=state('checked',{});selectedWeek=state('selected_week',weekKey(new Date()));
+    if(!weeks[selectedWeek]){weeks[selectedWeek]=days.map(()=>({}));setState('weeks',weeks)}
+    menu=weeks[selectedWeek]||days.map(()=>({}));
+    window.__pandiGetRecipeImage=name=>{const by=state('recipe_images_by_name',{});const ids=state('recipe_images',{});const r=recipes.find(x=>n(x.name)===n(name));return by[n(name)]||ids[String(r?.id)]||''};
+    window.__pandiSetRecipeImage=(name,image)=>{const by={...state('recipe_images_by_name',{})},k=n(name);if(image)by[k]=image;else delete by[k];setState('recipe_images_by_name',by);const r=recipes.find(x=>n(x.name)===k),ids={...state('recipe_images',{})};if(r){if(image)ids[String(r.id)]=image;else delete ids[String(r.id)]}setState('recipe_images',ids);scheduleSave()};
+    loaded=true;
+    try{renderRecipes();renderMenu();renderShopping();renderStats();window.renderInventory?.()}catch(e){}
+    setStatus?.('Cuenta conectada','ok');
+    return true;
+  }
+  async function saveCloud(){
+    if(!loaded||saving)return;const user=await cloudUser();if(!user)return;saving=true;
+    try{
+      const rs=Array.isArray(state('recipes',[]))?state('recipes',[]):[],deleted=new Set((state('deleted_recipe_names',[])||[]).map(n));
+      const cr=await db.from('recipes').select('id,name').eq('user_id',user.id);if(cr.error)throw cr.error;
+      for(const row of cr.data||[])if(deleted.has(n(row.name))||!rs.some(r=>n(r.name)===n(row.name))){const d=await db.from('recipes').delete().eq('id',row.id).eq('user_id',user.id);if(d.error)throw d.error}
+      const fresh=await db.from('recipes').select('id,name').eq('user_id',user.id);if(fresh.error)throw fresh.error;const byName=new Map();
+      for(const row of fresh.data||[]){const k=n(row.name);if(!byName.has(k))byName.set(k,row);else{const d=await db.from('recipes').delete().eq('id',row.id).eq('user_id',user.id);if(d.error)throw d.error}}
+      const saved=[],idMap=new Map();
+      for(const r of rs){const k=n(r.name);if(!k||deleted.has(k))continue;const data={user_id:user.id,name:r.name,category:r.category||'',servings:Number(r.servings)||2,time:r.time||'',ingredients_raw:r.ingredients_raw||'',steps:r.steps||'',updated_at:new Date().toISOString()};let row=byName.get(k);
+        if(row){const u=await db.from('recipes').update(data).eq('id',row.id).eq('user_id',user.id).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();if(u.error)throw u.error;row=u.data}
+        else{const u=await db.from('recipes').insert(data).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();if(u.error)throw u.error;row=u.data}
+        idMap.set(String(r.id),row.id);saved.push({...row});
+      }
+      const ws=state('weeks',{})||{};
+      for(const [wk,daysData] of Object.entries(ws)){const data=(daysData||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]))});return d});const u=await db.from('weeks').upsert({user_id:user.id,week_key:wk,data,updated_at:new Date().toISOString()},{onConflict:'user_id,week_key'});if(u.error)throw u.error}
+      const sh=await db.from('shopping').upsert({user_id:user.id,data:state('checked',{})||{},updated_at:new Date().toISOString()},{onConflict:'user_id'});if(sh.error)throw sh.error;
+      const settings=['categories','goals','inventory','restock','recipe_images','recipe_images_by_name'].map(k=>[k,state(k,null)]).filter(x=>x[1]!=null);
+      for(const [key,value] of settings){const u=await db.from('settings').upsert({user_id:user.id,key,value,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});if(u.error)throw u.error}
+      setState('recipes',saved);recipes=saved;const remapped={};Object.entries(ws).forEach(([wk,ds])=>remapped[wk]=(ds||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]));});return d}));setState('weeks',remapped);weeks=remapped;menu=weeks[selectedWeek]||days.map(()=>({}));setState('deleted_recipe_names',[]);
+    }finally{saving=false}
+  }
+  window.__syncNow=async()=>{try{await loadCloud();await saveCloud();renderRecipes();renderMenu();renderShopping();renderStats();window.renderInventory?.()}catch(e){console.error(e);setStatus?.('Error de sincronización','err')}};
+  window.__syncRecipesDirect=window.__syncNow;window.__pandiCloudOnly=true;
+  db.auth.getSession().then(async r=>{if(r.data?.session){try{await loadCloud()}catch(e){console.error('Carga nube',e)}}else{loaded=true;setStatus?.('No conectado','err')}}).catch(console.error);
+  db.auth.onAuthStateChange((event,s)=>{if(s)setTimeout(()=>loadCloud().catch(console.error),0)});
+  window.addEventListener('online',()=>{if(loaded)loadCloud().catch(console.error)});
+})();
+
 </script>
 </body></html>
