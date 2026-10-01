@@ -30,7 +30,7 @@ input{width:100%;padding:13px;margin:6px 0;border:1px solid #355570;border-radiu
 /* App */
 header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:12px 14px;padding-top:max(12px,env(safe-area-inset-top));background:#07192df2;border-bottom:1px solid var(--border)}
 header h1{flex:1;margin:0;font-size:22px}
-#cloudBtn{width:42px;height:42px;padding:0;font-size:20px}
+#cloudBtn,#optBtn{width:42px;height:42px;padding:0;font-size:20px}
 #cloudBtn.ok{background:var(--accent);color:#07192d;border-color:var(--accent)}
 #cloudBtn.err{background:#5b2630;border-color:#9b4a57}
 main{max-width:900px;margin:auto;padding:14px 12px 96px}
@@ -76,6 +76,18 @@ nav button.active{color:var(--accent)}
 .sheet h3{margin:16px 0 6px;font-size:15px}
 .btn.danger{background:#5b2630;color:#fff;border:1px solid #9b4a57}
 .sheet-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+nav button span svg{width:23px;height:23px;vertical-align:-4px}
+.editbar{position:sticky;top:0;z-index:3;background:var(--surface);margin:-18px -18px 0;padding:14px 18px 8px;border-bottom:1px solid var(--border)}
+.editbar .sheet-top h2{font-size:18px}.editbar .btns{display:flex;gap:8px}.editbar .btn{padding:9px 14px}
+.menuitem{display:flex;align-items:center;gap:12px;width:100%;text-align:left;margin:8px 0;padding:14px;border:1px solid #355570;border-radius:11px;background:var(--surface2);color:var(--text);font:inherit;font-weight:600;cursor:pointer}
+.menuitem small{display:block;color:var(--muted);font-weight:400;font-size:12px}
+.catrow{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)}
+.catrow>span{flex:1;font-size:15px}.catrow small{color:var(--muted)}
+.catrow input{margin:0;padding:9px}.catrow input.ico{width:56px;text-align:center}
+.catrow .btn{padding:8px 11px}
+.rcard{position:relative}.rcard h3{padding-right:30px}
+.star{position:absolute;top:2px;right:2px;border:0;background:none;font-size:21px;padding:7px;cursor:pointer;color:var(--accent)}
+.btns2{display:flex;gap:8px}.sheet-top .btns2 .btn{padding:9px 12px}
 </style>
 </head>
 <body>
@@ -100,12 +112,14 @@ nav button.active{color:var(--accent)}
   <header>
     <button class="btn secondary" id="cloudBtn" type="button" title="Estado de la nube" aria-label="Estado de la nube">☁️</button>
     <h1>🐼 Pandi recetas</h1>
+    <button class="btn secondary" id="optBtn" type="button" title="Opciones" aria-label="Opciones">⚙️</button>
   </header>
   <main>
     <section class="tab active" id="tab-menu"><h2>📅 Menú semanal</h2><div class="empty">Se construye en la Parte 3.</div></section>
     <section class="tab" id="tab-recipes">
-      <div class="sheet-top"><h2>🔎 Recetas</h2><button class="btn" id="btnNewRecipe" type="button">＋ Nueva</button></div>
-      <div class="tools"><input id="recipeSearch" type="search" placeholder="Buscar receta o ingrediente…" autocomplete="off"><select id="recipeCat"></select></div>
+      <div class="sheet-top"><h2>Recetas</h2><button class="btn" id="btnNewRecipe" type="button">＋ Nueva</button></div>
+      <div class="tools"><input id="recipeSearch" type="search" placeholder="Buscar por nombre, ingrediente o categoría…" autocomplete="off"></div>
+      <div class="chips" style="margin:2px 0 8px"><button class="chip" id="favFilter" type="button">⭐ Favoritas</button><button class="chip" id="sortBtn" type="button">↕️ A–Z</button></div>
       <div class="count" id="recipeCount"></div>
       <div id="recipeList"></div>
     </section>
@@ -115,7 +129,7 @@ nav button.active{color:var(--accent)}
   </main>
   <nav id="nav">
     <button class="active" data-tab="menu" type="button"><span>📅</span>Menú</button>
-    <button data-tab="recipes" type="button"><span>🔎</span>Buscar</button>
+    <button data-tab="recipes" type="button"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 13.5a3.5 3.5 0 0 1 1.2-6.8 4 4 0 0 1 8.6 0 3.5 3.5 0 0 1 1.2 6.8V19a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z"/><path d="M6.5 16.5h11"/></svg></span>Recetas</button>
     <button data-tab="shop" type="button"><span>🛒</span>Compra</button>
     <button data-tab="pantry" type="button"><span>🧊</span>Despensa</button>
     <button data-tab="stats" type="button"><span>📊</span>Estadísticas</button>
@@ -135,6 +149,7 @@ nav button.active{color:var(--accent)}
   </div>
 </div>
 
+<div class="modal" id="optModal"><div class="sheet" id="optBody"></div></div>
 <div class="modal" id="recipeModal"><div class="sheet" id="recipeBody"></div></div>
 
 <script>
@@ -188,6 +203,29 @@ const db = {
     const { error } = r.id ? await sb.from('recipes').update(row).eq('id', r.id) : await sb.from('recipes').insert(row);
     if (error) throw error;
   },
+  async setFavorite(id, favorite) {
+    const { error } = await sb.from('recipes').update({ favorite }).eq('id', id);
+    if (error) throw error;
+  },
+  async duplicateRecipe(r) {
+    let image_url = null;
+    const i = (r.image_url || '').indexOf('/recipe-photos/');
+    if (i >= 0) {
+      const to = `${this.user.id}/${crypto.randomUUID()}.jpg`;
+      const { error } = await sb.storage.from('recipe-photos').copy(decodeURIComponent(r.image_url.slice(i + 15)), to);
+      if (!error) image_url = sb.storage.from('recipe-photos').getPublicUrl(to).data.publicUrl;
+    }
+    const { error } = await sb.from('recipes').insert({ name: r.name + ' (copia)', categories: r.categories, servings: r.servings, time: r.time, ingredients: r.ingredients, steps: r.steps, image_url });
+    if (error) throw error;
+  },
+  async importRecipes(rows) {
+    const { error } = await sb.from('recipes').insert(rows);
+    if (error) throw error;
+  },
+  async setRecipeCategories(id, categories) {
+    const { error } = await sb.from('recipes').update({ categories }).eq('id', id);
+    if (error) throw error;
+  },
   async deleteRecipe(r) {
     const { error } = await sb.from('recipes').delete().eq('id', r.id);
     if (error) throw error;
@@ -201,6 +239,8 @@ const db = {
       const { error } = await sb.from(t).select('*', { count: 'exact', head: true });
       add(`Tabla ${t}`, !error, error ? error.message : 'lectura correcta');
     }
+    const fv = await sb.from('recipes').select('favorite', { head: true, count: 'exact' });
+    add('Columna favoritas', !fv.error, fv.error ? 'Falta ejecutar el SQL de favoritas' : 'correcta');
     const w = await sb.from('settings').upsert({ user_id: this.user.id }, { onConflict: 'user_id' });
     add('Guardar datos', !w.error, w.error ? w.error.message : 'escritura correcta');
     const st = await sb.storage.from('recipe-photos').list('', { limit: 1 });
@@ -246,23 +286,30 @@ const catLabel = n => icon(n) + ' ' + n;
 async function loadRecipes() {
   try { [RECIPES, CATS] = await Promise.all([db.recipes(), db.categories()]); }
   catch (e) { $('recipeList').innerHTML = `<div class="empty">No se pudieron cargar las recetas: ${esc(e.message)}</div>`; return; }
-  const sel = $('recipeCat'), cur = sel.value;
-  sel.innerHTML = '<option value="">Todas las categorías</option>' +
-    CATS.slice().sort((a, b) => a.name.localeCompare(b.name, 'es')).map(c => `<option value="${esc(c.name)}">${esc(catLabel(c.name))}</option>`).join('');
-  sel.value = cur;
   renderRecipes();
 }
+let favOnly = false, sortMode = 'az';
 function renderRecipes() {
-  const q = norm($('recipeSearch').value).split(/\s+/).filter(Boolean), cat = $('recipeCat').value;
-  const list = RECIPES.filter(r => (!cat || (r.categories || []).includes(cat)) &&
+  const q = norm($('recipeSearch').value).split(/\s+/).filter(Boolean);
+  const list = RECIPES.filter(r => (!favOnly || r.favorite) &&
     q.every(w => norm([r.name, r.ingredients, (r.categories || []).join(' ')].join(' ')).includes(w)));
+  list.sort(sortMode === 'new' ? (a, b) => String(b.created_at).localeCompare(String(a.created_at)) : (a, b) => a.name.localeCompare(b.name, 'es'));
+  $('favFilter').classList.toggle('on', favOnly);
+  $('sortBtn').textContent = sortMode === 'new' ? '↕️ Recientes' : '↕️ A–Z';
   $('recipeCount').textContent = `${list.length} receta${list.length === 1 ? '' : 's'} · ${RECIPES.length} en total`;
   $('recipeList').innerHTML = list.length ? list.map(r => `
     <div class="rcard" data-id="${r.id}">
+      <button class="star" data-fav="${r.id}" aria-label="Favorita">${r.favorite ? '⭐' : '☆'}</button>
       <div class="thumb">${r.image_url ? `<img src="${esc(r.image_url)}" alt="" loading="lazy">` : '🥘'}</div>
       <div><h3>${esc(r.name)}</h3><small>👥 ${esc(r.servings || '—')} · ⏱️ ${esc(r.time || '—')}</small>
       <div class="tags">${esc((r.categories || []).slice(0, 4).map(catLabel).join(' · '))}</div></div></div>`).join('')
     : `<div class="empty">${RECIPES.length ? 'No hay recetas con esos filtros.' : 'Todavía no tienes recetas. Pulsa ＋ Nueva para crear la primera.'}</div>`;
+}
+async function toggleFav(id) {
+  const r = RECIPES.find(x => x.id === id); if (!r) return;
+  const v = !r.favorite; r.favorite = v; renderRecipes();
+  try { await db.setFavorite(id, v); }
+  catch (e) { r.favorite = !v; renderRecipes(); alert('No se pudo guardar el favorito: ' + e.message); }
 }
 const openModal = html => { $('recipeBody').innerHTML = html; $('recipeModal').classList.add('show'); };
 const closeRecipeModal = () => $('recipeModal').classList.remove('show');
@@ -270,21 +317,41 @@ const lines = t => String(t || '').split('\n').map(x => x.trim()).filter(Boolean
 
 function showRecipe(id) {
   const r = RECIPES.find(x => x.id === id); if (!r) return;
-  openModal(`<div class="sheet-top"><h2>${esc(r.name)}</h2><button class="btn secondary" data-act="close">Cerrar</button></div>
+  openModal(`<div class="sheet-top"><h2>${esc(r.name)}</h2><div class="btns2"><button class="btn secondary" data-act="fav" data-id="${r.id}">${r.favorite ? '⭐' : '☆'}</button><button class="btn secondary" data-act="close">Cerrar</button></div></div>
     ${r.image_url ? `<div class="detail-photo"><img src="${esc(r.image_url)}" alt=""></div>` : ''}
     <div class="notice">👥 ${esc(r.servings || '—')} raciones · ⏱️ ${esc(r.time || '—')}</div>
     <div class="notice">${esc((r.categories || []).map(catLabel).join(' · '))}</div>
     <h3>Ingredientes</h3>${lines(r.ingredients).map(x => `<div class="ing">${esc(x)}</div>`).join('') || '<div class="notice">Sin ingredientes.</div>'}
     <h3>Preparación</h3>${r.steps ? `<div class="step">${esc(r.steps)}</div>` : '<div class="notice">Sin pasos.</div>'}
+    <div class="row"><button class="btn secondary" data-act="share" data-id="${r.id}">📤 Compartir</button><button class="btn secondary" data-act="dup" data-id="${r.id}">📄 Duplicar</button></div>
     <div class="row"><button class="btn danger" data-act="delete" data-id="${r.id}">Eliminar</button><button class="btn" data-act="edit" data-id="${r.id}">Editar</button></div>
     <div class="notice" id="recipeMsg"></div>`);
+}
+async function dupRecipe(id) {
+  const r = RECIPES.find(x => x.id === id); if (!r) return;
+  const m = $('recipeMsg'); m.className = 'notice'; m.textContent = 'Duplicando…';
+  try {
+    await db.duplicateRecipe(r); await loadRecipes();
+    const c = RECIPES.filter(x => x.name === r.name + ' (copia)').sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
+    if (c) editRecipe(c.id); else closeRecipeModal();
+  } catch (e) { m.className = 'notice err'; m.textContent = 'No se pudo duplicar: ' + e.message; }
+}
+async function shareRecipe(id) {
+  const r = RECIPES.find(x => x.id === id); if (!r) return; const m = $('recipeMsg');
+  const text = `*${r.name}*\n${(r.categories || []).join(' · ')}\n👥 ${r.servings || '—'} raciones · ⏱️ ${r.time || '—'}\n\n*Ingredientes*\n${lines(r.ingredients).map(x => '• ' + x).join('\n')}\n\n*Preparación*\n${r.steps || ''}`;
+  try {
+    if (navigator.share) await navigator.share({ title: r.name, text });
+    else { await navigator.clipboard.writeText(text); m.className = 'notice'; m.textContent = 'Receta copiada. Pégala donde quieras.'; }
+  } catch (e) { if (e.name !== 'AbortError') { m.className = 'notice err'; m.textContent = 'No se pudo compartir: ' + e.message; } }
 }
 
 let draft = null;
 function editRecipe(id) {
   const r = RECIPES.find(x => x.id === id) || { name: '', categories: [], servings: 2, time: '', ingredients: '', steps: '', image_url: null };
   draft = { id: r.id || null, cats: new Set(r.categories || []), file: null, oldUrl: r.image_url, image_url: r.image_url, removePhoto: false };
-  openModal(`<div class="sheet-top"><h2>${id ? 'Editar receta' : 'Nueva receta'}</h2></div>
+  openModal(`<div class="editbar"><div class="sheet-top"><h2>${id ? 'Editar receta' : 'Nueva receta'}</h2>
+      <div class="btns"><button class="btn secondary" data-act="close">Cancelar</button><button class="btn" id="btnSaveRecipe" data-act="save">Guardar</button></div></div>
+      <div class="notice" id="recipeMsg"></div></div>
     <div class="field"><label>Nombre</label><input id="fName" value="${esc(r.name)}"></div>
     <div class="field"><label>Foto</label><div class="photo-prev" id="photoPrev"></div>
       <input id="fPhoto" type="file" accept="image/*">
@@ -294,8 +361,7 @@ function editRecipe(id) {
     <div class="field"><label>Tiempo</label><input id="fTime" value="${esc(r.time)}" placeholder="Ej.: 30 min"></div>
     <div class="field"><label>Ingredientes (uno por línea)</label><textarea id="fIngs">${esc(r.ingredients)}</textarea></div>
     <div class="field"><label>Preparación</label><textarea id="fSteps">${esc(r.steps)}</textarea></div>
-    <div class="row"><button class="btn secondary" data-act="close">Cancelar</button><button class="btn" id="btnSaveRecipe" data-act="save">Guardar</button></div>
-    <div class="notice" id="recipeMsg"></div>`);
+    `);
   drawChips(); drawPhoto();
 }
 function drawChips() {
@@ -354,8 +420,12 @@ function resizeImage(file) {
 }
 $('btnNewRecipe').onclick = () => editRecipe(null);
 $('recipeSearch').oninput = renderRecipes;
-$('recipeCat').onchange = renderRecipes;
-$('recipeList').onclick = e => { const c = e.target.closest('.rcard'); if (c) showRecipe(c.dataset.id); };
+$('recipeList').onclick = e => {
+  const st = e.target.closest('.star'); if (st) return toggleFav(st.dataset.fav);
+  const c = e.target.closest('.rcard'); if (c) showRecipe(c.dataset.id);
+};
+$('favFilter').onclick = () => { favOnly = !favOnly; renderRecipes(); };
+$('sortBtn').onclick = () => { sortMode = sortMode === 'az' ? 'new' : 'az'; renderRecipes(); };
 $('recipeBody').addEventListener('change', e => {
   if (e.target.id === 'fPhoto' && e.target.files[0]) { draft.file = e.target.files[0]; draft.removePhoto = false; drawPhoto(); }
 });
@@ -365,7 +435,8 @@ $('recipeBody').addEventListener('click', e => {
   if (e.target.id === 'btnNoPhoto') { draft.file = null; draft.removePhoto = true; return drawPhoto(); }
   const b = e.target.closest('[data-act]'); if (!b) return;
   ({ close: closeRecipeModal, save: saveRecipe, newcat: newCategory,
-     edit: () => editRecipe(b.dataset.id), delete: () => deleteRecipe(b.dataset.id) })[b.dataset.act]();
+     edit: () => editRecipe(b.dataset.id), delete: () => deleteRecipe(b.dataset.id),
+     fav: () => toggleFav(b.dataset.id).then(() => showRecipe(b.dataset.id)), dup: () => dupRecipe(b.dataset.id), share: () => shareRecipe(b.dataset.id) })[b.dataset.act]();
 });
 
 async function runDiagnosis() {
@@ -377,6 +448,126 @@ async function runDiagnosis() {
   const all = res.every(r => r.ok);
   $('cloudBtn').className = 'btn secondary ' + (all ? 'ok' : 'err');
 }
+
+/* ---- Opciones (⚙️): categorías y exportar ---- */
+let optView = 'main', editingCat = null;
+const optMsg = (t, ok) => { const m = $('optMsg'); if (m) { m.textContent = t; m.className = 'notice' + (ok ? '' : ' err'); } };
+function renderOptions() {
+  const body = $('optBody');
+  if (optView === 'main') {
+    body.innerHTML = `<div class="sheet-top"><h2>⚙️ Opciones</h2><button class="btn secondary" data-act="optclose">Cerrar</button></div>
+      <button class="menuitem" data-act="optcats"><span>🏷️</span><span>Categorías<small>Crear, renombrar, cambiar icono o borrar</small></span></button>
+      <button class="menuitem" data-act="optcsv"><span>📥</span><span>Descargar recetas (CSV)<small>Copia de seguridad para abrir en Excel</small></span></button>
+      <button class="menuitem" data-act="optimport"><span>📤</span><span>Importar recetas (CSV)<small>Añade las de un archivo descargado antes</small></span></button>
+      <input type="file" id="csvFile" accept=".csv,text/csv" class="hidden">
+      <div class="notice" id="optMsg"></div>`;
+    return;
+  }
+  const uses = n => RECIPES.filter(r => (r.categories || []).includes(n)).length;
+  const form = key => `<div class="catrow"><input class="ico" id="cIcon" maxlength="4" value="${key === '__new' ? '🏷️' : esc(icon(key))}">
+      <input id="cName" value="${key === '__new' ? '' : esc(key)}" placeholder="Nombre">
+      <button class="btn" data-act="catsave" data-name="${esc(key)}">✓</button><button class="btn secondary" data-act="catcancel">✕</button></div>`;
+  body.innerHTML = `<div class="sheet-top"><h2>🏷️ Categorías</h2><button class="btn secondary" data-act="optback">Atrás</button></div>
+    <div class="notice" id="optMsg"></div>
+    ${editingCat === '__new' ? form('__new') : '<button class="btn" data-act="catnew" style="margin:8px 0">＋ Nueva categoría</button>'}
+    ${CATS.slice().sort((a, b) => a.name.localeCompare(b.name, 'es')).map(c => editingCat === c.name ? form(c.name) :
+      `<div class="catrow"><span>${esc(c.icon)} ${esc(c.name)} <small>(${uses(c.name)})</small></span>
+       <button class="btn secondary" data-act="catedit" data-name="${esc(c.name)}">✏️</button>
+       <button class="btn secondary" data-act="catdel" data-name="${esc(c.name)}">🗑️</button></div>`).join('')}`;
+}
+async function recipesWithCat(name, fn) {
+  for (const r of RECIPES.filter(r => (r.categories || []).includes(name)))
+    await db.setRecipeCategories(r.id, [...new Set(fn(r.categories))]);
+}
+async function saveCat(old) {
+  const name = $('cName').value.trim(), ic = $('cIcon').value.trim() || '🏷️';
+  if (!name) return optMsg('Escribe un nombre.');
+  const clash = CATS.find(c => norm(c.name) === norm(name) && c.name !== old);
+  try {
+    if (old === '__new') {
+      if (clash) return optMsg('Esa categoría ya existe.');
+      await db.saveCategories([...CATS, { name, icon: ic }]);
+    } else if (clash) {
+      if (!confirm(`Ya existe "${clash.name}". ¿Fusionar "${old}" dentro de ella?`)) return;
+      await db.saveCategories(CATS.filter(c => c.name !== old));
+      await recipesWithCat(old, cs => cs.map(x => x === old ? clash.name : x));
+    } else {
+      await db.saveCategories(CATS.map(c => c.name === old ? { name, icon: ic } : c));
+      if (name !== old) await recipesWithCat(old, cs => cs.map(x => x === old ? name : x));
+    }
+    editingCat = null; await loadRecipes(); renderOptions();
+  } catch (e) { optMsg('No se pudo guardar: ' + e.message); }
+}
+async function delCat(name) {
+  const n = RECIPES.filter(r => (r.categories || []).includes(name)).length;
+  if (!confirm(n ? `"${name}" se quitará de ${n} receta${n === 1 ? '' : 's'} (las recetas no se borran). ¿Continuar?` : `¿Borrar la categoría "${name}"?`)) return;
+  try {
+    await db.saveCategories(CATS.filter(c => c.name !== name));
+    await recipesWithCat(name, cs => cs.filter(x => x !== name));
+    await loadRecipes(); renderOptions();
+  } catch (e) { optMsg('No se pudo borrar: ' + e.message); }
+}
+function exportCsv() {
+  if (!RECIPES.length) return optMsg('Todavía no hay recetas que descargar.');
+  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const head = ['Nombre', 'Categorías', 'Raciones', 'Tiempo', 'Ingredientes', 'Preparación', 'Favorita', 'Foto'];
+  const rows = RECIPES.map(r => [r.name, (r.categories || []).join(', '), r.servings, r.time, r.ingredients, r.steps, r.favorite ? 'Sí' : 'No', r.image_url].map(q).join(';'));
+  const blob = new Blob(['\ufeff' + [head.map(q).join(';'), ...rows].join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'recetas-' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function parseCsv(text) {
+  text = text.replace(/^\ufeff/, '');
+  const first = text.split('\n')[0], d = (first.match(/;/g) || []).length >= (first.match(/,/g) || []).length ? ';' : ',';
+  const rows = []; let row = [], f = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === d) { row.push(f); f = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(f); f = ''; rows.push(row); row = []; }
+    else f += c;
+  }
+  if (f !== '' || row.length) { row.push(f); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim()));
+}
+async function importCsv(file) {
+  try {
+    const rows = parseCsv(await file.text());
+    if (rows.length < 2) return optMsg('El archivo está vacío.');
+    const h = rows[0].map(norm), g = (r, n) => { const i = h.indexOf(n); return i < 0 ? '' : (r[i] || '').trim(); };
+    if (h.indexOf('nombre') < 0) return optMsg('No encuentro la columna "Nombre".');
+    const have = new Set(RECIPES.map(r => norm(r.name))), out = [], newCats = []; let skipped = 0;
+    for (const r of rows.slice(1)) {
+      const name = g(r, 'nombre'); if (!name) continue;
+      if (have.has(norm(name))) { skipped++; continue; } have.add(norm(name));
+      const cats = g(r, 'categorias').split(',').map(x => x.trim()).filter(Boolean).map(x => {
+        const c = [...CATS, ...newCats].find(k => norm(k.name) === norm(x));
+        if (c) return c.name; newCats.push({ name: x, icon: '🏷️' }); return x;
+      });
+      const row = { name, categories: [...new Set(cats)], servings: +g(r, 'raciones') || 2, time: g(r, 'tiempo'), ingredients: g(r, 'ingredientes'), steps: g(r, 'preparacion') };
+      if (['si', '1', 'true'].includes(norm(g(r, 'favorita')))) row.favorite = true;
+      out.push(row);
+    }
+    if (!out.length) return optMsg(skipped ? 'Todas las recetas del archivo ya existen.' : 'No hay recetas que importar.');
+    if (!confirm(`Se añadirán ${out.length} receta${out.length === 1 ? '' : 's'}${skipped ? ` (${skipped} ya existen y se saltan)` : ''}. ¿Continuar?`)) return;
+    if (newCats.length) await db.saveCategories([...CATS, ...newCats]);
+    await db.importRecipes(out); await loadRecipes(); renderOptions();
+    optMsg(`Importadas ${out.length} recetas.`, true);
+  } catch (e) { optMsg('No se pudo importar: ' + e.message); }
+}
+$('optBody').addEventListener('change', e => { if (e.target.id === 'csvFile' && e.target.files[0]) importCsv(e.target.files[0]); });
+$('optBtn').onclick = () => { optView = 'main'; editingCat = null; renderOptions(); $('optModal').classList.add('show'); };
+$('optBody').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return; const n = b.dataset.name;
+  ({ optclose: () => $('optModal').classList.remove('show'),
+     optcats: () => { optView = 'cats'; renderOptions(); }, optback: () => { optView = 'main'; editingCat = null; renderOptions(); },
+     optcsv: exportCsv, optimport: () => $('csvFile').click(),
+     catnew: () => { editingCat = '__new'; renderOptions(); }, catedit: () => { editingCat = n; renderOptions(); },
+     catcancel: () => { editingCat = null; renderOptions(); },
+     catsave: () => saveCat(n), catdel: () => delCat(n) })[b.dataset.act]();
+});
 
 /* ============ 5. ARRANQUE ============ */
 function onSession(session) {
