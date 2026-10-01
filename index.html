@@ -770,7 +770,7 @@ decorate();
     $('modalTitle').textContent=r.name;
     const ings=parseIngredients(r.ingredients_raw);
     $('modalBody').innerHTML=
-      ((window.__pandiGetRecipeImage&&window.__pandiGetRecipeImage(r.name))||r.image?'<div style="height:180px;border-radius:14px;overflow:hidden;margin-bottom:12px"><img src="'+escAttr((window.__pandiGetRecipeImage&&window.__pandiGetRecipeImage(r.name))||r.image)+'" alt="" style="width:100%;height:100%;object-fit:cover"></div>':'')+
+      ((window.__pandiRecipePhoto?window.__pandiRecipePhoto(r):(r.image||''))?'<div style="height:180px;border-radius:14px;overflow:hidden;margin-bottom:12px"><img src="'+escAttr((window.__pandiRecipePhoto?window.__pandiRecipePhoto(r):(r.image||'')))+'" alt="" style="width:100%;height:100%;object-fit:cover"></div>':'')+
       '<div class="meta"><span>👥 '+(r.servings||'—')+' raciones</span><span>⏱️ '+esc(r.time||'—')+'</span><span>🏷️ '+esc(r.category||'')+'</span></div>'+
       '<h3>Ingredientes</h3><div class="ingredients">'+(ings.length?ings.map(x=>'<div class="ing">'+esc(x)+'</div>').join(''):'<div class="empty">Esta receta todavía no tiene ingredientes.</div>')+'</div>'+
       '<h3>Preparación</h3><div>'+(r.steps?esc(r.steps).split(/\n/).map(x=>'<div class="step">'+x+'</div>').join(''):'<div class="empty">Todavía no hay pasos de preparación.</div>')+'</div>'+
@@ -789,7 +789,7 @@ decorate();
     $('recipeCount').textContent=arr.length+' receta'+(arr.length===1?'':'s')+' · '+recipes.length+' en total';
     const grid=$('recipeGrid');
     if(!arr.length){grid.innerHTML='<div class="empty">No encuentro recetas con esos filtros.</div>';return}
-    grid.innerHTML=arr.map(r=>'<article class="card" data-id="'+escAttr(r.id)+'"><div class="photo">'+((window.__pandiGetRecipeImage&&window.__pandiGetRecipeImage(r.name))||r.image?'<img src="'+escAttr((window.__pandiGetRecipeImage&&window.__pandiGetRecipeImage(r.name))||r.image)+'" alt="" style="width:100%;height:100%;object-fit:cover">':'🥘')+'</div><h3>'+esc(r.name)+'</h3><div class="meta"><span>👥 '+(r.servings||'—')+'</span><span>⏱️ '+esc(r.time||'—')+'</span></div><div class="tags">'+String(r.category||'').split(',').filter(Boolean).slice(0,4).map(x=>'<span class="tag">'+esc(x.trim())+'</span>').join('')+'</div></article>').join('');
+    grid.innerHTML=arr.map(r=>'<article class="card" data-id="'+escAttr(r.id)+'"><div class="photo">'+((window.__pandiRecipePhoto?window.__pandiRecipePhoto(r):(r.image||''))?'<img src="'+escAttr((window.__pandiRecipePhoto?window.__pandiRecipePhoto(r):(r.image||'')))+'" alt="" style="width:100%;height:100%;object-fit:cover">':'🥘')+'</div><h3>'+esc(r.name)+'</h3><div class="meta"><span>👥 '+(r.servings||'—')+'</span><span>⏱️ '+esc(r.time||'—')+'</span></div><div class="tags">'+String(r.category||'').split(',').filter(Boolean).slice(0,4).map(x=>'<span class="tag">'+esc(x.trim())+'</span>').join('')+'</div></article>').join('');
     grid.querySelectorAll('.card').forEach(c=>c.onclick=()=>openRecipe(c.dataset.id));
   };
   window.renderRecipes=renderRecipes;
@@ -809,14 +809,13 @@ decorate();
   const SUPABASE_KEY='sb_publishable_LPRAkNBsVLKUZLDfAMD6dQ_kaMErp_2';
   const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
   const $=id=>document.getElementById(id);
-  const APP=/^recetario_/;
-  const mem=Object.create(null);
-  let loaded=false,loading=false,saving=false,saveTimer=null;
+  const mem=Object.create(null); let loaded=false,loading=false,saving=false,saveTimer=null;
   const nativeGet=Storage.prototype.getItem,nativeSet=Storage.prototype.setItem,nativeRemove=Storage.prototype.removeItem;
   const parse=(v,f)=>{try{const x=JSON.parse(v);return x==null?f:x}catch(e){return f}};
+  const APP=/^recetario_/;
   try{for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i);if(APP.test(k))nativeRemove.call(localStorage,k)}}catch(e){}
   try{indexedDB.deleteDatabase('pandi_recipes_photos_v1')}catch(e){}
-  Storage.prototype.getItem=function(k){if(this!==localStorage||!APP.test(k))return nativeGet.call(this,k);const n=k.slice(10);return Object.prototype.hasOwnProperty.call(mem,n)?JSON.stringify(mem[n]):null};
+  Storage.prototype.getItem=function(k){if(this!==localStorage||!APP.test(k))return nativeGet.call(this,k);return Object.prototype.hasOwnProperty.call(mem,k.slice(10))?JSON.stringify(mem[k.slice(10)]):null};
   Storage.prototype.setItem=function(k,v){if(this!==localStorage||!APP.test(k))return nativeSet.call(this,k,v);mem[k.slice(10)]=parse(v,null);schedule()};
   Storage.prototype.removeItem=function(k){if(this!==localStorage||!APP.test(k))return nativeRemove.call(this,k);delete mem[k.slice(10)];schedule()};
   const state=(k,f)=>Object.prototype.hasOwnProperty.call(mem,k)?mem[k]:f;
@@ -824,55 +823,80 @@ decorate();
   const status=(t,c='')=>{const e=$('cloudStatus');if(e){e.textContent=t;e.className='cloud-status '+c}};
   const message=t=>{const e=$('authMessage');if(e)e.textContent=t};
   const normal=s=>norm(String(s||'')).replace(/\s+/g,' ').trim();
-  const currentUser=async()=>{const r=await db.auth.getSession();return r.data.session?.user||null};
-  function schedule(){if(!loaded||loading)return;clearTimeout(saveTimer);saveTimer=setTimeout(()=>saveCloud().catch(e=>{console.error(e);status('☁️ Error al guardar','err')}),600)}
-  function showAuth(){const o=$('authOverlay');if(o)o.classList.add('show');currentUser().then(u=>{if($('signOutBtn'))$('signOutBtn').style.display=u?'block':'none';if($('signInBtn'))$('signInBtn').style.display=u?'none':'block';if($('signUpBtn'))$('signUpBtn').style.display=u?'none':'block';if($('authInfo'))$('authInfo').textContent=u?'Cuenta conectada: '+u.email:'Inicia sesión para cargar y guardar tus datos en Supabase.'})}
+  const currentUser=async()=>{const r=await db.auth.getSession();if(r.error)throw r.error;return r.data.session?.user||null};
+  function schedule(){if(!loaded||loading)return;clearTimeout(saveTimer);saveTimer=setTimeout(()=>saveCloud().catch(e=>{console.error(e);status('☁️ Error al guardar','err');message('Error al guardar: '+(e.message||String(e)))}),450)}
+  function showAuth(){const o=$('authOverlay');if(o)o.classList.add('show');currentUser().then(u=>{if($('signOutBtn'))$('signOutBtn').style.display=u?'block':'none';if($('signInBtn'))$('signInBtn').style.display=u?'none':'block';if($('signUpBtn'))$('signUpBtn').style.display=u?'none':'block';if($('authInfo'))$('authInfo').textContent=u?'Cuenta conectada: '+u.email:'Inicia sesión para cargar y guardar tus datos en Supabase.'}).catch(()=>{});}
   const closeAuth=()=>{$('authOverlay')?.classList.remove('show')};
-
+  let cloudPhotoMap=Object.create(null);
+  function imageMapFromSettings(settings){
+    const out={};
+    [settings.recipe_images_by_name,settings.recipe_images,settings.recipe_image_by_name].forEach(m=>{
+      if(!m||typeof m!=='object'||Array.isArray(m))return;
+      Object.entries(m).forEach(([k,v])=>{
+        let value=v;
+        if(v&&typeof v==='object') value=v.data_url||v.dataUrl||v.url||v.src||v.data||'';
+        if(typeof value==='string'&&value)out[normal(k)]=value;
+      });
+    });
+    return out;
+  }
+  function recipePhoto(r){
+    const k=normal(r?.name);
+    return (r&&typeof r.image==='string'&&r.image) || cloudPhotoMap[k] || '';
+  }
+  window.__pandiRecipePhoto=recipePhoto;
+  function applyCloudImages(rows,settings){
+    const imgs=imageMapFromSettings(settings);
+    cloudPhotoMap=imgs;
+    return (rows||[]).map(r=>({...r,image:imgs[normal(r.name)]||r.image||null}));
+  }
   async function loadCloud(){
-    if(loading)return false;
-    const u=await currentUser();
-    if(!u){loaded=false;status('☁️ Sin conectar','err');showAuth();return false}
-    loading=true;status('☁️ Cargando datos…');message('Cargando datos…');
+    if(loading)return false; loading=true; status('☁️ Cargando datos…'); message('Cargando datos…');
     try{
+      const u=await currentUser(); if(!u){loaded=false;status('☁️ Sin conectar','err');showAuth();return false}
       const rr=await db.from('recipes').select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').eq('user_id',u.id).order('id');
       if(rr.error)throw rr.error;
-      const ss=await db.from('settings').select('key,value').eq('user_id',u.id);
-      if(ss.error)throw ss.error;
+      const ss=await db.from('settings').select('key,value').eq('user_id',u.id); if(ss.error)throw ss.error;
       const settings=Object.fromEntries((ss.data||[]).map(x=>[x.key,x.value]));
       let cloudWeeks={};
       const ww=await db.from('weeks').select('week_key,data').eq('user_id',u.id);
-      if(!ww.error) cloudWeeks=Object.fromEntries((ww.data||[]).map(x=>[x.week_key,x.data]));
-      else if(settings.weekly_menus) cloudWeeks=settings.weekly_menus;
+      if(!ww.error)cloudWeeks=Object.fromEntries((ww.data||[]).map(x=>[x.week_key,x.data]));
+      else if(settings.weekly_menus)cloudWeeks=settings.weekly_menus;
       const sh=await db.from('shopping').select('data').eq('user_id',u.id).maybeSingle();
       if(sh.error)throw sh.error;
-      setState('recipes',rr.data||[]);setState('weeks',cloudWeeks||{});setState('checked',sh.data?.data||{});
+      const cloudRecipes=applyCloudImages(rr.data||[],settings);
+      setState('recipes',cloudRecipes);setState('weeks',cloudWeeks||{});setState('checked',sh.data?.data||{});
       Object.entries(settings).forEach(([k,v])=>setState(k,v));
-      setState('selected_week',weekKey(new Date()));
-      recipes=state('recipes',[]);weeks=state('weeks',{});checked=state('checked',{});selectedWeek=state('selected_week',weekKey(new Date()));
-      if(!weeks[selectedWeek])weeks[selectedWeek]=days.map(()=>({}));
-      menu=weeks[selectedWeek];
-      window.__pandiGetRecipeImage=name=>{const m=state('recipe_images_by_name',{})||{};return m[normal(name)]||''};
-      window.__pandiSetRecipeImage=async(name,image)=>{
-        const m={...(state('recipe_images_by_name',{})||{})};const k=normal(name);
-        if(image)m[k]=image;else delete m[k];
-        setState('recipe_images_by_name',m);schedule();
+      const wk=weekKey(new Date());setState('selected_week',wk);
+      recipes=state('recipes',[]);weeks=state('weeks',{});checked=state('checked',{});selectedWeek=wk;
+      if(!weeks[selectedWeek])weeks[selectedWeek]=days.map(()=>({}));menu=weeks[selectedWeek];
+      const imgs=imageMapFromSettings(settings);
+      cloudPhotoMap=imgs;
+      window.__pandiGetRecipeImage=name=>{const k=normal(name);const r=recipes.find(x=>normal(x.name)===k);return (r&&r.image)||cloudPhotoMap[k]||''};
+      window.__pandiSetRecipeImage=(name,image)=>{
+        const m={...(state('recipe_images_by_name',{})||{})};
+        const k=normal(name);
+        if(image){m[k]=image;cloudPhotoMap[k]=image}else{delete m[k];delete cloudPhotoMap[k]}
+        setState('recipe_images_by_name',m);
+        const r=recipes.find(x=>normal(x.name)===k);if(r)r.image=image||null;
+        renderRecipes();schedule();
       };
-      loaded=true;
-      renderRecipes();renderMenu();renderShopping();renderStats();window.renderInventory?.();
-      status('☁️ Conectado','ok');message('Conectado. Datos cargados.');
-      return true;
+      window.__syncRecipesDirect=saveCloud;
+      loaded=true;renderRecipes();renderMenu();renderShopping();renderStats();window.renderInventory?.();
+      status('☁️ Conectado','ok');message('Conectado. Datos cargados.');return true;
     }finally{loading=false}
   }
-
   async function saveCloud(){
-    if(!loaded||saving)return;
-    const u=await currentUser();if(!u)return;
-    saving=true;
+    if(!loaded||saving)return;saving=true;
     try{
-      const rs=Array.isArray(state('recipes',[]))?state('recipes',[]):[];
+      const u=await currentUser();if(!u)return;
+      const rs=Array.isArray(recipes)?recipes:[];
+      const imgs={...(state('recipe_images_by_name',{})||{})};
+      rs.forEach(r=>{const k=normal(r.name);if(k&&r.image)imgs[k]=r.image});
+      setState('recipe_images_by_name',imgs);
+      cloudPhotoMap=imgs;
       const existing=await db.from('recipes').select('id,name').eq('user_id',u.id);if(existing.error)throw existing.error;
-      const keep=new Set(rs.map(r=>normal(r.name)));
+      const keep=new Set(rs.map(r=>normal(r.name)).filter(Boolean));
       for(const row of existing.data||[])if(!keep.has(normal(row.name))){const q=await db.from('recipes').delete().eq('id',row.id).eq('user_id',u.id);if(q.error)throw q.error}
       const fresh=await db.from('recipes').select('id,name').eq('user_id',u.id);if(fresh.error)throw fresh.error;
       const by=new Map();for(const row of fresh.data||[]){const k=normal(row.name);if(!by.has(k))by.set(k,row);else{const q=await db.from('recipes').delete().eq('id',row.id).eq('user_id',u.id);if(q.error)throw q.error}}
@@ -880,28 +904,27 @@ decorate();
       for(const r of rs){const k=normal(r.name);if(!k)continue;const data={user_id:u.id,name:r.name,category:r.category||'',servings:Number(r.servings)||2,time:r.time||'',ingredients_raw:r.ingredients_raw||'',steps:r.steps||'',updated_at:new Date().toISOString()};let q,row=by.get(k);
         if(row)q=await db.from('recipes').update(data).eq('id',row.id).eq('user_id',u.id).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();
         else q=await db.from('recipes').insert(data).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();
-        if(q.error)throw q.error;row=q.data;idMap.set(String(r.id),row.id);saved.push(row);
+        if(q.error)throw q.error;row=q.data;idMap.set(String(r.id),row.id);saved.push({...row,image:r.image||imgs[k]||null});
       }
       const ws=state('weeks',{})||{};
-      for(const [wk,daysData] of Object.entries(ws)){const data=(daysData||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]));});return d});const q=await db.from('weeks').upsert({user_id:u.id,week_key:wk,data,updated_at:new Date().toISOString()},{onConflict:'user_id,week_key'});if(q.error){if(settingsCanUseFallback(q.error)){const fb=await db.from('settings').upsert({user_id:u.id,key:'weekly_menus',value:ws,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});if(fb.error)throw fb.error;continue;}throw q.error}}
+      for(const [wk,daysData] of Object.entries(ws)){const data=(daysData||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]));});return d});const q=await db.from('weeks').upsert({user_id:u.id,week_key:wk,data,updated_at:new Date().toISOString()},{onConflict:'user_id,week_key'});if(q.error&&!/weeks|data|column|schema cache/i.test(String(q.error.message||q.error)))throw q.error}
       const settingsKeys=['categories','goals','inventory','restock','recipe_images_by_name'];
       for(const key of settingsKeys){const value=state(key,null);if(value==null)continue;const q=await db.from('settings').upsert({user_id:u.id,key,value,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});if(q.error)throw q.error}
       const sh=await db.from('shopping').upsert({user_id:u.id,data:state('checked',{})||{},updated_at:new Date().toISOString()},{onConflict:'user_id'});if(sh.error)throw sh.error;
       const remapped={};Object.entries(ws).forEach(([wk,ds])=>remapped[wk]=(ds||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]));});return d}));
-      setState('recipes',saved);setState('weeks',remapped);recipes=saved;weeks=remapped;menu=weeks[selectedWeek]||days.map(()=>({}));status('☁️ Guardado','ok');
+      setState('recipes',saved);setState('weeks',remapped);recipes=saved;weeks=remapped;menu=weeks[selectedWeek]||days.map(()=>({}));
+      cloudPhotoMap=imgs;
+      window.__pandiGetRecipeImage=name=>{const k=normal(name);const r=recipes.find(x=>normal(x.name)===k);return (r&&r.image)||cloudPhotoMap[k]||''};
+      renderRecipes();
+      status('☁️ Guardado','ok');
     }finally{saving=false}
   }
-  function settingsCanUseFallback(err){return /weeks|data|column|schema cache/i.test(String(err?.message||err||''))}
-
-  window.__syncNow=async()=>{await saveCloud();await loadCloud()};
-  /* Cloud-only: every recipe mutation goes straight to Supabase, never to a local cache. */
-  window.__syncRecipesDirect=async()=>{if(!loaded)return;await saveCloud();await loadCloud()};
-  window.__pandiCloudLoad=loadCloud;window.__pandiCloudSave=saveCloud;
+  window.__syncNow=async()=>{await saveCloud();await loadCloud()};window.__pandiCloudLoad=loadCloud;window.__pandiCloudSave=saveCloud;
   $('cloudStatus').onclick=showAuth;$('closeAuth').onclick=closeAuth;$('authOverlay').onclick=e=>{if(e.target===$('authOverlay'))closeAuth()};
   $('signInBtn').onclick=async()=>{const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||password.length<6){message('Introduce un correo y una contraseña de al menos 6 caracteres.');return}if(!navigator.onLine){message('Sin conexión a Internet.');return}message('Entrando…');const r=await db.auth.signInWithPassword({email,password});if(r.error){message(r.error.message);return}try{await loadCloud();closeAuth()}catch(e){console.error(e);message('No se pueden cargar los datos: '+(e.message||String(e)))}};
   $('signUpBtn').onclick=async()=>{const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||password.length<6){message('Introduce un correo y una contraseña de al menos 6 caracteres.');return}message('Creando cuenta…');const r=await db.auth.signUp({email,password});if(r.error){message(r.error.message);return}if(r.data.session){try{await loadCloud();closeAuth()}catch(e){message('No se pueden cargar los datos: '+(e.message||String(e)))} }else message('Cuenta creada. Revisa el correo si Supabase solicita confirmación y después entra.')};
-  $('signOutBtn').onclick=async()=>{await db.auth.signOut();loaded=false;Object.keys(mem).forEach(k=>delete mem[k]);recipes=[];weeks={};menu=[];renderRecipes();status('☁️ Sin conectar','err');closeAuth();showAuth()};
-  db.auth.onAuthStateChange((event,s)=>{if(event==='SIGNED_IN'&&s&&!loaded&&!loading){setTimeout(()=>loadCloud().catch(e=>{console.error(e);message('No se pueden cargar los datos: '+(e.message||String(e))) }),0);}if(event==='SIGNED_OUT'){loaded=false;status('☁️ Sin conectar','err')}});
+  $('signOutBtn').onclick=async()=>{await db.auth.signOut();loaded=false;Object.keys(mem).forEach(k=>delete mem[k]);recipes=[];weeks={};menu=[];renderRecipes();status('☁️ Sin conectar','err');showAuth()};
+  db.auth.onAuthStateChange((event,s)=>{if(event==='SIGNED_IN'&&s&&!loaded&&!loading)setTimeout(()=>loadCloud().catch(e=>{console.error(e);message('No se pueden cargar los datos: '+(e.message||String(e)))}),0);if(event==='SIGNED_OUT'){loaded=false;status('☁️ Sin conectar','err')}});
   window.addEventListener('load',()=>setTimeout(()=>currentUser().then(u=>u?loadCloud().catch(e=>{console.error(e);status('☁️ Error de carga','err');message('No se pueden cargar los datos: '+(e.message||String(e)))}):showAuth()),150));
 })();
 </script>
