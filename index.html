@@ -145,17 +145,9 @@ document.getElementById('generateAi').onclick=makeAiProposal;document.getElement
   document.getElementById('configureGoals').onclick=()=>{statsConfigOpen=true;renderStats();setTimeout(()=>document.querySelector('.goals-card')?.scrollIntoView({behavior:'smooth',block:'start'}),50)};
   document.getElementById('downloadExcel').textContent='⬇️';
   document.getElementById('downloadExcel').onclick=async()=>{
-    try{if(window.__syncRecipesDirect)await window.__syncRecipesDirect();else if(window.__syncNow)await window.__syncNow()}catch(e){console.warn('No se pudo sincronizar antes de exportar',e)}
+    try{if(window.__syncNow)await window.__syncNow()}catch(e){console.warn('No se pudo sincronizar antes de exportar',e)}
     const q=v=>`"${String(v??'').replace(/"/g,'""').replace(/\n/g,' ')}`+'"';
-    const seen=new Set();
-    const exportRecipes=(Array.isArray(recipes)?recipes:[]).filter(r=>{
-      const name=String(r?.name||'').trim();
-      const key=norm(name).replace(/\s+/g,' ');
-      if(!key||seen.has(key))return false;
-      seen.add(key);
-      return true;
-    });
-    const rows=[['Receta','Categorías','Raciones','Tiempo','Ingredientes','Preparación'],...exportRecipes.map(r=>[r.name,r.category||'',r.servings||'',r.time||'',r.ingredients_raw||'',r.steps||''])];
+    const rows=[['Receta','Categorías','Raciones','Tiempo','Ingredientes','Preparación'],...recipes.map(r=>[r.name,r.category||'',r.servings||'',r.time||'',r.ingredients_raw||'',r.steps||''])];
     const csv='\ufeff'+rows.map(row=>row.map(q).join(';')).join('\r\n');
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
     a.href=url;a.download='Panda-recetas.csv';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},1000);
@@ -972,6 +964,7 @@ decorate();
       const obj={id:r.id||('local_'+Date.now()),name,category:[...selectedCats].join(', '),servings:Number($('fServ').value)||2,time:$('fTime').value.trim(),ingredients_raw:list.map(x=>x.trim()).filter(Boolean).join('\n'),steps:$('fSteps').value.trim(),image:window.__pandiPendingImage||null,updated_at:new Date().toISOString()};
       const idx=recipes.findIndex(x=>String(x.id)===String(r.id));
       if(idx>=0)recipes[idx]=obj;else recipes.push(obj);
+      writeRecipes(recipes);
       recipes=dedupeLocalRecipes();
       try{const deleted=JSON.parse(localStorage.getItem('recetario_deleted_recipe_names')||'[]')||[];localStorage.setItem('recetario_deleted_recipe_names',JSON.stringify(deleted.filter(x=>keyName(x)!==keyName(name))))}catch(e){}
       writeRecipes(recipes);localStorage.setItem('recetario_recipes_dirty','1');closeModal();renderRecipes();renderMenu();renderShopping();renderStats();
