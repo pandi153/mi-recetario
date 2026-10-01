@@ -1,5 +1,18 @@
-const CACHE='pandi-recetas-static-v30';
-const STATIC=['./','./index.html','./manifest.json','./icon-192.png','./apple-touch-icon.png'];
-self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(STATIC).catch(()=>{})).then(()=>self.skipWaiting()))});
-self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
-self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(u.origin!==location.origin)return;if(e.request.method!=='GET')return;if(u.pathname.endsWith('/index.html')||u.pathname==='/'||u.pathname.endsWith('/manifest.json')){e.respondWith(fetch(e.request).then(r=>{const copy=r.clone();caches.open(CACHE).then(c=>c.put(e.request,copy));return r}).catch(()=>caches.match(e.request)));return}e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))});
+const CACHE = "pandi-recetas-v24";
+const STATIC = ["./manifest.json","./favicon-16.png","./favicon-32.png","./apple-touch-icon.png","./icon-192.png","./icon-512.png"];
+self.addEventListener("install", event => { event.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC)).then(() => self.skipWaiting())); });
+self.addEventListener("activate", event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+self.addEventListener("fetch", event => {
+  const req = event.request;
+  if (req.method !== "GET") return;
+  if (req.mode === "navigate") {
+    event.respondWith(fetch(req, {cache:"no-store"}).catch(() => caches.match("./index.html")));
+    return;
+  }
+  const url = new URL(req.url);
+  if (url.origin === self.location.origin) {
+    event.respondWith(fetch(req).then(res => {
+      const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); return res;
+    }).catch(() => caches.match(req)));
+  }
+});
