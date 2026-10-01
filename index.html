@@ -65,7 +65,7 @@ body:has(#menuTab.active) main,body:has(#shopTab.active) main,body:has(#statsTab
 <header><div class="brand"><button type="button" class="btn secondary cloud-status" id="cloudStatus" aria-label="Pandi en la nube" title="Pandi en la nube">☁️</button><div><h1>Pandi recetas</h1></div><button type="button" class="btn secondary" id="addBtn" aria-label="Nueva receta" title="Nueva receta" onclick="editRecipe(null)">🍳</button></div></header>
 <main>
 <section id="recipesTab" class="tab"><div class="section-head"><div><h2>Recetas</h2><span class="count" id="recipeCount"></span></div><div style="display:flex;gap:7px;align-items:center"><button type="button" class="btn secondary" id="downloadExcel" aria-label="Descargar recetas" title="Descargar recetas">⬇️</button></div></div><div class="search"><input id="search" placeholder="Buscar receta o ingrediente…" autocomplete="off"></div><div id="recipeGrid" class="grid"></div></section>
-<section id="menuTab" class="tab active"><div class="section-head"><div><h2>Menú semanal</h2></div><div style="display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end"><button class="btn secondary" id="openAiFromMenu">🤖 Crear con IA</button><button class="btn secondary" id="newWeek">＋ Semana</button><button class="btn secondary" id="clearMenu">Vaciar</button></div></div><div class="weekbar"><select id="weekSelect"></select></div><div id="week" class="week"></div><div id="menuAiBox" class="ai-box" style="margin-top:14px"><p style="margin-top:0"><strong>🤖 Crear menú con indicaciones</strong></p><textarea id="aiGoals" placeholder="Ej.: Quiero 3 días de pescado, 2 de legumbres, máximo 2 comidas con carne roja y no repetir las comidas de esta semana."></textarea><div class="actions"><button class="btn" id="generateAi">Preparar menú</button></div><div class="ai-note">Esta primera versión prepara una propuesta usando tus recetas, categorías y el menú anterior. La conexión con una IA conversacional real la añadiremos después.</div><div id="aiResult" class="ai-result"></div></div></section>
+<section id="menuTab" class="tab active"><div class="section-head"><div><h2>Menú semanal</h2></div><div style="display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end"><button class="btn secondary" id="openAiFromMenu">🤖 Crear con IA</button><button class="btn secondary" id="newWeek">＋ Semana</button><button class="btn secondary" id="clearMenu">Vaciar</button></div></div><div class="weekbar"><button type="button" class="btn secondary" id="prevWeek" aria-label="Semana anterior" title="Semana anterior">◀️</button><select id="weekSelect"></select><button type="button" class="btn secondary" id="nextWeek" aria-label="Semana siguiente" title="Semana siguiente">▶️</button></div><div id="week" class="week"></div><div id="menuAiBox" class="ai-box" style="margin-top:14px"><p style="margin-top:0"><strong>🤖 Crear menú con indicaciones</strong></p><textarea id="aiGoals" placeholder="Ej.: Quiero 3 días de pescado, 2 de legumbres, máximo 2 comidas con carne roja y no repetir las comidas de esta semana."></textarea><div class="actions"><button class="btn" id="generateAi">Preparar menú</button></div><div class="ai-note">Esta primera versión prepara una propuesta usando tus recetas, categorías y el menú anterior. La conexión con una IA conversacional real la añadiremos después.</div><div id="aiResult" class="ai-result"></div></div></section>
 <section id="shopTab" class="tab"><div class="section-head"><div><h2>🛒 Lista de compra</h2><span class="count" id="shopCount"></span></div><button class="btn secondary" id="clearShop">Desmarcar</button></div><div id="shopping" class="shopping"></div><div class="notice">La lista se calcula automáticamente a partir de las recetas seleccionadas en el menú.</div></section>
 <section id="statsTab" class="tab"><div class="section-head"><div><h2>📊 Estadísticas</h2><span class="count">Semana, histórico y objetivos</span></div><button type="button" class="btn secondary" id="configureGoals">⚙️ Objetivos</button></div><div id="statsContent"></div></section>
 <section id="pantryTab" class="tab"><div class="section-head"><div><h2>🧊 Despensa</h2><span class="count">Controla lo que tienes en casa</span></div><button type="button" class="btn inventory-add" id="addInventory" aria-label="Añadir alimento a la despensa" title="Añadir alimento a la despensa" style="display:none">🧊 ＋ Alimento</button></div><div id="inventorySummary" class="stats-grid" style="margin-bottom:12px"></div><div class="search pantry-search"><input id="inventorySearch" placeholder="Buscar alimento…" autocomplete="off"></div><div class="recipe-tools"><select id="inventorySort"><option value="newest">Entrada: más recientes</option><option value="oldest">Entrada: más antiguos</option><option value="expirySoon">Caducidad: más próximas</option><option value="expiryLate">Caducidad: más lejanas</option><option value="name">Nombre</option></select></div><div id="inventoryList" class="shopping"></div></section>
@@ -770,7 +770,7 @@ decorate();
     $('modalTitle').textContent=r.name;
     const ings=parseIngredients(r.ingredients_raw);
     $('modalBody').innerHTML=
-      ((window.__pandiRecipePhoto?window.__pandiRecipePhoto(r):(r.image||''))?'<div style="height:180px;border-radius:14px;overflow:hidden;margin-bottom:12px"><img src="'+escAttr((window.__pandiRecipePhoto?window.__pandiRecipePhoto(r):(r.image||'')))+'" alt="" style="width:100%;height:100%;object-fit:cover"></div>':'')+
+      ((window.__pandiGetRecipeImage&&window.__pandiGetRecipeImage(r.name))||r.image?'<div style="height:180px;border-radius:14px;overflow:hidden;margin-bottom:12px"><img src="'+escAttr((window.__pandiGetRecipeImage&&window.__pandiGetRecipeImage(r.name))||r.image)+'" alt="" style="width:100%;height:100%;object-fit:cover"></div>':'')+
       '<div class="meta"><span>👥 '+(r.servings||'—')+' raciones</span><span>⏱️ '+esc(r.time||'—')+'</span><span>🏷️ '+esc(r.category||'')+'</span></div>'+
       '<h3>Ingredientes</h3><div class="ingredients">'+(ings.length?ings.map(x=>'<div class="ing">'+esc(x)+'</div>').join(''):'<div class="empty">Esta receta todavía no tiene ingredientes.</div>')+'</div>'+
       '<h3>Preparación</h3><div>'+(r.steps?esc(r.steps).split(/\n/).map(x=>'<div class="step">'+x+'</div>').join(''):'<div class="empty">Todavía no hay pasos de preparación.</div>')+'</div>'+
@@ -789,7 +789,7 @@ decorate();
     $('recipeCount').textContent=arr.length+' receta'+(arr.length===1?'':'s')+' · '+recipes.length+' en total';
     const grid=$('recipeGrid');
     if(!arr.length){grid.innerHTML='<div class="empty">No encuentro recetas con esos filtros.</div>';return}
-    grid.innerHTML=arr.map(r=>'<article class="card" data-id="'+escAttr(r.id)+'"><div class="photo">'+((window.__pandiRecipePhoto?window.__pandiRecipePhoto(r):(r.image||''))?'<img src="'+escAttr((window.__pandiRecipePhoto?window.__pandiRecipePhoto(r):(r.image||'')))+'" alt="" style="width:100%;height:100%;object-fit:cover">':'🥘')+'</div><h3>'+esc(r.name)+'</h3><div class="meta"><span>👥 '+(r.servings||'—')+'</span><span>⏱️ '+esc(r.time||'—')+'</span></div><div class="tags">'+String(r.category||'').split(',').filter(Boolean).slice(0,4).map(x=>'<span class="tag">'+esc(x.trim())+'</span>').join('')+'</div></article>').join('');
+    grid.innerHTML=arr.map(r=>'<article class="card" data-id="'+escAttr(r.id)+'"><div class="photo">'+((window.__pandiGetRecipeImage&&window.__pandiGetRecipeImage(r.name))||r.image?'<img src="'+escAttr((window.__pandiGetRecipeImage&&window.__pandiGetRecipeImage(r.name))||r.image)+'" alt="" style="width:100%;height:100%;object-fit:cover">':'🥘')+'</div><h3>'+esc(r.name)+'</h3><div class="meta"><span>👥 '+(r.servings||'—')+'</span><span>⏱️ '+esc(r.time||'—')+'</span></div><div class="tags">'+String(r.category||'').split(',').filter(Boolean).slice(0,4).map(x=>'<span class="tag">'+esc(x.trim())+'</span>').join('')+'</div></article>').join('');
     grid.querySelectorAll('.card').forEach(c=>c.onclick=()=>openRecipe(c.dataset.id));
   };
   window.renderRecipes=renderRecipes;
@@ -827,29 +827,12 @@ decorate();
   function schedule(){if(!loaded||loading)return;clearTimeout(saveTimer);saveTimer=setTimeout(()=>saveCloud().catch(e=>{console.error(e);status('☁️ Error al guardar','err');message('Error al guardar: '+(e.message||String(e)))}),450)}
   function showAuth(){const o=$('authOverlay');if(o)o.classList.add('show');currentUser().then(u=>{if($('signOutBtn'))$('signOutBtn').style.display=u?'block':'none';if($('signInBtn'))$('signInBtn').style.display=u?'none':'block';if($('signUpBtn'))$('signUpBtn').style.display=u?'none':'block';if($('authInfo'))$('authInfo').textContent=u?'Cuenta conectada: '+u.email:'Inicia sesión para cargar y guardar tus datos en Supabase.'}).catch(()=>{});}
   const closeAuth=()=>{$('authOverlay')?.classList.remove('show')};
-  let cloudPhotoMap=Object.create(null);
   function imageMapFromSettings(settings){
     const out={};
-    [settings.recipe_images_by_name,settings.recipe_images,settings.recipe_image_by_name].forEach(m=>{
-      if(!m||typeof m!=='object'||Array.isArray(m))return;
-      Object.entries(m).forEach(([k,v])=>{
-        let value=v;
-        if(v&&typeof v==='object') value=v.data_url||v.dataUrl||v.url||v.src||v.data||'';
-        if(typeof value==='string'&&value)out[normal(k)]=value;
-      });
-    });
+    [settings.recipe_images_by_name,settings.recipe_images,settings.recipe_image_by_name].forEach(m=>{if(m&&typeof m==='object'&&!Array.isArray(m))Object.entries(m).forEach(([k,v])=>{if(v)out[normal(k)]=v})});
     return out;
   }
-  function recipePhoto(r){
-    const k=normal(r?.name);
-    return (r&&typeof r.image==='string'&&r.image) || cloudPhotoMap[k] || '';
-  }
-  window.__pandiRecipePhoto=recipePhoto;
-  function applyCloudImages(rows,settings){
-    const imgs=imageMapFromSettings(settings);
-    cloudPhotoMap=imgs;
-    return (rows||[]).map(r=>({...r,image:imgs[normal(r.name)]||r.image||null}));
-  }
+  function applyCloudImages(rows,settings){const imgs=imageMapFromSettings(settings);return (rows||[]).map(r=>({...r,image:imgs[normal(r.name)]||r.image||null}));}
   async function loadCloud(){
     if(loading)return false; loading=true; status('☁️ Cargando datos…'); message('Cargando datos…');
     try{
@@ -859,9 +842,11 @@ decorate();
       const ss=await db.from('settings').select('key,value').eq('user_id',u.id); if(ss.error)throw ss.error;
       const settings=Object.fromEntries((ss.data||[]).map(x=>[x.key,x.value]));
       let cloudWeeks={};
-      const ww=await db.from('weeks').select('week_key,data').eq('user_id',u.id);
-      if(!ww.error)cloudWeeks=Object.fromEntries((ww.data||[]).map(x=>[x.week_key,x.data]));
-      else if(settings.weekly_menus)cloudWeeks=settings.weekly_menus;
+      if(settings.weekly_menus && typeof settings.weekly_menus==='object') cloudWeeks=settings.weekly_menus;
+      else {
+        const ww=await db.from('weeks').select('week_key,data').eq('user_id',u.id);
+        if(!ww.error)cloudWeeks=Object.fromEntries((ww.data||[]).map(x=>[x.week_key,x.data]));
+      }
       const sh=await db.from('shopping').select('data').eq('user_id',u.id).maybeSingle();
       if(sh.error)throw sh.error;
       const cloudRecipes=applyCloudImages(rr.data||[],settings);
@@ -871,16 +856,8 @@ decorate();
       recipes=state('recipes',[]);weeks=state('weeks',{});checked=state('checked',{});selectedWeek=wk;
       if(!weeks[selectedWeek])weeks[selectedWeek]=days.map(()=>({}));menu=weeks[selectedWeek];
       const imgs=imageMapFromSettings(settings);
-      cloudPhotoMap=imgs;
-      window.__pandiGetRecipeImage=name=>{const k=normal(name);const r=recipes.find(x=>normal(x.name)===k);return (r&&r.image)||cloudPhotoMap[k]||''};
-      window.__pandiSetRecipeImage=(name,image)=>{
-        const m={...(state('recipe_images_by_name',{})||{})};
-        const k=normal(name);
-        if(image){m[k]=image;cloudPhotoMap[k]=image}else{delete m[k];delete cloudPhotoMap[k]}
-        setState('recipe_images_by_name',m);
-        const r=recipes.find(x=>normal(x.name)===k);if(r)r.image=image||null;
-        renderRecipes();schedule();
-      };
+      window.__pandiGetRecipeImage=name=>imgs[normal(name)]||'';
+      window.__pandiSetRecipeImage=(name,image)=>{const m={...(state('recipe_images_by_name',{})||{})};const k=normal(name);if(image)m[k]=image;else delete m[k];setState('recipe_images_by_name',m);const r=recipes.find(x=>normal(x.name)===k);if(r)r.image=image||null;renderRecipes();schedule()};
       window.__syncRecipesDirect=saveCloud;
       loaded=true;renderRecipes();renderMenu();renderShopping();renderStats();window.renderInventory?.();
       status('☁️ Conectado','ok');message('Conectado. Datos cargados.');return true;
@@ -894,7 +871,6 @@ decorate();
       const imgs={...(state('recipe_images_by_name',{})||{})};
       rs.forEach(r=>{const k=normal(r.name);if(k&&r.image)imgs[k]=r.image});
       setState('recipe_images_by_name',imgs);
-      cloudPhotoMap=imgs;
       const existing=await db.from('recipes').select('id,name').eq('user_id',u.id);if(existing.error)throw existing.error;
       const keep=new Set(rs.map(r=>normal(r.name)).filter(Boolean));
       for(const row of existing.data||[])if(!keep.has(normal(row.name))){const q=await db.from('recipes').delete().eq('id',row.id).eq('user_id',u.id);if(q.error)throw q.error}
@@ -908,15 +884,12 @@ decorate();
       }
       const ws=state('weeks',{})||{};
       for(const [wk,daysData] of Object.entries(ws)){const data=(daysData||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]));});return d});const q=await db.from('weeks').upsert({user_id:u.id,week_key:wk,data,updated_at:new Date().toISOString()},{onConflict:'user_id,week_key'});if(q.error&&!/weeks|data|column|schema cache/i.test(String(q.error.message||q.error)))throw q.error}
-      const settingsKeys=['categories','goals','inventory','restock','recipe_images_by_name'];
+      const settingsKeys=['categories','goals','inventory','restock','recipe_images_by_name','weekly_menus'];
       for(const key of settingsKeys){const value=state(key,null);if(value==null)continue;const q=await db.from('settings').upsert({user_id:u.id,key,value,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});if(q.error)throw q.error}
       const sh=await db.from('shopping').upsert({user_id:u.id,data:state('checked',{})||{},updated_at:new Date().toISOString()},{onConflict:'user_id'});if(sh.error)throw sh.error;
       const remapped={};Object.entries(ws).forEach(([wk,ds])=>remapped[wk]=(ds||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]));});return d}));
       setState('recipes',saved);setState('weeks',remapped);recipes=saved;weeks=remapped;menu=weeks[selectedWeek]||days.map(()=>({}));
-      cloudPhotoMap=imgs;
-      window.__pandiGetRecipeImage=name=>{const k=normal(name);const r=recipes.find(x=>normal(x.name)===k);return (r&&r.image)||cloudPhotoMap[k]||''};
-      renderRecipes();
-      status('☁️ Guardado','ok');
+      window.__pandiGetRecipeImage=name=>imgs[normal(name)]||'';status('☁️ Guardado','ok');
     }finally{saving=false}
   }
   window.__syncNow=async()=>{await saveCloud();await loadCloud()};window.__pandiCloudLoad=loadCloud;window.__pandiCloudSave=saveCloud;
@@ -928,4 +901,119 @@ decorate();
   window.addEventListener('load',()=>setTimeout(()=>currentUser().then(u=>u?loadCloud().catch(e=>{console.error(e);status('☁️ Error de carga','err');message('No se pueden cargar los datos: '+(e.message||String(e)))}):showAuth()),150));
 })();
 </script>
-</body></html>
+</body></html><script id="menuCloudImmediateFix">
+(function(){
+  'use strict';
+  const SUPABASE_URL='https://hgjojgxspclmuwaeenjq.supabase.co';
+  const SUPABASE_KEY='sb_publishable_LPRAkNBsVLKUZLDfAMD6dQ_kaMErp_2';
+  const cloudDb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+  const $=id=>document.getElementById(id);
+  let savingMenu=false;
+  let saveTimer=null;
+  async function saveMenuCloud(){
+    if(savingMenu||!window.__pandiCloudOnly)return;
+    savingMenu=true;
+    try{
+      const {data:{session}}=await cloudDb.auth.getSession();
+      if(!session?.user)return;
+      const data=(typeof weeks!=='undefined'&&weeks)||{};
+      const r=await cloudDb.from('settings').upsert({
+        user_id:session.user.id,
+        key:'weekly_menus',
+        value:data,
+        updated_at:new Date().toISOString()
+      },{onConflict:'user_id,key'});
+      if(r.error)throw r.error;
+      if(window.__pandiCloudSaveMenuStatus)window.__pandiCloudSaveMenuStatus('☁️ Menú guardado');
+    }catch(e){
+      console.error('Error guardando menú',e);
+      if(window.__pandiCloudSaveMenuStatus)window.__pandiCloudSaveMenuStatus('☁️ Error al guardar');
+    }finally{savingMenu=false}
+  }
+  function saveMenuSoon(){
+    clearTimeout(saveTimer);
+    saveTimer=setTimeout(saveMenuCloud,80);
+  }
+  window.__pandiSaveMenuCloud=saveMenuCloud;
+  window.__pandiCloudSaveMenuStatus=t=>{
+    const e=$('cloudStatus'); if(e){e.textContent=t.startsWith('☁️')?t:'☁️ '+t;setTimeout(()=>{if(e.textContent===t||e.textContent==='☁️ '+t)e.textContent='☁️ Conectado'},1200)}};
+
+  function bindMenu(){
+    const sel=$('weekSelect');
+    document.querySelectorAll('select[data-day][data-meal]').forEach(s=>{
+      s.onchange=()=>{
+        if(!weeks[selectedWeek])weeks[selectedWeek]=days.map(()=>({}));
+        if(!weeks[selectedWeek][+s.dataset.day])weeks[selectedWeek][+s.dataset.day]={};
+        menu=weeks[selectedWeek];
+        menu[+s.dataset.day][s.dataset.meal]=s.value?Number(s.value):null;
+        saveMenuSoon();
+        renderShopping();renderStats();
+      };
+    });
+    if(sel)sel.onchange=()=>{
+      selectedWeek=sel.value;
+      if(!weeks[selectedWeek])weeks[selectedWeek]=days.map(()=>({}));
+      menu=weeks[selectedWeek];
+      renderMenu();renderShopping();renderStats();
+      saveMenuSoon();
+    };
+  }
+  const originalRenderMenu=window.renderMenu;
+  window.renderMenu=function(){
+    originalRenderMenu?.();
+    bindMenu();
+  };
+  function replaceButton(id,fn){const b=$(id);if(!b)return;b.onclick=fn}
+  replaceButton('newWeek',()=>{
+    const d=new Date(`${selectedWeek}T00:00:00`);d.setDate(d.getDate()+7);
+    const k=weekKey(d);
+    if(!weeks[k])weeks[k]=days.map(()=>({}));
+    selectedWeek=k;menu=weeks[k];
+    renderMenu();renderShopping();renderStats();
+    saveMenuCloud();
+  });
+  replaceButton('clearMenu',()=>{
+    if(!confirm('¿Seguro que quieres vaciar todas las recetas de esta semana?'))return;
+    menu=days.map(()=>({}));weeks[selectedWeek]=menu;
+    renderMenu();renderShopping();renderStats();saveMenuCloud();
+  });
+  const oldApply=document.getElementById('applyAi');
+  if(oldApply)oldApply.onclick=()=>{};
+  // Re-bind AI's "Guardar como semana siguiente" after every proposal.
+  const oldGenerate=$('generateAi');
+  if(oldGenerate){oldGenerate.addEventListener('click',()=>setTimeout(()=>{
+    const b=$('applyAi');if(!b)return;
+    b.onclick=()=>{
+      const result=$('aiResult');const k=result?.dataset.week;
+      let proposal=[];try{proposal=JSON.parse(result?.dataset.proposal||'[]')}catch(e){proposal=[]}
+      if(!k||!Array.isArray(proposal))return;
+      weeks[k]=proposal;selectedWeek=k;menu=proposal;
+      renderMenu();renderShopping();renderStats();saveMenuCloud();
+      result.insertAdjacentHTML('beforeend','<div class="notice">✓ Menú guardado en la nube.</div>');
+    };
+  },30));}
+  window.addEventListener('pandi:cloud-loaded',()=>{window.renderMenu?.()});
+  // If cloud data has already loaded, bind immediately.
+  setTimeout(()=>{if(typeof weeks!=='undefined'&&window.__pandiCloudOnly)bindMenu()},250);
+})();
+</script>
+<script id="menuNavigationCloudFix">
+(function(){
+  'use strict';
+  const $=id=>document.getElementById(id);
+  let menuSaveTimer=null;
+  const scheduleMenuCloud=()=>{clearTimeout(menuSaveTimer);menuSaveTimer=setTimeout(()=>window.__pandiSaveMenuCloud?.(),120)};
+  function keyFromOffset(offset){const d=new Date(`${selectedWeek}T00:00:00`);d.setDate(d.getDate()+offset);return weekKey(d)}
+  function goWeek(key){if(!key)return;if(!weeks[key])weeks[key]=days.map(()=>({}));selectedWeek=key;menu=weeks[key];renderMenu();renderShopping();renderStats();scheduleMenuCloud()}
+  function bindWeekControls(){
+    const sel=$('weekSelect');if(sel)sel.onchange=()=>goWeek(sel.value);
+    const prev=$('prevWeek');if(prev)prev.onclick=()=>goWeek(keyFromOffset(-7));
+    const next=$('nextWeek');if(next)next.onclick=()=>goWeek(keyFromOffset(7));
+    document.querySelectorAll('select[data-day][data-meal]').forEach(s=>s.onchange=()=>{if(!weeks[selectedWeek])weeks[selectedWeek]=days.map(()=>({}));if(!weeks[selectedWeek][+s.dataset.day])weeks[selectedWeek][+s.dataset.day]={};menu=weeks[selectedWeek];menu[+s.dataset.day][s.dataset.meal]=s.value?Number(s.value):null;renderShopping();renderStats();scheduleMenuCloud()});
+  }
+  const baseRenderMenu=window.renderMenu;window.renderMenu=function(){baseRenderMenu?.();bindWeekControls()};
+  const newWeek=$('newWeek');if(newWeek)newWeek.onclick=()=>goWeek(keyFromOffset(7));
+  const clear=$('clearMenu');if(clear)clear.onclick=()=>{if(!confirm('¿Seguro que quieres vaciar todas las recetas de esta semana?'))return;menu=days.map(()=>({}));weeks[selectedWeek]=menu;renderMenu();renderShopping();renderStats();scheduleMenuCloud()};
+  setTimeout(bindWeekControls,300);
+})();
+</script>
