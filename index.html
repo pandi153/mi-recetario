@@ -122,58 +122,6 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 let pendingRecipeImage='';const baseEditRecipe=editRecipe;editRecipe=function(id){const old=recipes.find(x=>x.id===id);pendingRecipeImage=old?.image||'';try{baseEditRecipe(id)}catch(e){console.error(e);alert('No se ha podido abrir el editor de recetas.')}if(!document.getElementById('modalBody'))return;const body=document.getElementById('modalBody');const first=body.querySelector('.field');if(!first)return;const photo=document.createElement('div');photo.className='field';photo.innerHTML=`<label>Foto de la receta</label><div id="recipePhotoPreview" style="height:150px;border:1px solid var(--border);border-radius:14px;background:var(--surface2);display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:9px">${pendingRecipeImage?`<img src="${escAttr(pendingRecipeImage)}" alt="" style="width:100%;height:100%;object-fit:cover">`:'<span style="font-size:48px">🥘</span>'}</div><input id="recipePhotoInput" type="file" accept="image/*" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:11px;background:var(--surface2);color:var(--text)"><small style="display:block;color:var(--muted);margin-top:6px">Añade una foto y aparecerá en la ficha del recetario.</small>`;body.insertBefore(photo,first);document.getElementById('recipePhotoInput').onchange=e=>{const file=e.target.files?.[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{pendingRecipeImage=reader.result;document.getElementById('recipePhotoPreview').innerHTML=`<img src="${escAttr(pendingRecipeImage)}" alt="" style="width:100%;height:100%;object-fit:cover">`};reader.readAsDataURL(file)};document.getElementById('saveEdit')?.addEventListener('click',()=>setTimeout(()=>{const name=document.getElementById('fName')?.value.trim();const target=id?recipes.find(x=>x.id===id):recipes.find(x=>x.name===name);if(target){target.image=pendingRecipeImage||null;save();renderRecipes();}},0));};const baseRenderRecipes=renderRecipes;renderRecipes=function(){baseRenderRecipes();document.querySelectorAll('#recipeGrid .card').forEach(c=>{const r=recipes.find(x=>x.id===+c.dataset.id);if(r?.image){const p=c.querySelector('.photo');p.innerHTML=`<img src="${escAttr(r.image)}" alt="">`;}})};
 function exportRecipesToExcel(){const rows=recipes.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.category||'')}</td><td>${esc(r.servings||'')}</td><td>${esc(r.time||'')}</td><td>${esc(r.ingredients_raw||'').replace(/\n/g,'<br>')}</td><td>${esc(r.steps||'').replace(/\n/g,'<br>')}</td></tr>`).join('');const html=`<html><head><meta charset="UTF-8"></head><body><table border="1"><tr><th>Receta</th><th>Categorías</th><th>Raciones</th><th>Tiempo</th><th>Ingredientes</th><th>Preparación</th></tr>${rows}</table>
 
-<script id="finalCloudMenuRecipeFix">
-(function(){
-  'use strict';
-  const $=id=>document.getElementById(id);
-  const sb=window.supabase.createClient('https://hgjojgxspclmuwaeenjq.supabase.co','sb_publishable_LPRAkNBsVLKUZLDfAMD6dQ_kaMErp_2');
-  const status=(t,ok=true)=>{document.querySelectorAll('.cloud-status').forEach(e=>{e.textContent=t;e.classList.toggle('err',!ok);e.classList.toggle('ok',ok)});};
-  function ensureMenuCloudBadge(){
-    const head=document.querySelector('#menuTab .section-head'); if(!head||head.querySelector('#menuCloudStatus'))return;
-    const b=document.createElement('button'); b.id='menuCloudStatus'; b.type='button'; b.className='btn secondary cloud-status'; b.textContent='☁️ Conectado'; b.title='Estado de Supabase';
-    b.style.cssText='font-size:12px;padding:8px 10px;white-space:nowrap';
-    const right=head.querySelector('div[style*="display:flex"]'); if(right)right.prepend(b); else head.appendChild(b);
-    b.onclick=()=>document.getElementById('cloudStatus')?.click();
-  }
-  async function saveMenu(){
-    try{
-      const {data:{session}}=await sb.auth.getSession(); if(!session?.user)return;
-      const payload={};
-      if(typeof weeks!=='undefined'&&weeks)Object.entries(weeks).forEach(([k,v])=>payload[k]=Array.isArray(v)?v.map(d=>({...d})):[]);
-      const q=await sb.from('settings').upsert({user_id:session.user.id,key:'weekly_menus',value:payload,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});
-      if(q.error)throw q.error;
-      status('☁️ Guardado',true);
-    }catch(e){console.error(e);status('☁️ Error al guardar',false)}
-  }
-  window.__pandiSaveMenuCloud=saveMenu;
-  let t=0;
-  function schedule(){clearTimeout(t);t=setTimeout(saveMenu,180)}
-  function bind(){
-    ensureMenuCloudBadge();
-    document.querySelectorAll('#week select[data-day][data-meal]').forEach(x=>{
-      x.onchange=()=>{if(!weeks[selectedWeek])weeks[selectedWeek]=days.map(()=>({}));if(!weeks[selectedWeek][+x.dataset.day])weeks[selectedWeek][+x.dataset.day]={};menu=weeks[selectedWeek];menu[+x.dataset.day][x.dataset.meal]=x.value?Number(x.value):null;renderShopping();renderStats();schedule();};
-    });
-  }
-  const oldRender=window.renderMenu;
-  window.renderMenu=function(){oldRender?.();bind();};
-  setTimeout(bind,700); setTimeout(bind,1800);
-  const oldDelete=window.deleteRecipeStable;
-  window.deleteRecipeStable=async function(id){
-    const r=recipes.find(x=>String(x.id)===String(id)); if(!r)return;
-    if(!confirm('¿Eliminar "'+r.name+'"? También se quitará de los menús semanales.'))return;
-    try{
-      const {data:{session}}=await sb.auth.getSession(); if(!session?.user)throw new Error('Sesión no disponible');
-      const q=await sb.from('recipes').delete().eq('id',r.id).eq('user_id',session.user.id); if(q.error)throw q.error;
-      const name=r.name; recipes=recipes.filter(x=>String(x.id)!==String(id));
-      Object.keys(weeks||{}).forEach(k=>{weeks[k]=(weeks[k]||[]).map(d=>{const z={...(d||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(String(z[m]||'')===String(id))z[m]=null});return z})});
-      if(typeof selectedWeek!=='undefined')menu=weeks[selectedWeek]||days.map(()=>({}));
-      renderRecipes();renderMenu();renderShopping();renderStats();
-      await saveMenu();
-      status('☁️ Receta eliminada',true); closeModal();
-    }catch(e){console.error(e);status('☁️ Error al eliminar',false);alert('No se ha podido eliminar en la nube: '+(e.message||e));}
-  };
-})();
-</script>
 </body></html>`;const blob=new Blob(['\ufeff',html],{type:'application/vnd.ms-excel;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='Panda-recetas.xls';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},0)}
 document.getElementById('search').oninput=renderRecipes;document.getElementById('downloadExcel').onclick=exportRecipesToExcel;document.getElementById('openDatabase').onclick=()=>window.open('https://github.com/pandi153/mi-recetario','_blank','noopener');document.getElementById('addBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('fab').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('closeModal').onclick=closeModal;document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')closeModal()};document.getElementById('clearMenu').onclick=()=>{menu=days.map(()=>({}));save();renderMenu();renderShopping();renderStats()};document.getElementById('newWeek').onclick=()=>{const d=new Date(`${selectedWeek}T00:00:00`);d.setDate(d.getDate()+7);const k=weekKey(d);if(!weeks[k])weeks[k]=days.map(()=>({}));selectedWeek=k;menu=weeks[k];save();renderMenu();renderShopping();renderStats()};document.getElementById('clearShop').onclick=()=>{checked={};save();renderShopping()};document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.getElementById(b.dataset.tab).classList.add('active');document.body.classList.toggle('menu-mode',b.dataset.tab==='menuTab');const fab=document.getElementById('fab');if(fab){if(b.dataset.tab==='pantryTab'){fab.textContent='🧊';fab.title='Añadir alimento';fab.setAttribute('aria-label','Añadir alimento');fab.onclick=e=>{e.preventDefault();e.stopPropagation();window.__newInventory()}}else{fab.textContent='＋';fab.title='Crear receta';fab.setAttribute('aria-label','Crear receta');fab.onclick=e=>{e.preventDefault();e.stopPropagation();editRecipe(null)}}}if(b.dataset.tab==='statsTab')renderStats();if(b.dataset.tab==='pantryTab'&&window.renderInventory)window.renderInventory()});refreshRecipeFilters();if('serviceWorker' in navigator){navigator.serviceWorker.register('./service-worker.js?v=19',{updateViaCache:'none'}).catch(()=>{});}
 renderRecipes();renderMenu();renderShopping();
@@ -953,209 +901,165 @@ decorate();
   window.addEventListener('load',()=>setTimeout(()=>currentUser().then(u=>u?loadCloud().catch(e=>{console.error(e);status('☁️ Error de carga','err');message('No se pueden cargar los datos: '+(e.message||String(e)))}):showAuth()),150));
 })();
 </script>
-<script id="finalCloudMenuRecipeFix">
+<script id="pandiFinalMenuCloudFix">
 (function(){
   'use strict';
   const $=id=>document.getElementById(id);
-  const sb=window.supabase.createClient('https://hgjojgxspclmuwaeenjq.supabase.co','sb_publishable_LPRAkNBsVLKUZLDfAMD6dQ_kaMErp_2');
-  const status=(t,ok=true)=>{document.querySelectorAll('.cloud-status').forEach(e=>{e.textContent=t;e.classList.toggle('err',!ok);e.classList.toggle('ok',ok)});};
-  function ensureMenuCloudBadge(){
-    const head=document.querySelector('#menuTab .section-head'); if(!head||head.querySelector('#menuCloudStatus'))return;
-    const b=document.createElement('button'); b.id='menuCloudStatus'; b.type='button'; b.className='btn secondary cloud-status'; b.textContent='☁️ Conectado'; b.title='Estado de Supabase';
-    b.style.cssText='font-size:12px;padding:8px 10px;white-space:nowrap';
-    const right=head.querySelector('div[style*="display:flex"]'); if(right)right.prepend(b); else head.appendChild(b);
-    b.onclick=()=>document.getElementById('cloudStatus')?.click();
-  }
-  async function saveMenu(){
-    try{
-      const {data:{session}}=await sb.auth.getSession(); if(!session?.user)return;
-      const payload={};
-      if(typeof weeks!=='undefined'&&weeks)Object.entries(weeks).forEach(([k,v])=>payload[k]=Array.isArray(v)?v.map(d=>({...d})):[]);
-      const q=await sb.from('settings').upsert({user_id:session.user.id,key:'weekly_menus',value:payload,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});
-      if(q.error)throw q.error;
-      status('☁️ Guardado',true);
-    }catch(e){console.error(e);status('☁️ Error al guardar',false)}
-  }
-  window.__pandiSaveMenuCloud=saveMenu;
-  let t=0;
-  function schedule(){clearTimeout(t);t=setTimeout(saveMenu,180)}
-  function bind(){
-    ensureMenuCloudBadge();
-    document.querySelectorAll('#week select[data-day][data-meal]').forEach(x=>{
-      x.onchange=()=>{if(!weeks[selectedWeek])weeks[selectedWeek]=days.map(()=>({}));if(!weeks[selectedWeek][+x.dataset.day])weeks[selectedWeek][+x.dataset.day]={};menu=weeks[selectedWeek];menu[+x.dataset.day][x.dataset.meal]=x.value?Number(x.value):null;renderShopping();renderStats();schedule();};
-    });
-  }
-  const oldRender=window.renderMenu;
-  window.renderMenu=function(){oldRender?.();bind();};
-  setTimeout(bind,700); setTimeout(bind,1800);
-  const oldDelete=window.deleteRecipeStable;
-  window.deleteRecipeStable=async function(id){
-    const r=recipes.find(x=>String(x.id)===String(id)); if(!r)return;
-    if(!confirm('¿Eliminar "'+r.name+'"? También se quitará de los menús semanales.'))return;
-    try{
-      const {data:{session}}=await sb.auth.getSession(); if(!session?.user)throw new Error('Sesión no disponible');
-      const q=await sb.from('recipes').delete().eq('id',r.id).eq('user_id',session.user.id); if(q.error)throw q.error;
-      const name=r.name; recipes=recipes.filter(x=>String(x.id)!==String(id));
-      Object.keys(weeks||{}).forEach(k=>{weeks[k]=(weeks[k]||[]).map(d=>{const z={...(d||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(String(z[m]||'')===String(id))z[m]=null});return z})});
-      if(typeof selectedWeek!=='undefined')menu=weeks[selectedWeek]||days.map(()=>({}));
-      renderRecipes();renderMenu();renderShopping();renderStats();
-      await saveMenu();
-      status('☁️ Receta eliminada',true); closeModal();
-    }catch(e){console.error(e);status('☁️ Error al eliminar',false);alert('No se ha podido eliminar en la nube: '+(e.message||e));}
-  };
-})();
-</script>
-</body></html><script id="menuCloudImmediateFix">
-(function(){
-  'use strict';
   const SUPABASE_URL='https://hgjojgxspclmuwaeenjq.supabase.co';
   const SUPABASE_KEY='sb_publishable_LPRAkNBsVLKUZLDfAMD6dQ_kaMErp_2';
-  const cloudDb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-  const $=id=>document.getElementById(id);
-  let savingMenu=false;
-  let saveTimer=null;
-  async function saveMenuCloud(){
-    if(savingMenu)return;
-    savingMenu=true;
-    try{
-      const {data:{session}}=await cloudDb.auth.getSession();
-      if(!session?.user)return;
-      const data=(typeof weeks!=='undefined'&&weeks)||{};
-      const r=await cloudDb.from('settings').upsert({
-        user_id:session.user.id,
-        key:'weekly_menus',
-        value:data,
-        updated_at:new Date().toISOString()
-      },{onConflict:'user_id,key'});
-      if(r.error)throw r.error;
-      if(window.__pandiCloudSaveMenuStatus)window.__pandiCloudSaveMenuStatus('☁️ Menú guardado');
-    }catch(e){
-      console.error('Error guardando menú',e);
-      if(window.__pandiCloudSaveMenuStatus)window.__pandiCloudSaveMenuStatus('☁️ Error al guardar');
-    }finally{savingMenu=false}
+  const cloud=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+  let menuQueue=Promise.resolve();
+  let menuCloudBusy=false;
+  const clone=x=>JSON.parse(JSON.stringify(x==null?{}:x));
+  function setCloudText(t,err){
+    const ids=['cloudStatus','menuCloudStatus'];
+    ids.forEach(id=>{const e=$(id);if(e){e.textContent=t;e.classList.toggle('err',!!err);e.classList.toggle('ok',!err);}});
   }
-  function saveMenuSoon(){
-    clearTimeout(saveTimer);
-    saveTimer=setTimeout(saveMenuCloud,80);
+  function addMenuCloudButton(){
+    const head=$('#menuTab .section-head');
+    if(!head||$('#menuCloudStatus'))return;
+    const wrap=head.querySelector('div:last-child');
+    if(!wrap)return;
+    const b=document.createElement('button');
+    b.type='button';b.id='menuCloudStatus';b.className='btn secondary';b.title='Estado de la nube';b.textContent='☁️ Conectado';
+    b.onclick=()=>$('#cloudStatus')?.click();
+    wrap.insertBefore(b,wrap.firstChild);
   }
-  window.__pandiSaveMenuCloud=saveMenuCloud;
-  window.__pandiCloudSaveMenuStatus=t=>{
-    const e=$('cloudStatus'); if(e){e.textContent=t.startsWith('☁️')?t:'☁️ '+t;setTimeout(()=>{if(e.textContent===t||e.textContent==='☁️ '+t)e.textContent='☁️ Conectado'},1200)}};
-
-  function bindMenu(){
-    const sel=$('weekSelect');
-    document.querySelectorAll('select[data-day][data-meal]').forEach(s=>{
-      s.onchange=()=>{
-        if(!weeks[selectedWeek])weeks[selectedWeek]=days.map(()=>({}));
-        if(!weeks[selectedWeek][+s.dataset.day])weeks[selectedWeek][+s.dataset.day]={};
-        menu=weeks[selectedWeek];
-        menu[+s.dataset.day][s.dataset.meal]=s.value?Number(s.value):null;
-        saveMenuSoon();
-        renderShopping();renderStats();
-      };
+  async function getUser(){const r=await cloud.auth.getSession();if(r.error)throw r.error;return r.data.session?.user||null;}
+  async function writeMenus(snapshot){
+    const u=await getUser();
+    if(!u)throw new Error('No hay una sesión iniciada.');
+    /* Guardamos el menú únicamente en settings.weekly_menus.
+       La tabla weeks antigua puede no tener la columna data en este proyecto. */
+    const r=await cloud.from('settings').upsert({user_id:u.id,key:'weekly_menus',value:snapshot,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});
+    if(r.error)throw r.error;
+    setCloudText('☁️ Menú guardado',false);
+  }
+  function queueMenus(){
+    const snapshot=clone(weeks||{});
+    menuQueue=menuQueue.then(()=>writeMenus(snapshot)).catch(e=>{
+      console.error('Menú:',e);setCloudText('☁️ Error al guardar',true);
+      const m=$('#authMessage');if(m)m.textContent='Error al guardar el menú: '+(e.message||String(e));
     });
-    if(sel)sel.onchange=()=>{
-      selectedWeek=sel.value;
-      if(!weeks[selectedWeek])weeks[selectedWeek]=days.map(()=>({}));
-      menu=weeks[selectedWeek];
-      renderMenu();renderShopping();renderStats();
-      saveMenuSoon();
-    };
+    return menuQueue;
   }
-  const originalRenderMenu=window.renderMenu;
-  window.renderMenu=function(){
-    originalRenderMenu?.();
-    bindMenu();
-  };
-  function replaceButton(id,fn){const b=$(id);if(!b)return;b.onclick=fn}
-  replaceButton('newWeek',()=>{
-    const d=new Date(`${selectedWeek}T00:00:00`);d.setDate(d.getDate()+7);
-    const k=weekKey(d);
-    if(!weeks[k])weeks[k]=days.map(()=>({}));
-    selectedWeek=k;menu=weeks[k];
-    renderMenu();renderShopping();renderStats();
-    saveMenuCloud();
-  });
-  replaceButton('clearMenu',()=>{
-    if(!confirm('¿Seguro que quieres vaciar todas las recetas de esta semana?'))return;
-    menu=days.map(()=>({}));weeks[selectedWeek]=menu;
-    renderMenu();renderShopping();renderStats();saveMenuCloud();
-  });
-  const oldApply=document.getElementById('applyAi');
-  if(oldApply)oldApply.onclick=()=>{};
-  // Re-bind AI's "Guardar como semana siguiente" after every proposal.
-  const oldGenerate=$('generateAi');
-  if(oldGenerate){oldGenerate.addEventListener('click',()=>setTimeout(()=>{
-    const b=$('applyAi');if(!b)return;
-    b.onclick=()=>{
-      const result=$('aiResult');const k=result?.dataset.week;
-      let proposal=[];try{proposal=JSON.parse(result?.dataset.proposal||'[]')}catch(e){proposal=[]}
-      if(!k||!Array.isArray(proposal))return;
-      weeks[k]=proposal;selectedWeek=k;menu=proposal;
-      renderMenu();renderShopping();renderStats();saveMenuCloud();
-      result.insertAdjacentHTML('beforeend','<div class="notice">✓ Menú guardado en la nube.</div>');
-    };
-  },30));}
-  window.addEventListener('pandi:cloud-loaded',()=>{window.renderMenu?.()});
-  // If cloud data has already loaded, bind immediately.
-  setTimeout(()=>{if(typeof weeks!=='undefined'&&window.__pandiCloudOnly)bindMenu()},250);
-})();
-</script>
-<script id="menuNavigationCloudFix">
-(function(){
-  'use strict';
-  const $=id=>document.getElementById(id);
-  let menuSaveTimer=null;
-  const scheduleMenuCloud=()=>{clearTimeout(menuSaveTimer);menuSaveTimer=setTimeout(()=>window.__pandiSaveMenuCloud?.(),120)};
-  function keyFromOffset(offset){const d=new Date(`${selectedWeek}T00:00:00`);d.setDate(d.getDate()+offset);return weekKey(d)}
-  function goWeek(key){if(!key)return;if(!weeks[key])weeks[key]=days.map(()=>({}));selectedWeek=key;menu=weeks[key];renderMenu();renderShopping();renderStats();scheduleMenuCloud()}
-  function bindWeekControls(){
-    const sel=$('weekSelect');if(sel)sel.onchange=()=>goWeek(sel.value);
-    const prev=$('prevWeek');if(prev)prev.onclick=()=>goWeek(keyFromOffset(-7));
-    const next=$('nextWeek');if(next)next.onclick=()=>goWeek(keyFromOffset(7));
-    document.querySelectorAll('select[data-day][data-meal]').forEach(s=>s.onchange=()=>{if(!weeks[selectedWeek])weeks[selectedWeek]=days.map(()=>({}));if(!weeks[selectedWeek][+s.dataset.day])weeks[selectedWeek][+s.dataset.day]={};menu=weeks[selectedWeek];menu[+s.dataset.day][s.dataset.meal]=s.value?Number(s.value):null;renderShopping();renderStats();scheduleMenuCloud()});
-  }
-  const baseRenderMenu=window.renderMenu;window.renderMenu=function(){baseRenderMenu?.();bindWeekControls()};
-  const newWeek=$('newWeek');if(newWeek)newWeek.onclick=()=>goWeek(keyFromOffset(7));
-  const clear=$('clearMenu');if(clear)clear.onclick=()=>{if(!confirm('¿Seguro que quieres vaciar todas las recetas de esta semana?'))return;menu=days.map(()=>({}));weeks[selectedWeek]=menu;renderMenu();renderShopping();renderStats();scheduleMenuCloud()};
-  setTimeout(bindWeekControls,300);
-})();
-</script>
+  window.__pandiSaveMenuCloud=queueMenus;
+  window.__pandiSaveMenuCloudNow=async()=>writeMenus(clone(weeks||{}));
 
-<script id="menuCurrentWeekAndPersistenceFix">
-(function(){
-  'use strict';
-  const $=id=>document.getElementById(id);
-  let timer=null;
-  function currentKey(){return weekKey(new Date());}
-  async function persist(){
-    clearTimeout(timer);
-    timer=setTimeout(async()=>{
-      try{ if(window.__pandiSaveMenuCloud) await window.__pandiSaveMenuCloud(); }catch(e){console.error(e);}
-    },150);
+  function weekKeyOffset(offset){
+    const d=new Date(`${selectedWeek}T00:00:00`);d.setDate(d.getDate()+offset);return weekKey(d);
   }
-  function go(key){
+  function goWeekFixed(key,save){
     if(!key)return;
     if(!weeks[key])weeks[key]=days.map(()=>({}));
-    selectedWeek=key; menu=weeks[key];
-    renderMenu(); renderShopping(); renderStats(); persist();
+    selectedWeek=key;menu=weeks[key];
+    renderMenu();renderShopping();renderStats();
+    if(save)queueMenus();
   }
-  function bind(){
-    const prev=$('prevWeek'), next=$('nextWeek'), cur=$('currentWeek'), sel=$('weekSelect');
-    if(prev)prev.onclick=()=>{const d=new Date(selectedWeek+'T00:00:00');d.setDate(d.getDate()-7);go(weekKey(d));};
-    if(next)next.onclick=()=>{const d=new Date(selectedWeek+'T00:00:00');d.setDate(d.getDate()+7);go(weekKey(d));};
-    if(cur)cur.onclick=()=>go(currentKey());
-    if(sel)sel.onchange=()=>go(sel.value);
+  function renderMenuFixed(){
+    addMenuCloudButton();
+    const sel=$('weekSelect');
+    const keys=Object.keys(weeks||{}).sort().reverse();
+    const todayKey=weekKey(new Date());
+    if(sel)sel.innerHTML=keys.map(k=>`<option value="${escAttr(k)}" ${k===selectedWeek?'selected':''}>${k===todayKey?'⭐ Semana actual · ':'Semana '}${esc(weekLabel(k))}</option>`).join('');
+    const mealDefs=[['desayuno','🍳','Desayuno'],['almuerzo','🍎','Almuerzo'],['comida','🍽️','Comida'],['merienda','🥪','Merienda'],['cena','🌙','Cena']];
+    const box=$('week');
+    if(!box)return;
+    box.innerHTML=days.map((dayName,i)=>{
+      const m=(menu&&menu[i])||{};
+      const date=new Date(`${selectedWeek}T00:00:00`);date.setDate(date.getDate()+i);
+      const dateLabel=`${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}`;
+      const isToday=selectedWeek===todayKey&&i===((new Date().getDay()+6)%7);
+      return `<div class="day${isToday?' today':''}"><h3>${esc(dayName)} ${dateLabel}</h3>`+
+        mealDefs.map(([meal,ico,label])=>{
+          const allowed=recipes.filter(r=>String(r.category||'').split(',').map(x=>norm(x.trim())).includes(norm(label)));
+          const current=recipes.find(r=>String(r.id)===String(m[meal]||''));
+          if(current&&!allowed.some(r=>String(r.id)===String(current.id)))allowed.unshift(current);
+          return `<div class="meal"><label>${ico} ${label}</label><select data-day="${i}" data-meal="${meal}"><option value="">— Seleccionar receta —</option>${allowed.map(r=>`<option value="${escAttr(r.id)}" ${String(m[meal]||'')===String(r.id)?'selected':''}>${esc(r.name)}</option>`).join('')}</select></div>`;
+        }).join('')+'</div>';
+    }).join('');
     document.querySelectorAll('select[data-day][data-meal]').forEach(x=>x.onchange=()=>{
       if(!weeks[selectedWeek])weeks[selectedWeek]=days.map(()=>({}));
       if(!weeks[selectedWeek][+x.dataset.day])weeks[selectedWeek][+x.dataset.day]={};
       menu=weeks[selectedWeek];
       menu[+x.dataset.day][x.dataset.meal]=x.value?Number(x.value):null;
-      renderShopping(); renderStats(); persist();
+      renderShopping();renderStats();queueMenus();
     });
+    if(sel)sel.onchange=()=>goWeekFixed(sel.value,false);
   }
-  const base=window.renderMenu;
-  window.renderMenu=function(){base?.();bind();};
-  setTimeout(bind,500);
+  window.renderMenu=renderMenuFixed;
+  function bindButtons(){
+    addMenuCloudButton();
+    const p=$('prevWeek'),n=$('nextWeek'),c=$('currentWeek'),nw=$('newWeek'),clr=$('clearMenu');
+    if(p)p.onclick=()=>goWeekFixed(weekKeyOffset(-7),true);
+    if(n)n.onclick=()=>goWeekFixed(weekKeyOffset(7),true);
+    if(c)c.onclick=()=>goWeekFixed(weekKey(new Date()),false);
+    if(nw)nw.onclick=()=>goWeekFixed(weekKeyOffset(7),true);
+    if(clr)clr.onclick=()=>{if(!confirm('¿Seguro que quieres vaciar todas las recetas de esta semana?'))return;menu=days.map(()=>({}));weeks[selectedWeek]=menu;renderMenu();renderShopping();renderStats();queueMenus();};
+  }
+
+  /* Cargar siempre el menú desde settings.weekly_menus, sin tocar weeks.data. */
+  const oldLoad=window.__pandiCloudLoad;
+  window.__pandiCloudLoad=async function(){
+    const ok=await oldLoad?.();
+    try{
+      const u=await getUser();
+      if(u){
+        const r=await cloud.from('settings').select('value').eq('user_id',u.id).eq('key','weekly_menus').maybeSingle();
+        if(r.error)throw r.error;
+        if(r.data?.value&&typeof r.data.value==='object'){
+          weeks=r.data.value||{};
+          const k=selectedWeek&&weeks[selectedWeek]?selectedWeek:weekKey(new Date());
+          selectedWeek=k;if(!weeks[k])weeks[k]=days.map(()=>({}));menu=weeks[k];
+        }
+      }
+    }catch(e){console.error('Carga menú:',e);setCloudText('☁️ Error de carga',true)}
+    renderMenu();renderShopping();renderStats();bindButtons();
+    return ok;
+  };
+
+  /* Delete recipe directly in Supabase. This avoids the old full-state save path
+     which also attempted to write the incompatible weeks.data column. */
+  window.__pandiDeleteRecipeCloud=async function(id,name){
+    const u=await getUser();if(!u)throw new Error('No hay una sesión iniciada.');
+    const oldId=String(id), targetName=String(name||'');
+    const q=await cloud.from('recipes').delete().eq('user_id',u.id).eq('id',oldId);
+    if(q.error)throw q.error;
+    Object.keys(weeks||{}).forEach(k=>{
+      weeks[k]=(weeks[k]||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(String(d[m]||'')===oldId)d[m]=null});return d;});
+    });
+    menu=weeks[selectedWeek]||days.map(()=>({}));
+    await writeMenus(clone(weeks||{}));
+    recipes=recipes.filter(r=>String(r.id)!==oldId && norm(r.name)!==norm(targetName));
+    renderRecipes();renderMenu();renderShopping();renderStats();
+    return true;
+  };
+
+  /* Replace the visible recipe detail so delete uses the direct cloud operation. */
+  window.openRecipe=function(id){
+    const r=recipes.find(x=>String(x.id)===String(id));if(!r)return;
+    const img=(window.__pandiGetRecipeImage&&window.__pandiGetRecipeImage(r.name))||r.image||'';
+    $('modalTitle').textContent=r.name;
+    const ings=parseIngredients(r.ingredients_raw);
+    $('modalBody').innerHTML=(img?`<div style="height:180px;border-radius:14px;overflow:hidden;margin-bottom:12px"><img src="${escAttr(img)}" alt="" style="width:100%;height:100%;object-fit:cover"></div>`:'')+
+      `<div class="meta"><span>👥 ${r.servings||'—'} raciones</span><span>⏱️ ${esc(r.time||'—')}</span><span>🏷️ ${esc(r.category||'')}</span></div>`+
+      `<h3>Ingredientes</h3><div class="ingredients">${ings.length?ings.map(x=>`<div class="ing">${esc(x)}</div>`).join(''):'<div class="empty">Esta receta todavía no tiene ingredientes.</div>'}</div>`+
+      `<h3>Preparación</h3><div>${r.steps?esc(r.steps).split(/\n/).map(x=>`<div class="step">${x}</div>`).join(''):'<div class="empty">Todavía no hay pasos de preparación.</div>'}</div>`+
+      `<div class="actions"><button type="button" class="btn secondary" id="finalEditRecipe">✏️ Editar</button><button type="button" class="btn secondary" id="finalDeleteRecipe" style="color:#ffb4ab;border-color:#8b3b33">🗑️ Eliminar</button></div>`;
+    $('finalEditRecipe').onclick=()=>editRecipe(r.id);
+    $('finalDeleteRecipe').onclick=async()=>{
+      if(!confirm(`¿Eliminar "${r.name}"? También se quitará de los menús semanales.`))return;
+      const b=$('finalDeleteRecipe');b.disabled=true;b.textContent='Eliminando…';
+      try{await window.__pandiDeleteRecipeCloud(r.id,r.name);closeModal();setCloudText('☁️ Receta eliminada',false)}catch(e){console.error(e);b.disabled=false;b.textContent='🗑️ Eliminar';setCloudText('☁️ Error al eliminar',true);const m=$('#authMessage');if(m)m.textContent='Error al eliminar la receta: '+(e.message||String(e));}
+    };
+    $('modal').classList.add('show');
+  };
+
+  /* Add cloud indicator to Menu now and after tab changes. */
+  const oldSetTab=window.setTab;
+  if(oldSetTab){window.setTab=function(...a){const r=oldSetTab.apply(this,a);setTimeout(()=>{if($('menuTab')?.classList.contains('active'))addMenuCloudButton()},0);return r};}
+  document.addEventListener('click',()=>{if($('menuTab')?.classList.contains('active'))addMenuCloudButton()},{passive:true});
+  setTimeout(()=>{addMenuCloudButton();bindButtons();if(typeof weeks!=='undefined'&&typeof recipes!=='undefined')renderMenu();},50);
 })();
 </script>
+</body></html>
