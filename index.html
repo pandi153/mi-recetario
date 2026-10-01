@@ -904,17 +904,28 @@ decorate();
 
   function attachPhoto(){
     const inp=$('recipePhotoInput');if(!inp)return;
+    window.__pandiPhotoProcessing=null;
     inp.onchange=e=>{
       const f=e.target.files&&e.target.files[0];if(!f)return;
-      const rd=new FileReader();
-      rd.onload=()=>{const im=new Image();im.onload=()=>{
-        const k=Math.min(1,900/Math.max(im.width,im.height)),c=document.createElement('canvas');
-        c.width=Math.max(1,Math.round(im.width*k));c.height=Math.max(1,Math.round(im.height*k));
-        c.getContext('2d').drawImage(im,0,0,c.width,c.height);
-        window.__pandiPendingImage=c.toDataURL('image/jpeg',.8);
-        const pv=$('recipePhotoPreview');if(pv)pv.innerHTML='<img src="'+escAttr(window.__pandiPendingImage)+'" alt="" style="width:100%;height:100%;object-fit:cover">';
-      };im.src=rd.result};
-      rd.readAsDataURL(f);
+      window.__pandiPhotoProcessing=new Promise((resolve,reject)=>{
+        const rd=new FileReader();
+        rd.onerror=()=>{window.__pandiPhotoProcessing=null;reject(rd.error||new Error('No se pudo leer la foto'))};
+        rd.onload=()=>{const im=new Image();
+          im.onerror=()=>{window.__pandiPhotoProcessing=null;reject(new Error('No se pudo procesar la foto'))};
+          im.onload=()=>{
+            try{
+              const k=Math.min(1,900/Math.max(im.width,im.height)),c=document.createElement('canvas');
+              c.width=Math.max(1,Math.round(im.width*k));c.height=Math.max(1,Math.round(im.height*k));
+              c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+              window.__pandiPendingImage=c.toDataURL('image/jpeg',.8);
+              const pv=$('recipePhotoPreview');if(pv)pv.innerHTML='<img src="'+escAttr(window.__pandiPendingImage)+'" alt="" style="width:100%;height:100%;object-fit:cover">';
+              window.__pandiPhotoProcessing=null;resolve(window.__pandiPendingImage);
+            }catch(err){window.__pandiPhotoProcessing=null;reject(err)}
+          };
+          im.src=rd.result;
+        };
+        rd.readAsDataURL(f);
+      });
     };
   }
 
@@ -959,16 +970,20 @@ decorate();
     renderIngredients();
     $('addIngredient').onclick=()=>{list.push('');renderIngredients();document.querySelector('[data-stable-ing="'+(list.length-1)+'"]')?.focus()};
     $('cancelEdit').onclick=closeModal;
-    $('saveEdit').onclick=()=>{
+    $('saveEdit').onclick=async()=>{
       const name=$('fName').value.trim();if(!name)return alert('Escribe un nombre');
-      const obj={id:r.id||('local_'+Date.now()),name,category:[...selectedCats].join(', '),servings:Number($('fServ').value)||2,time:$('fTime').value.trim(),ingredients_raw:list.map(x=>x.trim()).filter(Boolean).join('\n'),steps:$('fSteps').value.trim(),image:window.__pandiPendingImage||null,updated_at:new Date().toISOString()};
-      const idx=recipes.findIndex(x=>String(x.id)===String(r.id));
-      if(idx>=0)recipes[idx]=obj;else recipes.push(obj);
-      writeRecipes(recipes);
-      recipes=dedupeLocalRecipes();
-      try{const deleted=JSON.parse(localStorage.getItem('recetario_deleted_recipe_names')||'[]')||[];localStorage.setItem('recetario_deleted_recipe_names',JSON.stringify(deleted.filter(x=>keyName(x)!==keyName(name))))}catch(e){}
-      writeRecipes(recipes);localStorage.setItem('recetario_recipes_dirty','1');closeModal();renderRecipes();renderMenu();renderShopping();renderStats();
-      setTimeout(()=>window.__syncRecipesDirect?.(),80);
+      const saveBtn=$('saveEdit');saveBtn.disabled=true;saveBtn.textContent='Guardando…';
+      try{
+        if(window.__pandiPhotoProcessing){try{await window.__pandiPhotoProcessing}catch(e){console.warn('No se pudo procesar la foto',e);alert('No se ha podido procesar la foto. Puedes guardar la receta sin foto o volver a seleccionarla.');return}}
+        const obj={id:r.id||('local_'+Date.now()),name,category:[...selectedCats].join(', '),servings:Number($('fServ').value)||2,time:$('fTime').value.trim(),ingredients_raw:list.map(x=>x.trim()).filter(Boolean).join('\n'),steps:$('fSteps').value.trim(),image:window.__pandiPendingImage||null,updated_at:new Date().toISOString()};
+        const idx=recipes.findIndex(x=>String(x.id)===String(r.id));
+        if(idx>=0)recipes[idx]=obj;else recipes.push(obj);
+        writeRecipes(recipes);
+        recipes=dedupeLocalRecipes();
+        try{const deleted=JSON.parse(localStorage.getItem('recetario_deleted_recipe_names')||'[]')||[];localStorage.setItem('recetario_deleted_recipe_names',JSON.stringify(deleted.filter(x=>keyName(x)!==keyName(name))))}catch(e){}
+        writeRecipes(recipes);localStorage.setItem('recetario_recipes_dirty','1');closeModal();renderRecipes();renderMenu();renderShopping();renderStats();
+        setTimeout(()=>window.__syncRecipesDirect?.(),80);
+      }finally{saveBtn.disabled=false;saveBtn.textContent='Guardar'}
     };
     if($('deleteRecipeBtn'))$('deleteRecipeBtn').onclick=()=>deleteRecipeStable(r.id);
     $('modal').classList.add('show');
@@ -1015,7 +1030,7 @@ decorate();
     let arr=recipes.filter(r=>{
       const hay=norm([r.name,r.category,r.ingredients_raw,r.steps].join(' '));
       return !q||q.split(/\s+/).filter(Boolean).every(w=>hay.includes(w));
-    });
+    }).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'es',{sensitivity:'base',numeric:true}));
     $('recipeCount').textContent=arr.length+' receta'+(arr.length===1?'':'s')+' · '+recipes.length+' en total';
     const grid=$('recipeGrid');
     if(!arr.length){grid.innerHTML='<div class="empty">No encuentro recetas con esos filtros.</div>';return}
