@@ -123,7 +123,7 @@ let pendingRecipeImage='';const baseEditRecipe=editRecipe;editRecipe=function(id
 function exportRecipesToExcel(){const rows=recipes.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.category||'')}</td><td>${esc(r.servings||'')}</td><td>${esc(r.time||'')}</td><td>${esc(r.ingredients_raw||'').replace(/\n/g,'<br>')}</td><td>${esc(r.steps||'').replace(/\n/g,'<br>')}</td></tr>`).join('');const html=`<html><head><meta charset="UTF-8"></head><body><table border="1"><tr><th>Receta</th><th>Categorías</th><th>Raciones</th><th>Tiempo</th><th>Ingredientes</th><th>Preparación</th></tr>${rows}</table>
 
 </body></html>`;const blob=new Blob(['\ufeff',html],{type:'application/vnd.ms-excel;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='Panda-recetas.xls';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},0)}
-document.getElementById('search').oninput=renderRecipes;document.getElementById('downloadExcel').onclick=exportRecipesToExcel;document.getElementById('openDatabase').onclick=()=>window.open('https://github.com/pandi153/mi-recetario','_blank','noopener');document.getElementById('addBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('fab').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('closeModal').onclick=closeModal;document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')closeModal()};document.getElementById('clearMenu').onclick=()=>{menu=days.map(()=>({}));save();renderMenu();renderShopping();renderStats()};document.getElementById('newWeek').onclick=()=>{const d=new Date(`${selectedWeek}T00:00:00`);d.setDate(d.getDate()+7);const k=weekKey(d);if(!weeks[k])weeks[k]=days.map(()=>({}));selectedWeek=k;menu=weeks[k];save();renderMenu();renderShopping();renderStats()};document.getElementById('clearShop').onclick=()=>{checked={};save();renderShopping()};document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.getElementById(b.dataset.tab).classList.add('active');document.body.classList.toggle('menu-mode',b.dataset.tab==='menuTab');const fab=document.getElementById('fab');if(fab){if(b.dataset.tab==='pantryTab'){fab.textContent='🧊';fab.title='Añadir alimento';fab.setAttribute('aria-label','Añadir alimento');fab.onclick=e=>{e.preventDefault();e.stopPropagation();window.__newInventory()}}else{fab.textContent='＋';fab.title='Crear receta';fab.setAttribute('aria-label','Crear receta');fab.onclick=e=>{e.preventDefault();e.stopPropagation();editRecipe(null)}}}if(b.dataset.tab==='statsTab')renderStats();if(b.dataset.tab==='pantryTab'&&window.renderInventory)window.renderInventory()});refreshRecipeFilters();if('serviceWorker' in navigator){navigator.serviceWorker.register('./service-worker.js?v=18',{updateViaCache:'none'}).catch(()=>{});}
+document.getElementById('search').oninput=renderRecipes;document.getElementById('downloadExcel').onclick=exportRecipesToExcel;document.getElementById('openDatabase').onclick=()=>window.open('https://github.com/pandi153/mi-recetario','_blank','noopener');document.getElementById('addBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('fab').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();editRecipe(null)});document.getElementById('closeModal').onclick=closeModal;document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')closeModal()};document.getElementById('clearMenu').onclick=()=>{menu=days.map(()=>({}));save();renderMenu();renderShopping();renderStats()};document.getElementById('newWeek').onclick=()=>{const d=new Date(`${selectedWeek}T00:00:00`);d.setDate(d.getDate()+7);const k=weekKey(d);if(!weeks[k])weeks[k]=days.map(()=>({}));selectedWeek=k;menu=weeks[k];save();renderMenu();renderShopping();renderStats()};document.getElementById('clearShop').onclick=()=>{checked={};save();renderShopping()};document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.getElementById(b.dataset.tab).classList.add('active');document.body.classList.toggle('menu-mode',b.dataset.tab==='menuTab');const fab=document.getElementById('fab');if(fab){if(b.dataset.tab==='pantryTab'){fab.textContent='🧊';fab.title='Añadir alimento';fab.setAttribute('aria-label','Añadir alimento');fab.onclick=e=>{e.preventDefault();e.stopPropagation();window.__newInventory()}}else{fab.textContent='＋';fab.title='Crear receta';fab.setAttribute('aria-label','Crear receta');fab.onclick=e=>{e.preventDefault();e.stopPropagation();editRecipe(null)}}}if(b.dataset.tab==='statsTab')renderStats();if(b.dataset.tab==='pantryTab'&&window.renderInventory)window.renderInventory()});refreshRecipeFilters();if('serviceWorker' in navigator){navigator.serviceWorker.register('./service-worker.js?v=3',{updateViaCache:'none'}).catch(()=>{});}
 renderRecipes();renderMenu();renderShopping();
 </script>
 <script>
@@ -450,296 +450,7 @@ decorate();
  window.__newInventory=()=>openForm();$('addInventory')?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();window.__newInventory()});window.__inventoryPlace=window.__inventoryPlace||'todos';$('inventorySearch')?.addEventListener('input',render);$('inventorySort')?.addEventListener('change',render);$('inventorySummary')?.addEventListener('click',e=>{const b=e.target.closest('[data-place]');if(!b)return;window.__inventoryPlace=b.dataset.place||'todos';render()});window.renderInventory=render;render();
 })();
 </script>
-<script id="supabaseIntegration">
-(function(){
-  'use strict';
-  const SUPABASE_URL='https://hgjojgxspclmuwaeenjq.supabase.co';
-  const SUPABASE_KEY='sb_publishable_LPRAkNBsVLKUZLDfAMD6dQ_kaMErp_2';
-  if(!window.supabase){console.error('Supabase JS no está disponible');return;}
-  const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-  const $=id=>document.getElementById(id), overlay=$('authOverlay'), msg=$('authMessage');
-  let syncing=false,suppress=false,syncTimer=null;
-  const cloudButton=$('cloudStatus');
-  const setStatus=(text,cls='')=>{if(!cloudButton)return;cloudButton.textContent='☁️';cloudButton.className='btn secondary cloud-status '+cls;cloudButton.title=text;cloudButton.setAttribute('aria-label',text)};
-  const showAuth=()=>{overlay.classList.add('show');db.auth.getSession().then(({data})=>{const u=data.session?.user;$('signOutBtn').style.display=u?'block':'none';$('signInBtn').style.display=u?'none':'block';$('signUpBtn').style.display=u?'none':'block';$('authInfo').textContent=u?'Cuenta conectada: '+u.email:'Conecta tu cuenta para guardar y compartir recetas, menús, lista y objetivos entre móviles.'})};
-  const closeAuth=()=>overlay.classList.remove('show');
-  cloudButton?.addEventListener('click',showAuth);
-  const localState=()=>({
-    recipes:JSON.parse(localStorage.getItem('recetario_recipes')||'null')||[],
-    weeks:JSON.parse(localStorage.getItem('recetario_weeks')||'null')||{},
-    checked:JSON.parse(localStorage.getItem('recetario_checked')||'{}'),
-    settings:[
-      ['categories',JSON.parse(localStorage.getItem('recetario_categories')||'null')],
-      ['goals',JSON.parse(localStorage.getItem('recetario_goals')||'null')],
-      ['inventory',JSON.parse(localStorage.getItem('recetario_inventory')||'null')],
-      ['restock',JSON.parse(localStorage.getItem('recetario_restock')||'null')],
-      ['recipe_images',Object.fromEntries((JSON.parse(localStorage.getItem('recetario_recipes')||'[]')||[]).filter(r=>r.image).map(r=>[String(r.id),r.image]))],
-      ['recipe_images_by_name',JSON.parse(localStorage.getItem('recetario_recipe_images_by_name')||'null')]
-    ].filter(x=>x[1]!=null),
-    deletedNames:JSON.parse(localStorage.getItem('recetario_deleted_recipe_names')||'[]')
-  });
-  const writeLocal=(k,v)=>{suppress=true;try{localStorage.setItem(k,JSON.stringify(v))}finally{suppress=false}};
-  const normName=x=>norm(String(x||''));
-  let recipeSyncing=false;
-  async function session(){return (await db.auth.getSession()).data.session}
-  async function pushWeeks(user,weeks){
-    const rows=Object.entries(weeks||{}).map(([week_key,data])=>({user_id:user.id,week_key,data,updated_at:new Date().toISOString()}));
-    if(!rows.length)return true;
-    const r=await db.from('weeks').upsert(rows,{onConflict:'user_id,week_key'});
-    if(!r.error)return true;
-    console.warn('No se pudo usar la tabla weeks; guardando menús en settings.',r.error);
-    const fallback=await db.from('settings').upsert({user_id:user.id,key:'weekly_menus',value:weeks||{},updated_at:new Date().toISOString()},{onConflict:'user_id,key'});
-    if(fallback.error)throw fallback.error;
-    return false;
-  }
-  async function pushShopping(user,data){const r=await db.from('shopping').upsert({user_id:user.id,data:data||{},updated_at:new Date().toISOString()},{onConflict:'user_id'});if(r.error)throw r.error}
-  async function pushSettings(user,settings){for(const [key,value] of settings){const r=await db.from('settings').upsert({user_id:user.id,key,value,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});if(r.error)throw r.error}}
-  async function fetchCloud(user){
-    const [r,sh,se]=await Promise.all([
-      db.from('recipes').select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').eq('user_id',user.id).order('id'),
-      db.from('shopping').select('data').eq('user_id',user.id).maybeSingle(),
-      db.from('settings').select('key,value').eq('user_id',user.id)
-    ]);
-    for(const q of [r,sh,se])if(q.error)throw q.error;
-    let cloudWeeks={};
-    const w=await db.from('weeks').select('week_key,data').eq('user_id',user.id);
-    if(!w.error){
-      cloudWeeks=Object.fromEntries((w.data||[]).map(x=>[x.week_key,x.data]));
-    }else{
-      console.warn('La tabla weeks no está disponible; usando settings.weekly_menus.',w.error);
-    }
-    const settings=Object.fromEntries((se.data||[]).map(x=>[x.key,x.value]));
-    if(!Object.keys(cloudWeeks).length&&settings.weekly_menus)cloudWeeks=settings.weekly_menus;
-    return {recipes:r.data||[],weeks:cloudWeeks,checked:sh.data?.data||{},settings};
-  }
-  async function mergeAndSync(user){
-    const l=localState(), c=await fetchCloud(user);
-    const normKey=x=>norm(String(x||'')).trim();
-    const deleted=new Set((l.deletedNames||[]).map(normKey));
 
-    /* Clean deleted names first. */
-    for(const cr of c.recipes){
-      if(deleted.has(normKey(cr.name))){
-        const d=await db.from('recipes').delete().eq('id',cr.id).eq('user_id',user.id);
-        if(d.error)throw d.error;
-      }
-    }
-
-    /* Collapse duplicate cloud rows by recipe name. Keep the newest row;
-       when dates tie, keep the lowest id so the reference is stable. */
-    const groups=new Map();
-    for(const cr of c.recipes.filter(r=>!deleted.has(normKey(r.name)))){
-      const k=normKey(cr.name);
-      if(!k)continue;
-      if(!groups.has(k))groups.set(k,[]);
-      groups.get(k).push(cr);
-    }
-    const cloudByName=new Map();
-    for(const [k,list] of groups){
-      list.sort((a,b)=>{
-        const ta=Date.parse(a.updated_at||a.created_at||'')||0;
-        const tb=Date.parse(b.updated_at||b.created_at||'')||0;
-        return tb-ta || Number(a.id)-Number(b.id);
-      });
-      const survivor=list[0];
-      cloudByName.set(k,survivor);
-      for(const dup of list.slice(1)){
-        const d=await db.from('recipes').delete().eq('id',dup.id).eq('user_id',user.id);
-        if(d.error)throw d.error;
-      }
-    }
-
-    /* Local recipes are also collapsed before they can be uploaded. */
-    const localGroups=new Map();
-    for(const lr of l.recipes){
-      const k=normKey(lr.name);
-      if(!k)continue;
-      if(!localGroups.has(k))localGroups.set(k,[]);
-      localGroups.get(k).push(lr);
-    }
-    const localRecipes=[],localIdMap=new Map();
-    for(const [k,list] of localGroups){
-      list.sort((a,b)=>{
-        const ai=a.image?1:0,bi=b.image?1:0;
-        if(ai!==bi)return bi-ai;
-        const ta=Date.parse(a.updated_at||a.created_at||'')||0;
-        const tb=Date.parse(b.updated_at||b.created_at||'')||0;
-        return tb-ta || Number(a.id)-Number(b.id);
-      });
-      const survivor=list[0];
-      localRecipes.push(survivor);
-      for(const lr of list)localIdMap.set(String(lr.id),survivor.id);
-    }
-
-    const merged=[],idMap=new Map();
-    for(const lr of localRecipes){
-      const k=normKey(lr.name),cr=cloudByName.get(k);
-      if(cr){
-        idMap.set(String(lr.id),cr.id);
-        merged.push({...cr,...lr,id:cr.id,name:lr.name,image:lr.image||((l.settings.find(x=>x[0]==='recipe_images_by_name')?.[1]||{})[k])||((c.settings.recipe_images_by_name||{})[k])||((c.settings.recipe_images||{})[String(cr.id)])||null,updated_at:new Date().toISOString()});
-      }else{
-        const row={user_id:user.id,name:lr.name,category:lr.category||'',servings:lr.servings||2,time:lr.time||'',ingredients_raw:lr.ingredients_raw||'',steps:lr.steps||'',updated_at:new Date().toISOString()};
-        const ins=await db.from('recipes').insert(row).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();
-        if(ins.error)throw ins.error;
-        idMap.set(String(lr.id),ins.data.id);
-        merged.push({...ins.data,image:lr.image||null});
-      }
-    }
-
-    /* Cloud-only recipes are kept. */
-    for(const [k,cr] of cloudByName){
-      if(!localGroups.has(k))merged.push({...cr,image:(c.settings.recipe_images_by_name||{})[k]||((c.settings.recipe_images||{})[String(cr.id)])||null});
-    }
-
-    /* Remap every menu reference away from duplicate/local ids. */
-    const remapWeeks=Object.assign({},c.weeks);
-    Object.entries(l.weeks||{}).forEach(([wk,daysData])=>{
-      const base=Array.isArray(remapWeeks[wk])?remapWeeks[wk]:((daysData||[]).map(()=>({})));
-      const localDays=daysData||[];
-      remapWeeks[wk]=base.map((day,i)=>{
-        const d={...(day||{})},ld=localDays[i]||{};
-        ['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{
-          if(ld[m]!=null){
-            const sid=localIdMap.get(String(ld[m]))||ld[m];
-            if(idMap.has(String(sid)))d[m]=idMap.get(String(sid));
-          }
-        });
-        return d;
-      });
-    });
-
-    /* Update existing cloud rows by id and insert only genuinely new rows.
-       No upsert(onConflict user_id,name): the schema intentionally has no such
-       unique constraint, and that was allowing duplicate recipes. */
-    for(const r of merged){
-      const x={name:r.name,category:r.category||'',servings:r.servings||2,time:r.time||'',ingredients_raw:r.ingredients_raw||'',steps:r.steps||'',user_id:user.id,updated_at:new Date().toISOString()};
-      if(r.id){
-        const up=await db.from('recipes').update(x).eq('id',r.id).eq('user_id',user.id);
-        if(up.error)throw up.error;
-      }else{
-        const ins=await db.from('recipes').insert(x).select('id').single();
-        if(ins.error)throw ins.error;
-        r.id=ins.data.id;
-      }
-    }
-
-    const images=Object.fromEntries(merged.filter(r=>r.image).map(r=>[String(r.id),r.image]));
-    const imagesByName=Object.fromEntries(merged.filter(r=>r.image).map(r=>[normKey(r.name),r.image]));
-    const settings=[
-      ['categories',l.settings.find(x=>x[0]==='categories')?.[1]??c.settings.categories],
-      ['goals',l.settings.find(x=>x[0]==='goals')?.[1]??c.settings.goals],
-      ['inventory',l.settings.find(x=>x[0]==='inventory')?.[1]??c.settings.inventory],
-      ['restock',l.settings.find(x=>x[0]==='restock')?.[1]??c.settings.restock],
-      ['recipe_images',images],
-      ['recipe_images_by_name',imagesByName],
-      ['weekly_menus',remapWeeks]
-    ].filter(x=>x[1]!=null);
-
-    await pushWeeks(user,remapWeeks);
-    await pushShopping(user,l.checked && Object.keys(l.checked).length?l.checked:c.checked);
-    await pushSettings(user,settings);
-
-    writeLocal('recetario_recipes',merged);
-    writeLocal('recetario_weeks',remapWeeks);
-    writeLocal('recetario_checked',l.checked && Object.keys(l.checked).length?l.checked:c.checked);
-    writeLocal('recetario_deleted_recipe_names',[]);
-    for(const [k,v] of settings)writeLocal('recetario_'+k,v);
-    if(window.renderInventory)window.renderInventory();
-  }
-  async function syncRecipesDirect(){
-    if(recipeSyncing)return;
-    const s=await session();if(!s)return;
-    recipeSyncing=true;
-    try{
-      const l=localState();
-      const cr=await db.from('recipes').select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').eq('user_id',s.user.id).order('id');
-      if(cr.error)throw cr.error;
-      const deleted=new Set((l.deletedNames||[]).map(normName));
-      for(const row of cr.data||[]){
-        if(deleted.has(normName(row.name))){
-          const d=await db.from('recipes').delete().eq('id',row.id).eq('user_id',s.user.id);
-          if(d.error)throw d.error;
-        }
-      }
-      const cloud=(cr.data||[]).filter(r=>!deleted.has(normName(r.name)));
-      const groups=new Map();
-      cloud.forEach(r=>{const k=normName(r.name);if(!k)return;(groups.get(k)||groups.set(k,[]).get(k)).push(r)});
-      const survivors=new Map();
-      for(const [k,list] of groups){
-        list.sort((a,b)=>(Date.parse(b.updated_at||b.created_at||'')||0)-(Date.parse(a.updated_at||a.created_at||'')||0)||Number(a.id)-Number(b.id));
-        survivors.set(k,list[0]);
-        for(const dup of list.slice(1)){
-          const d=await db.from('recipes').delete().eq('id',dup.id).eq('user_id',s.user.id);
-          if(d.error)throw d.error;
-        }
-      }
-      const local=l.recipes||[];
-      const merged=[];const idMap=new Map();
-      for(const lr of local){
-        const k=normName(lr.name);if(!k||deleted.has(k))continue;
-        const old=survivors.get(k);
-        const data={name:lr.name,category:lr.category||'',servings:Number(lr.servings)||2,time:lr.time||'',ingredients_raw:lr.ingredients_raw||'',steps:lr.steps||'',user_id:s.user.id,updated_at:new Date().toISOString()};
-        let saved;
-        if(old){
-          const up=await db.from('recipes').update(data).eq('id',old.id).eq('user_id',s.user.id).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();
-          if(up.error)throw up.error;saved=up.data;
-        }else{
-          const ins=await db.from('recipes').insert(data).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();
-          if(ins.error)throw ins.error;saved=ins.data;
-        }
-        idMap.set(String(lr.id),saved.id);
-        merged.push({...saved,image:lr.image||((l.settings.find(x=>x[0]==='recipe_images_by_name')?.[1]||{})[k])||((window.__pandiGetRecipeImage&&window.__pandiGetRecipeImage(lr.name))||null)});
-      }
-      for(const [k,row] of survivors){if(!local.some(r=>normName(r.name)===k))merged.push({...row,image:((l.settings.find(x=>x[0]==='recipe_images_by_name')?.[1]||{})[k])||null});}
-      const weeks=JSON.parse(localStorage.getItem('recetario_weeks')||'{}')||{};
-      Object.keys(weeks).forEach(wk=>weeks[wk]=(weeks[wk]||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]));});return d;}));
-      const images=Object.fromEntries(merged.filter(r=>r.image).map(r=>[String(r.id),r.image]));
-      const imagesByName=Object.fromEntries(merged.filter(r=>r.image).map(r=>[normName(r.name),r.image]));
-      await pushSettings(s.user,[['recipe_images',images],['recipe_images_by_name',imagesByName]].filter(x=>x[1]!=null));
-      writeLocal('recetario_recipes',merged);writeLocal('recetario_weeks',weeks);writeLocal('recetario_deleted_recipe_names',[]);localStorage.removeItem('recetario_recipes_dirty');
-      recipes=merged;
-      window.renderRecipes?.();window.renderMenu?.();window.renderShopping?.();window.renderStats?.();
-    }finally{recipeSyncing=false}
-  }
-  window.__syncRecipesDirect=syncRecipesDirect;
-
-  async function syncNow(){
-    if(syncing)return;const s=await session();if(!s)return;syncing=true;
-    if(!recipes.length){const g=document.getElementById('recipeGrid');if(g)g.innerHTML='<div class="empty">☁️ Cargando tus recetas…</div>';}
-    const activeTab=document.querySelector('nav button.active')?.dataset.tab||'menuTab';
-    try{
-      let recipesHandledDirectly=false;
-      if(localStorage.getItem('recetario_recipes_dirty')==='1'){
-        await syncRecipesDirect();
-        if(localStorage.getItem('recetario_recipes_dirty')==='1')throw new Error('No se pudieron guardar los cambios de recetas.');
-        recipesHandledDirectly=true;
-      }
-      if(!recipesHandledDirectly)await mergeAndSync(s.user);
-      setStatus('Cuenta conectada','ok');
-      msg.textContent='Datos sincronizados correctamente.';
-      renderRecipes();renderMenu();renderShopping();renderStats();
-      if(window.renderInventory)window.renderInventory();
-      document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x.dataset.tab===activeTab));
-      document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.id===activeTab));
-      document.body.classList.toggle('menu-mode',activeTab==='menuTab');
-    }catch(e){console.error(e);setStatus('Error de sincronización','err');msg.textContent='No se pudo sincronizar: '+(e.message||String(e));}
-    finally{syncing=false}
-  }
-  function schedule(){if(suppress)return;clearTimeout(syncTimer);syncTimer=setTimeout(async()=>{try{await syncNow()}catch(e){console.error(e)}},700)}
-  window.__syncNow=syncNow;
-  $('closeAuth').onclick=closeAuth;$('authOverlay').onclick=e=>{if(e.target===overlay)closeAuth()};
-  $('signInBtn').onclick=async()=>{const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||password.length<6){msg.textContent='Introduce un correo y una contraseña de al menos 6 caracteres.';return}if(!navigator.onLine){msg.textContent='Ahora mismo no hay conexión a Internet. Conéctate para iniciar sesión.';return}msg.textContent='Entrando…';const r=await db.auth.signInWithPassword({email,password});if(r.error){msg.textContent=r.error.message;return}msg.textContent='Conectado. Cargando datos…';if(window.__pandiCloudLoad)await window.__pandiCloudLoad();else await syncNow();closeAuth()};
-  $('signUpBtn').onclick=async()=>{const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||password.length<6){msg.textContent='Introduce un correo y una contraseña de al menos 6 caracteres.';return}if(!navigator.onLine){msg.textContent='Ahora mismo no hay conexión a Internet. Conéctate para crear la cuenta.';return}msg.textContent='Creando cuenta…';const r=await db.auth.signUp({email,password});if(r.error){msg.textContent=r.error.message;return}if(r.data.session){msg.textContent='Cuenta creada. Cargando datos…';if(window.__pandiCloudLoad)await window.__pandiCloudLoad();else await syncNow();closeAuth()}else msg.textContent='Cuenta creada. Revisa tu correo si Supabase pide confirmar la cuenta y después entra.'};
-  $('signOutBtn').onclick=async()=>{await db.auth.signOut();closeAuth()};
-  db.auth.onAuthStateChange((event,s)=>{if(s){setStatus('Cuenta conectada','ok');if(event==='SIGNED_IN')setTimeout(()=>window.__pandiCloudLoad?window.__pandiCloudLoad():syncNow(),100)}else setStatus('No conectado','err')});
-  const originalSetItem=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){originalSetItem.call(this,key,value);if(this===localStorage&&!suppress&&/^recetario_(recipes|weeks|checked|categories|goals|inventory|restock|deleted_recipe_names|recipe_images_by_name)$/.test(key))schedule()};
-  function cloudLoginNotice(){db.auth.getSession().then(({data})=>{if(!data.session&&navigator.onLine){msg.textContent='No estás conectado a la nube. Inicia sesión para guardar tus datos y usarlos en otro móvil.';$('authInfo').textContent='☁️ No estás conectado. Inicia sesión o crea una cuenta para sincronizar tus recetas, menús, lista y objetivos.';showAuth()}})}
-  window.addEventListener('online',cloudLoginNotice);window.addEventListener('offline',()=>{msg.textContent='⚠️ Sin conexión a Internet. Puedes seguir usando tus datos locales; la nube se sincronizará al volver a estar conectado.';showAuth()});
-  window.addEventListener('pandi:recipe-deleted',()=>{const n=window.__pandiDeletedRecipeName;if(n){writeLocal('recetario_deleted_recipe_names',[...new Set([...localState().deletedNames,n])]);schedule()}});
-  window.addEventListener('load',()=>{if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.update().catch(()=>{}))).catch(()=>{});}});
-  window.addEventListener('load',()=>setTimeout(async()=>{const s=await session();setStatus(s?'Cuenta conectada':'No conectado',s?'ok':'err');if(s&&window.__pandiCloudLoad)window.__pandiCloudLoad().catch(e=>console.error('Carga nube',e));else cloudLoginNotice();let tab=null;try{tab=sessionStorage.getItem('pandi_active_tab');sessionStorage.removeItem('pandi_active_tab')}catch(e){};if(tab){const b=document.querySelector('nav button[data-tab=\"'+tab+'\"]');if(b)b.click()}},500));
-})();
-</script>
 <script id="finalPantryFabFix">
 (function(){
   function applyFab(tabId){
@@ -1094,133 +805,102 @@ decorate();
 <script id="cloudOnlyMode">
 (function(){
   'use strict';
+  const SUPABASE_URL='https://hgjojgxspclmuwaeenjq.supabase.co';
+  const SUPABASE_KEY='sb_publishable_LPRAkNBsVLKUZLDfAMD6dQ_kaMErp_2';
+  const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+  const $=id=>document.getElementById(id);
   const APP=/^recetario_/;
   const mem=Object.create(null);
-  let loaded=false,saving=false,saveTimer=null;
-  const appKeys=['recetario_recipes','recetario_weeks','recetario_checked','recetario_categories','recetario_goals','recetario_inventory','recetario_restock','recetario_deleted_recipe_names','recetario_recipe_images','recetario_recipe_images_by_name','recetario_selected_week'];
-  const keyToState=k=>k.replace(/^recetario_/,'');
-  const safeParse=(v,f)=>{try{const x=JSON.parse(v);return x??f}catch(e){return f}};
-  appKeys.forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
-  try{indexedDB?.deleteDatabase('pandi_recipes_photos_v1')}catch(e){}
+  let loaded=false,loading=false,saving=false,saveTimer=null;
   const nativeGet=Storage.prototype.getItem,nativeSet=Storage.prototype.setItem,nativeRemove=Storage.prototype.removeItem;
-  function scheduleSave(){if(!loaded||saving)return;clearTimeout(saveTimer);saveTimer=setTimeout(()=>saveCloud().catch(showCloudError),500)}
-  Storage.prototype.getItem=function(key){
-    if(this!==localStorage||!APP.test(key))return nativeGet.call(this,key);
-    const k=keyToState(key);return Object.prototype.hasOwnProperty.call(mem,k)?JSON.stringify(mem[k]):null;
-  };
-  Storage.prototype.setItem=function(key,value){
-    if(this!==localStorage||!APP.test(key))return nativeSet.call(this,key,value);
-    mem[keyToState(key)]=safeParse(value,null);scheduleSave();
-  };
-  Storage.prototype.removeItem=function(key){
-    if(this!==localStorage||!APP.test(key))return nativeRemove.call(this,key);
-    delete mem[keyToState(key)];scheduleSave();
-  };
+  const parse=(v,f)=>{try{const x=JSON.parse(v);return x==null?f:x}catch(e){return f}};
+  try{for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i);if(APP.test(k))nativeRemove.call(localStorage,k)}}catch(e){}
+  try{indexedDB.deleteDatabase('pandi_recipes_photos_v1')}catch(e){}
+  Storage.prototype.getItem=function(k){if(this!==localStorage||!APP.test(k))return nativeGet.call(this,k);const n=k.slice(10);return Object.prototype.hasOwnProperty.call(mem,n)?JSON.stringify(mem[n]):null};
+  Storage.prototype.setItem=function(k,v){if(this!==localStorage||!APP.test(k))return nativeSet.call(this,k,v);mem[k.slice(10)]=parse(v,null);schedule()};
+  Storage.prototype.removeItem=function(k){if(this!==localStorage||!APP.test(k))return nativeRemove.call(this,k);delete mem[k.slice(10)];schedule()};
   const state=(k,f)=>Object.prototype.hasOwnProperty.call(mem,k)?mem[k]:f;
   const setState=(k,v)=>{mem[k]=v};
-  const n=x=>norm(String(x||'')).replace(/\s+/g,' ').trim();
-  async function cloudUser(){const r=await db.auth.getSession();return r.data?.session?.user||null}
-  function setCloudError(e){
-    console.error('Pandi nube:',e);
-    const text=String(e?.message||e||'Error desconocido');
-    const el=document.getElementById('cloudStatus');
-    if(el){el.textContent='⚠️';el.title='Error de nube: '+text;el.className='cloud-status err'}
-    const msg=document.getElementById('authMessage');if(msg)msg.textContent='No se pueden cargar los datos: '+text;
-  }
-  function syncVars(){
-    recipes=Array.isArray(state('recipes',[]))?state('recipes',[]):[];
-    weeks=state('weeks',{})||{};
-    checked=state('checked',{})||{};
-    selectedWeek=state('selected_week',weekKey(new Date()));
-    if(!weeks[selectedWeek]){weeks[selectedWeek]=days.map(()=>({}));setState('weeks',weeks)}
-    menu=weeks[selectedWeek]||days.map(()=>({}));
-  }
-  function installPhotoAccess(){
-    window.__pandiGetRecipeImage=function(name){
-      const by=state('recipe_images_by_name',{})||{},ids=state('recipe_images',{})||{},r=recipes.find(x=>n(x.name)===n(name));
-      return by[n(name)]||ids[String(r?.id)]||r?.image||'';
-    };
-    window.__pandiSetRecipeImage=function(name,image){
-      const k=n(name);if(!k)return;
-      const by={...(state('recipe_images_by_name',{})||{})};
-      const ids={...(state('recipe_images',{})||{})};
-      const r=recipes.find(x=>n(x.name)===k);
-      if(image){by[k]=image;if(r)ids[String(r.id)]=image}
-      else{delete by[k];if(r)delete ids[String(r.id)]}
-      setState('recipe_images_by_name',by);setState('recipe_images',ids);scheduleSave();
-    };
-  }
+  const status=(t,c='')=>{const e=$('cloudStatus');if(e){e.textContent=t;e.className='cloud-status '+c}};
+  const message=t=>{const e=$('authMessage');if(e)e.textContent=t};
+  const normal=s=>norm(String(s||'')).replace(/\s+/g,' ').trim();
+  const currentUser=async()=>{const r=await db.auth.getSession();return r.data.session?.user||null};
+  function schedule(){if(!loaded||loading)return;clearTimeout(saveTimer);saveTimer=setTimeout(()=>saveCloud().catch(e=>{console.error(e);status('☁️ Error al guardar','err')}),600)}
+  function showAuth(){const o=$('authOverlay');if(o)o.classList.add('show');currentUser().then(u=>{if($('signOutBtn'))$('signOutBtn').style.display=u?'block':'none';if($('signInBtn'))$('signInBtn').style.display=u?'none':'block';if($('signUpBtn'))$('signUpBtn').style.display=u?'none':'block';if($('authInfo'))$('authInfo').textContent=u?'Cuenta conectada: '+u.email:'Inicia sesión para cargar y guardar tus datos en Supabase.'})}
+  const closeAuth=()=>{$('authOverlay')?.classList.remove('show')};
+
   async function loadCloud(){
-    const user=await cloudUser();if(!user)return false;
-    const [rr,ss,sh]=await Promise.all([
-      db.from('recipes').select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').eq('user_id',user.id).order('id'),
-      db.from('settings').select('key,value').eq('user_id',user.id),
-      db.from('shopping').select('data').eq('user_id',user.id).maybeSingle()
-    ]);
-    if(rr.error)throw rr.error;if(ss.error)throw ss.error;if(sh.error)throw sh.error;
-    const settings=Object.fromEntries((ss.data||[]).map(x=>[x.key,x.value]));
-    let cloudWeeks={};
-    const wr=await db.from('weeks').select('week_key,data').eq('user_id',user.id);
-    if(!wr.error){
-      cloudWeeks=Object.fromEntries((wr.data||[]).map(x=>[x.week_key,x.data]));
-    }else{
-      console.warn('weeks.data no disponible; usando settings.weekly_menus',wr.error);
-      if(settings.weekly_menus&&typeof settings.weekly_menus==='object')cloudWeeks=settings.weekly_menus;
-    }
-    if(!Object.keys(cloudWeeks).length&&settings.weekly_menus)cloudWeeks=settings.weekly_menus;
-    setState('recipes',rr.data||[]);setState('weeks',cloudWeeks);setState('checked',sh.data?.data||{});
-    Object.keys(settings).forEach(k=>setState(k,settings[k]));
-    setState('deleted_recipe_names',[]);setState('selected_week',state('selected_week',weekKey(new Date())));
-    syncVars();installPhotoAccess();loaded=true;
-    renderRecipes();renderMenu();renderShopping();renderStats();window.renderInventory?.();
-    const statusEl=document.getElementById('cloudStatus');if(statusEl){statusEl.textContent='☁️';statusEl.className='cloud-status ok';statusEl.title='Cuenta conectada'}
-    return true;
+    if(loading)return false;
+    const u=await currentUser();
+    if(!u){loaded=false;status('☁️ Sin conectar','err');showAuth();return false}
+    loading=true;status('☁️ Cargando datos…');message('Cargando datos…');
+    try{
+      const rr=await db.from('recipes').select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').eq('user_id',u.id).order('id');
+      if(rr.error)throw rr.error;
+      const ss=await db.from('settings').select('key,value').eq('user_id',u.id);
+      if(ss.error)throw ss.error;
+      const settings=Object.fromEntries((ss.data||[]).map(x=>[x.key,x.value]));
+      let cloudWeeks={};
+      const ww=await db.from('weeks').select('week_key,data').eq('user_id',u.id);
+      if(!ww.error) cloudWeeks=Object.fromEntries((ww.data||[]).map(x=>[x.week_key,x.data]));
+      else if(settings.weekly_menus) cloudWeeks=settings.weekly_menus;
+      const sh=await db.from('shopping').select('data').eq('user_id',u.id).maybeSingle();
+      if(sh.error)throw sh.error;
+      setState('recipes',rr.data||[]);setState('weeks',cloudWeeks||{});setState('checked',sh.data?.data||{});
+      Object.entries(settings).forEach(([k,v])=>setState(k,v));
+      setState('selected_week',weekKey(new Date()));
+      recipes=state('recipes',[]);weeks=state('weeks',{});checked=state('checked',{});selectedWeek=state('selected_week',weekKey(new Date()));
+      if(!weeks[selectedWeek])weeks[selectedWeek]=days.map(()=>({}));
+      menu=weeks[selectedWeek];
+      window.__pandiGetRecipeImage=name=>{const m=state('recipe_images_by_name',{})||{};return m[normal(name)]||''};
+      window.__pandiSetRecipeImage=async(name,image)=>{
+        const m={...(state('recipe_images_by_name',{})||{})};const k=normal(name);
+        if(image)m[k]=image;else delete m[k];
+        setState('recipe_images_by_name',m);schedule();
+      };
+      loaded=true;
+      renderRecipes();renderMenu();renderShopping();renderStats();window.renderInventory?.();
+      status('☁️ Conectado','ok');message('Conectado. Datos cargados.');
+      return true;
+    }finally{loading=false}
   }
+
   async function saveCloud(){
     if(!loaded||saving)return;
-    const user=await cloudUser();if(!user)return;
+    const u=await currentUser();if(!u)return;
     saving=true;
     try{
       const rs=Array.isArray(state('recipes',[]))?state('recipes',[]):[];
-      const deleted=new Set((state('deleted_recipe_names',[])||[]).map(n));
-      const cr=await db.from('recipes').select('id,name').eq('user_id',user.id);if(cr.error)throw cr.error;
-      for(const row of cr.data||[])if(deleted.has(n(row.name))||!rs.some(r=>n(r.name)===n(row.name))){const d=await db.from('recipes').delete().eq('id',row.id).eq('user_id',user.id);if(d.error)throw d.error}
-      const fresh=await db.from('recipes').select('id,name').eq('user_id',user.id);if(fresh.error)throw fresh.error;
-      const byName=new Map();
-      for(const row of fresh.data||[]){const k=n(row.name);if(!byName.has(k))byName.set(k,row);else{const d=await db.from('recipes').delete().eq('id',row.id).eq('user_id',user.id);if(d.error)throw d.error}}
+      const existing=await db.from('recipes').select('id,name').eq('user_id',u.id);if(existing.error)throw existing.error;
+      const keep=new Set(rs.map(r=>normal(r.name)));
+      for(const row of existing.data||[])if(!keep.has(normal(row.name))){const q=await db.from('recipes').delete().eq('id',row.id).eq('user_id',u.id);if(q.error)throw q.error}
+      const fresh=await db.from('recipes').select('id,name').eq('user_id',u.id);if(fresh.error)throw fresh.error;
+      const by=new Map();for(const row of fresh.data||[]){const k=normal(row.name);if(!by.has(k))by.set(k,row);else{const q=await db.from('recipes').delete().eq('id',row.id).eq('user_id',u.id);if(q.error)throw q.error}}
       const saved=[],idMap=new Map();
-      for(const r of rs){const k=n(r.name);if(!k||deleted.has(k))continue;
-        const data={user_id:user.id,name:r.name,category:r.category||'',servings:Number(r.servings)||2,time:r.time||'',ingredients_raw:r.ingredients_raw||'',steps:r.steps||'',updated_at:new Date().toISOString()};
-        let row=byName.get(k);
-        if(row){const u=await db.from('recipes').update(data).eq('id',row.id).eq('user_id',user.id).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();if(u.error)throw u.error;row=u.data}
-        else{const u=await db.from('recipes').insert(data).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();if(u.error)throw u.error;row=u.data}
-        idMap.set(String(r.id),row.id);saved.push({...row});
+      for(const r of rs){const k=normal(r.name);if(!k)continue;const data={user_id:u.id,name:r.name,category:r.category||'',servings:Number(r.servings)||2,time:r.time||'',ingredients_raw:r.ingredients_raw||'',steps:r.steps||'',updated_at:new Date().toISOString()};let q,row=by.get(k);
+        if(row)q=await db.from('recipes').update(data).eq('id',row.id).eq('user_id',u.id).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();
+        else q=await db.from('recipes').insert(data).select('id,name,category,servings,time,ingredients_raw,steps,created_at,updated_at').single();
+        if(q.error)throw q.error;row=q.data;idMap.set(String(r.id),row.id);saved.push(row);
       }
       const ws=state('weeks',{})||{};
-      let weekWriteOk=true;
-      for(const [wk,daysData] of Object.entries(ws)){
-        const data=(daysData||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]))});return d});
-        const u=await db.from('weeks').upsert({user_id:user.id,week_key:wk,data,updated_at:new Date().toISOString()},{onConflict:'user_id,week_key'});
-        if(u.error){weekWriteOk=false;break}
-      }
-      if(!weekWriteOk){
-        const rem={};Object.entries(ws).forEach(([wk,daysData])=>rem[wk]=(daysData||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]));});return d}));
-        const u=await db.from('settings').upsert({user_id:user.id,key:'weekly_menus',value:rem,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});if(u.error)throw u.error;
-      }
-      const sh=await db.from('shopping').upsert({user_id:user.id,data:state('checked',{})||{},updated_at:new Date().toISOString()},{onConflict:'user_id'});if(sh.error)throw sh.error;
-      const settingsKeys=['categories','goals','inventory','restock','recipe_images','recipe_images_by_name'];
-      for(const key of settingsKeys){const value=state(key,null);if(value==null)continue;const u=await db.from('settings').upsert({user_id:user.id,key,value,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});if(u.error)throw u.error}
+      for(const [wk,daysData] of Object.entries(ws)){const data=(daysData||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]));});return d});const q=await db.from('weeks').upsert({user_id:u.id,week_key:wk,data,updated_at:new Date().toISOString()},{onConflict:'user_id,week_key'});if(q.error){if(settingsCanUseFallback(q.error))continue;throw q.error}}
+      const settingsKeys=['categories','goals','inventory','restock','recipe_image_by_name','recipe_images_by_name'];
+      for(const key of settingsKeys){const value=state(key,null);if(value==null)continue;const q=await db.from('settings').upsert({user_id:u.id,key,value,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});if(q.error)throw q.error}
+      const sh=await db.from('shopping').upsert({user_id:u.id,data:state('checked',{})||{},updated_at:new Date().toISOString()},{onConflict:'user_id'});if(sh.error)throw sh.error;
       const remapped={};Object.entries(ws).forEach(([wk,ds])=>remapped[wk]=(ds||[]).map(day=>{const d={...(day||{})};['desayuno','almuerzo','comida','merienda','cena'].forEach(m=>{if(d[m]!=null&&idMap.has(String(d[m])))d[m]=idMap.get(String(d[m]));});return d}));
-      setState('recipes',saved);setState('weeks',remapped);setState('deleted_recipe_names',[]);syncVars();installPhotoAccess();
+      setState('recipes',saved);setState('weeks',remapped);recipes=saved;weeks=remapped;menu=weeks[selectedWeek]||days.map(()=>({}));status('☁️ Guardado','ok');
     }finally{saving=false}
   }
-  window.__pandiCloudLoad=loadCloud;
-  window.__pandiCloudSave=saveCloud;
-  window.__syncNow=async()=>{try{if(!loaded)await loadCloud();else{await saveCloud();await loadCloud()}renderRecipes();renderMenu();renderShopping();renderStats();window.renderInventory?.()}catch(e){setCloudError(e);throw e}};
-  window.__syncRecipesDirect=window.__syncNow;window.__pandiCloudOnly=true;
-  db.auth.getSession().then(async r=>{if(r.data?.session){try{await loadCloud()}catch(e){setCloudError(e)}}}).catch(setCloudError);
-  db.auth.onAuthStateChange((event,s)=>{if(s&&event==='SIGNED_IN')setTimeout(()=>loadCloud().catch(setCloudError),50);});
-  window.addEventListener('online',()=>{if(loaded)loadCloud().catch(setCloudError)});
+  function settingsCanUseFallback(err){return /weeks|data|column|schema cache/i.test(String(err?.message||err||''))}
+
+  window.__syncNow=async()=>{await saveCloud();await loadCloud()};
+  window.__pandiCloudLoad=loadCloud;window.__pandiCloudSave=saveCloud;
+  $('cloudStatus').onclick=showAuth;$('closeAuth').onclick=closeAuth;$('authOverlay').onclick=e=>{if(e.target===$('authOverlay'))closeAuth()};
+  $('signInBtn').onclick=async()=>{const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||password.length<6){message('Introduce un correo y una contraseña de al menos 6 caracteres.');return}if(!navigator.onLine){message('Sin conexión a Internet.');return}message('Entrando…');const r=await db.auth.signInWithPassword({email,password});if(r.error){message(r.error.message);return}try{await loadCloud();closeAuth()}catch(e){console.error(e);message('No se pueden cargar los datos: '+(e.message||String(e)))}};
+  $('signUpBtn').onclick=async()=>{const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||password.length<6){message('Introduce un correo y una contraseña de al menos 6 caracteres.');return}message('Creando cuenta…');const r=await db.auth.signUp({email,password});if(r.error){message(r.error.message);return}if(r.data.session){try{await loadCloud();closeAuth()}catch(e){message('No se pueden cargar los datos: '+(e.message||String(e)))} }else message('Cuenta creada. Revisa el correo si Supabase solicita confirmación y después entra.')};
+  $('signOutBtn').onclick=async()=>{await db.auth.signOut();loaded=false;Object.keys(mem).forEach(k=>delete mem[k]);recipes=[];weeks={};menu=[];renderRecipes();status('☁️ Sin conectar','err');closeAuth();showAuth()};
+  db.auth.onAuthStateChange((event,s)=>{if(event==='SIGNED_IN'&&s&&!loaded&&!loading){setTimeout(()=>loadCloud().catch(e=>{console.error(e);message('No se pueden cargar los datos: '+(e.message||String(e))) }),0);}if(event==='SIGNED_OUT'){loaded=false;status('☁️ Sin conectar','err')}});
+  window.addEventListener('load',()=>setTimeout(()=>currentUser().then(u=>u?loadCloud().catch(e=>{console.error(e);status('☁️ Error de carga','err');message('No se pueden cargar los datos: '+(e.message||String(e)))}):showAuth()),150));
 })();
 </script>
 </body></html>
