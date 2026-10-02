@@ -124,6 +124,28 @@ nav button span svg{width:23px;height:23px;vertical-align:-4px}
 .pcard{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;padding:10px;margin-bottom:7px;border:1px solid #244763;border-radius:11px;background:var(--surface2);cursor:pointer}
 .pico{font-size:24px;text-align:center}.pcard small{display:block;color:var(--muted);font-size:12px}
 .exp{display:inline-block;margin-top:3px;font-style:normal;font-size:11px;font-weight:700;color:var(--muted)}.exp.warn{color:#f0b24a}.exp.bad{color:var(--danger)}
+.scards{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}
+.scard{background:var(--surface2);border:1px solid #244763;border-radius:11px;padding:10px 12px}
+.scard strong{display:block;font-size:22px}.scard span{font-size:11px;color:var(--muted)}
+.ssec{margin:20px 0 6px;font-size:15px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ssec small{color:var(--muted);font-weight:400;font-size:12px}
+.goal{padding:9px 0;border-bottom:1px solid var(--border)}
+.goal .gtop{display:flex;justify-content:space-between;gap:10px;font-size:14px;font-weight:600}
+.goal small{display:block;color:var(--muted);font-size:12px;font-weight:400;margin-top:2px}
+.goal.warn .progress i{background:#f0b24a}.goal.bad .progress i{background:var(--danger)}
+.streak{margin:10px 0 0;padding:10px 12px;border:1px solid #244763;border-radius:10px;background:var(--surface2);font-size:13px;line-height:1.5}
+.brow{display:grid;grid-template-columns:130px 1fr 26px;gap:8px;align-items:center;margin:7px 0;font-size:13px}
+.brow .bar{height:10px;border-radius:99px;background:#1b3d5e;overflow:hidden}.brow .bar i{display:block;height:100%;background:#4b83d1}
+.sel{width:100%;padding:11px;border:1px solid #355570;border-radius:9px;background:var(--surface2);color:var(--text);font:inherit;font-size:16px;margin:6px 0}
+.chart{position:relative;height:140px;display:flex;align-items:flex-end;gap:6px;margin-top:8px}
+.barcol{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
+.barcol i{display:block;width:100%;max-width:34px;background:var(--accent);border-radius:5px 5px 0 0;min-height:2px}
+.barcol b{font-size:11px;margin-bottom:2px}.barcol small{font-size:10px;color:var(--muted);margin-top:3px;height:14px;white-space:nowrap}
+.goalline{position:absolute;left:0;right:0;border-top:2px dashed #f0b24a;pointer-events:none}
+.grow{padding:10px 0;border-bottom:1px solid var(--border)}
+.grow1,.grow2{display:flex;gap:6px;align-items:center}.grow2{margin-top:6px}
+.grow input,.grow select{margin:0;padding:10px;min-width:0;border:1px solid #355570;border-radius:9px;background:var(--surface2);color:var(--text);font:inherit;font-size:15px}
+.grow input.ico{width:54px;text-align:center;flex:none}.grow1 input:not(.ico){flex:1}.grow2 select{flex:1}.grow2 input{width:70px;flex:none}
 </style>
 </head>
 <body>
@@ -183,7 +205,11 @@ nav button span svg{width:23px;height:23px;vertical-align:-4px}
       <div class="count" id="pantryCount"></div>
       <div id="pantryList"></div>
     </section>
-    <section class="tab" id="tab-stats"><h2>📊 Estadísticas</h2><div class="empty">Se construye en la Parte 6.</div></section>
+    <section class="tab" id="tab-stats">
+      <div class="sheet-top"><h2>📊 Estadísticas</h2><button class="btn secondary" id="btnGoals" type="button">🎯 Objetivos</button></div>
+      <div class="weeknav"><button class="btn secondary" id="statsPrev" type="button" aria-label="Semana anterior">◀</button><button class="weeklabel" id="statsLabel" type="button"></button><button class="btn secondary" id="statsNext" type="button" aria-label="Semana siguiente">▶</button></div>
+      <div id="statsBody"></div>
+    </section>
   </main>
   <nav id="nav">
     <button class="active" data-tab="menu" type="button"><span>📅</span>Menú</button>
@@ -209,6 +235,7 @@ nav button span svg{width:23px;height:23px;vertical-align:-4px}
 
 <div class="modal" id="pickModal"><div class="sheet" id="pickBody"></div></div>
 <div class="modal" id="pModal"><div class="sheet" id="pBody"></div></div>
+<div class="modal" id="gModal"><div class="sheet" id="gBody"></div></div>
 <div class="modal" id="optModal"><div class="sheet" id="optBody"></div></div>
 <div class="modal" id="recipeModal"><div class="sheet" id="recipeBody"></div></div>
 
@@ -233,6 +260,12 @@ const MEALS = [['desayuno', 'Desayuno', '🥞'], ['almuerzo', 'Almuerzo', '🍎'
 const DAYS = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO', 'DOMINGO'];
 const LOCK = MEALS.map(m => m[1]);
 const sortCats = list => [...LOCK.map(n => list.find(c => c.name === n)).filter(Boolean), ...list.filter(c => !LOCK.includes(c.name)).sort((a, b) => a.name.localeCompare(b.name, 'es'))];
+const DEFAULT_GOALS = [
+  { label: 'Vegetales', key: 'Verduras', target: 10, mode: 'min', icon: '🥦' }, { label: 'Fruta', key: 'Fruta', target: 7, mode: 'min', icon: '🍎' },
+  { label: 'Legumbres', key: 'Legumbres', target: 2, mode: 'min', icon: '🫘' }, { label: 'Pescado', key: 'Pescado', target: 2, mode: 'min', icon: '🐟' },
+  { label: 'Pescado azul', key: 'Pescado azul', target: 1, mode: 'min', icon: '🐟' }, { label: 'Pescado blanco', key: 'Pescado blanco', target: 1, mode: 'min', icon: '🐠' },
+  { label: 'Carne blanca', key: 'Carne blanca', target: 2, mode: 'min', icon: '🍗' }, { label: 'Carne roja', key: 'Carne roja', target: 2, mode: 'max', icon: '🥩' },
+  { label: 'Huevos', key: 'Huevos', target: 2, mode: 'min', icon: '🥚' }];
 const emptyMenu = () => DAYS.map(() => ({}));
 const normMenu = m => { const a = Array.isArray(m) ? m : []; return DAYS.map((_, i) => (a[i] && typeof a[i] === 'object') ? a[i] : {}); };
 
@@ -268,6 +301,21 @@ const db = {
   async saveRecipe(r) {
     const row = { name: r.name, categories: r.categories, servings: r.servings, time: r.time, ingredients: r.ingredients, steps: r.steps, image_url: r.image_url };
     const { error } = r.id ? await sb.from('recipes').update(row).eq('id', r.id) : await sb.from('recipes').insert(row);
+    if (error) throw error;
+  },
+  async allWeeks() {
+    const { data, error } = await sb.from('weeks').select('week_start,menu');
+    if (error) throw error;
+    return data || [];
+  },
+  async goals() {
+    const { data, error } = await sb.from('settings').select('goals').maybeSingle();
+    if (error) throw error;
+    const g = data && data.goals;
+    return Array.isArray(g) ? g : null;
+  },
+  async saveGoals(list) {
+    const { error } = await sb.from('settings').upsert({ user_id: this.user.id, goals: list }, { onConflict: 'user_id' });
     if (error) throw error;
   },
   async pantry() {
@@ -392,7 +440,8 @@ function showTab(name) {
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   if (name === 'recipes') loadRecipes();
   if (name === 'menu') wantScroll = true;
-  if (name === 'menu' || name === 'shop') loadWeek();
+  if (name === 'menu' || name === 'shop' || name === 'stats') loadWeek();
+  if (name === 'stats') loadStats();
   if (name === 'pantry' || name === 'shop') loadPantry();
 }
 /* ---- Recetas ---- */
@@ -734,14 +783,14 @@ async function loadWeek() {
 function renderMenu() {
   const mon = parseYmd(WS), fmt = d => d.toLocaleDateString('es', { day: 'numeric', month: 'short' }), cur = ymd(mondayOf(new Date()));
   $('weekLabel').innerHTML = `${fmt(mon)} – ${fmt(addDays(mon, 6))}<small>${WS === cur ? 'Esta semana' : WS > cur ? 'Semana futura' : 'Semana pasada'}</small>`;
-  $('shopLabel').innerHTML = $('weekLabel').innerHTML;
+  $('shopLabel').innerHTML = $('statsLabel').innerHTML = $('weekLabel').innerHTML;
   const today = WS === cur ? (new Date().getDay() + 6) % 7 : -1;
   $('menuDays').innerHTML = MENU.map((day, i) => `<div class="day${i === today ? ' today' : ''}"><h3>${DAYS[i]} <span>${addDays(mon, i).getDate()}</span>${i === today ? '<em>Hoy</em>' : ''}</h3>` +
     MEALS.map(([k, label, ic]) => {
       const id = day[k], note = id && String(id).startsWith('~'), r = id && !note && RECIPES.find(x => x.id === id);
       return `<button class="slot${id ? ' full' : ''}" data-day="${i}" data-meal="${k}" type="button"><span>${ic}</span><span class="ml">${label}</span><span class="mr${note ? ' note' : ''}">${note ? '📝 ' + esc(id.slice(1)) : id ? (r ? esc(r.name) : 'Receta eliminada') : '＋ Añadir'}</span></button>`;
     }).join('') + '</div>').join('');
-  renderShop();
+  renderShop(); renderStats();
 }
 async function persistWeek() {
   const ws = WS, m = JSON.parse(JSON.stringify(MENU));
@@ -799,12 +848,16 @@ async function fillGaps() {
     if (d[k]) return;
     const cand = RECIPES.filter(r => (r.categories || []).includes(label));
     const tiers = [cand.filter(r => !used.has(r.id) && !last.has(r.id)), cand.filter(r => !used.has(r.id)), cand];
-    const base = tiers.find(t => t.length) || [], pool = base.flatMap(r => r.favorite ? [r, r] : [r]);
-    if (!pool.length) return;
-    const r = pool[Math.floor(Math.random() * pool.length)]; d[k] = r.id; used.add(r.id); n++;
+    const base = tiers.find(t => t.length) || []; if (!base.length) return;
+    const cnt = weekCounts(MENU).cats;
+    const wt = r => { let w = r.favorite ? 2 : 1; for (const g of GOALS) { if (!(r.categories || []).includes(g.key)) continue; const c = cnt[g.key] || 0; if (g.mode === 'min' && c < g.target) w += 3; if (g.mode === 'max' && c >= g.target) w = 0; } return w; };
+    let pool = base.map(r => [r, wt(r)]).filter(x => x[1] > 0); if (!pool.length) pool = base.map(r => [r, 1]);
+    let x = Math.random() * pool.reduce((a, y) => a + y[1], 0), r = pool[pool.length - 1][0];
+    for (const [rr, w] of pool) { x -= w; if (x <= 0) { r = rr; break; } }
+    d[k] = r.id; used.add(r.id); n++;
   }));
   renderMenu(); if (n) persistWeek();
-  menuMsg(n ? `Se han rellenado ${n} hueco${n === 1 ? '' : 's'}, evitando repetir y priorizando favoritas. Toca cualquiera para cambiarla.` : 'No hay huecos que rellenar con las categorías que tienes.');
+  menuMsg(n ? `Se han rellenado ${n} hueco${n === 1 ? '' : 's'}, evitando repetir, priorizando favoritas y acercándose a tus objetivos. Toca cualquiera para cambiarla.` : 'No hay huecos que rellenar con las categorías que tienes.');
 }
 async function shareMenu() {
   const mon = parseYmd(WS), fmt = d => d.toLocaleDateString('es', { day: 'numeric', month: 'short' });
@@ -840,7 +893,7 @@ $('weekPrev').onclick = () => goWeek(ymd(addDays(parseYmd(WS), -7)));
 $('weekNext').onclick = () => goWeek(ymd(addDays(parseYmd(WS), 7)));
 $('weekLabel').onclick = () => goWeek(ymd(mondayOf(new Date())));
 $('mShare').onclick = shareMenu; $('mFill').onclick = fillGaps; $('mCopy').onclick = copyPrevWeek; $('mClear').onclick = clearWeek;
-document.addEventListener('visibilitychange', () => { if (!document.hidden && db.user) { loadRecipes().then(loadWeek); loadPantry(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && db.user) { loadRecipes().then(loadWeek); loadPantry(); loadStats(); } });
 const setHH = () => document.documentElement.style.setProperty('--hh', document.querySelector('header').offsetHeight + 'px');
 window.addEventListener('resize', setHH);
 
@@ -894,7 +947,7 @@ function fmtQty(u) {
 const mk = (pre, ex = []) => new RegExp('\\b(?:' + pre.join('|') + ')' + (ex.length ? '|\\b(?:' + ex.join('|') + ')\\b' : ''));
 const GROUPS = [
   { icon: '🥦', name: 'Verduras y frutas', re: mk(['cebolla', 'ajo', 'tomate', 'lechuga', 'zanahoria', 'patata', 'papa', 'pimiento', 'calabac', 'berenjena', 'pepino', 'espinaca', 'champi', 'seta', 'limon', 'naranja', 'manzana', 'platano', 'fresa', 'aguacate', 'brocoli', 'coliflor', 'puerro', 'calabaza', 'judia', 'perejil', 'cilantro', 'albahaca', 'fruta', 'ensalada', 'verdura', 'apio', 'remolacha', 'maiz', 'guisante', 'uva', 'pera', 'melon', 'sandia', 'mango', 'kiwi', 'jengibre', 'rucula', 'canonigo', 'repollo', 'esparrago', 'alcachofa', 'nabo', 'rabano', 'boniato', 'cebollino', 'menta', 'tomillo', 'romero', 'lima', 'mandarina', 'pina', 'melocoton', 'ciruela', 'cereza', 'granada', 'acelga', 'escarola', 'endivia', 'hinojo'], ['col', 'coles', 'coco']) },
-  { icon: '🥩', name: 'Carne y pescado', re: mk(['pollo', 'pavo', 'ternera', 'cerdo', 'cordero', 'jamon', 'lomo', 'chuleta', 'salchicha', 'chorizo', 'bacon', 'panceta', 'carne', 'pescado', 'salmon', 'merluza', 'atun', 'bacalao', 'gamba', 'langostino', 'mejillon', 'calamar', 'sepia', 'pulpo', 'dorada', 'lubina', 'sardina', 'anchoa', 'marisco', 'filete', 'solomillo', 'hamburguesa', 'pechuga', 'muslo', 'costilla', 'morcilla', 'sobrasada', 'caballa', 'rape', 'almeja', 'trucha']) },
+  { icon: '🥩', name: 'Carne y pescado', re: mk(['pollo', 'pavo', 'ternera', 'cerdo', 'cordero', 'jamon', 'lomo', 'chuleta', 'salchicha', 'chorizo', 'bacon', 'panceta', 'carne', 'pescado', 'salmon', 'merluza', 'atun', 'bacalao', 'gamba', 'langostino', 'mejillon', 'calamar', 'sepia', 'pulpo', 'dorada', 'lubina', 'sardina', 'anchoa', 'marisco', 'filete', 'solomillo', 'hamburguesa', 'pechuga', 'muslo', 'costilla', 'morcilla', 'sobrasada', 'caballa', 'rape', 'almeja', 'trucha', 'entrecot', 'chuleton', 'secreto', 'presa', 'rabo', 'carrillera', 'albondiga', 'conejo', 'pato', 'berberecho']) },
   { icon: '🧀', name: 'Lácteos y huevos', re: mk(['leche', 'queso', 'yogur', 'huevo', 'nata', 'mantequilla', 'requeson', 'kefir', 'mozzarella', 'parmesano', 'cuajada', 'margarina', 'crema fresca']) },
   { icon: '🍞', name: 'Panadería', re: mk(['tostad', 'baguette', 'bollo', 'croissant', 'brioche', 'colines', 'pita', 'wrap'], ['pan', 'panes']) },
   { icon: '🥫', name: 'Básicos y conservas', re: mk(['arroz', 'macarron', 'espagueti', 'spaghetti', 'fideo', 'tallarin', 'lentej', 'garbanz', 'alubia', 'harina', 'azucar', 'aceite', 'vinagre', 'salsa', 'caldo', 'especia', 'pimenton', 'comino', 'oregano', 'pimienta', 'cereal', 'avena', 'cacao', 'nuez', 'nueces', 'almendra', 'avellana', 'pistacho', 'cacahuete', 'quinoa', 'cuscus', 'mostaza', 'mayonesa', 'ketchup', 'levadura', 'galleta', 'conserva', 'legumbre', 'pan rallado', 'tomate frito', 'tomate triturado', 'tomate natural', 'sirope', 'curry', 'laurel', 'canela', 'vainilla', 'mermelada', 'tahini', 'bulgur', 'polenta', 'maicena'], ['pasta', 'sal', 'miel', 'soja', 'latas?', 'botes?', 'pure']) },
@@ -1071,12 +1124,128 @@ $('pBody').addEventListener('click', e => {
      exp: () => { $('pExp').value = b.dataset.days === '0' ? '' : ymd(addDays(new Date(), +b.dataset.days)); } })[b.dataset.pa]();
 });
 
+/* ---- Estadísticas y objetivos ---- */
+let ALLW = {}, GOALS = DEFAULT_GOALS.map(g => ({ ...g })), statsCat = '', statsRange = 8, gDraft = [];
+function weekCounts(menu) {
+  const rm = new Map(RECIPES.map(r => [r.id, r])), cats = {}, ids = new Set(); let meals = 0, notes = 0;
+  menu.forEach(d => MEALS.forEach(([k]) => {
+    const id = d[k]; if (!id) return;
+    if (String(id).startsWith('~')) { notes++; return; }
+    const r = rm.get(id); if (!r) return;
+    meals++; ids.add(id); (r.categories || []).forEach(c => cats[c] = (cats[c] || 0) + 1);
+  }));
+  return { cats, ids, meals, notes };
+}
+const goalOk = (g, n) => g.mode === 'min' ? n >= g.target : n <= g.target;
+async function loadStats() {
+  try {
+    const [rows, g] = await Promise.all([db.allWeeks(), db.goals()]);
+    ALLW = {}; rows.forEach(r => ALLW[r.week_start] = normMenu(r.menu)); GOALS = g || DEFAULT_GOALS.map(x => ({ ...x }));
+  } catch (e) { $('statsBody').innerHTML = `<div class="empty">No se pudieron cargar las estadísticas: ${esc(e.message)}</div>`; return; }
+  renderStats();
+}
+function renderStats() {
+  const box = $('statsBody'); if (!box) return;
+  ALLW[WS] = MENU;
+  const wc = weekCounts(MENU), soon = PANTRY.filter(p => p.expiry_date && daysTo(p.expiry_date) <= 3).length;
+  const weeksPlanned = Object.values(ALLW).filter(m => weekCounts(m).meals > 0).length;
+  let h = '<div class="scards">' + [['Comidas planificadas', `${wc.meals + wc.notes}/35`], ['Recetas distintas', wc.ids.size], ['Recetas guardadas', RECIPES.length],
+    ['Semanas planificadas', weeksPlanned], ['Productos en casa', PANTRY.length], ['Caducan en 3 días', soon]].map(([l, v]) => `<div class="scard"><strong>${v}</strong><span>${l}</span></div>`).join('') + '</div>';
+
+  /* objetivos */
+  h += `<div class="ssec">🎯 Objetivos de la semana<small>${GOALS.filter(g => goalOk(g, wc.cats[g.key] || 0)).length} de ${GOALS.length} cumplidos</small></div>`;
+  h += GOALS.length ? GOALS.map(g => {
+    const n = wc.cats[g.key] || 0, ok = goalOk(g, n), pct = g.target ? Math.min(100, Math.round(n / g.target * 100)) : (n ? 100 : 0);
+    const cls = ok ? 'ok' : g.mode === 'max' ? 'bad' : 'warn';
+    const note = g.mode === 'min' ? (ok ? `Mínimo ${g.target} a la semana` : `Mínimo ${g.target} · te faltan ${g.target - n}`) : (ok ? `Máximo ${g.target} a la semana` : `Máximo ${g.target} · te pasas en ${n - g.target}`);
+    return `<div class="goal ${cls}"><div class="gtop"><span>${esc(g.icon || '🎯')} ${esc(g.label)}</span><span>${n}/${g.target} ${ok ? '✓' : ''}</span></div><div class="progress"><i style="width:${pct}%"></i></div><small>${esc(note)}</small></div>`;
+  }).join('') : '<div class="empty">No tienes objetivos. Pulsa 🎯 Objetivos para crear los tuyos.</div>';
+
+  /* racha y cumplimiento */
+  if (GOALS.length) {
+    const stat = Array.from({ length: 12 }, (_, k) => {
+      const ws = ymd(addDays(parseYmd(WS), -7 * k)), c = weekCounts(ALLW[ws] || emptyMenu()), okc = GOALS.filter(g => goalOk(g, c.cats[g.key] || 0)).length;
+      return { ws, planned: c.meals > 0, pct: okc / GOALS.length, full: okc === GOALS.length };
+    });
+    let k0 = stat[0].ws === ymd(mondayOf(new Date())) && !(stat[0].planned && stat[0].full) ? 1 : 0, streak = 0;
+    for (let k = k0; k < stat.length && stat[k].planned && stat[k].full; k++) streak++;
+    const pl = stat.slice(0, 8).filter(x => x.planned), avg = pl.length ? Math.round(pl.reduce((a, x) => a + x.pct, 0) / pl.length * 100) : null;
+    h += `<div class="streak">🔥 Racha: <b>${streak}</b> semana${streak === 1 ? '' : 's'} seguida${streak === 1 ? '' : 's'} cumpliendo todos los objetivos<br>📈 Cumplimiento medio (últimas 8 semanas planificadas): <b>${avg === null ? '—' : avg + '%'}</b></div>`;
+  }
+
+  /* balance de la semana */
+  const bal = Object.entries(wc.cats).filter(([c]) => !LOCK.includes(c)).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'es')), mx = bal.length ? bal[0][1] : 1;
+  h += '<div class="ssec">⚖️ Balance de la semana<small>comidas por categoría</small></div>';
+  h += bal.length ? bal.map(([c, n]) => `<div class="brow"><span>${esc(catLabel(c))}</span><div class="bar"><i style="width:${Math.round(n / mx * 100)}%"></i></div><b>${n}</b></div>`).join('') : '<div class="empty">Añade recetas al menú de esta semana para ver el balance.</div>';
+
+  /* evolución */
+  const names = sortCats(CATS).map(c => c.name).filter(n => !LOCK.includes(n)), sel = statsCat || (GOALS[0] && GOALS[0].key) || names[0] || '';
+  const wk = Array.from({ length: statsRange }, (_, i) => ymd(addDays(parseYmd(WS), -7 * (statsRange - 1 - i))));
+  const vals = wk.map(ws => weekCounts(ALLW[ws] || emptyMenu()).cats[sel] || 0), goal = GOALS.find(g => g.key === sel), sc = Math.max(...vals, goal ? goal.target : 0, 1);
+  h += `<div class="ssec">📈 Evolución<small>por semana</small></div><select class="sel" id="statsCat">${(names.includes(sel) ? names : [sel, ...names]).map(n => `<option value="${esc(n)}"${n === sel ? ' selected' : ''}>${esc(catLabel(n))}</option>`).join('')}</select>
+    <div class="chips">${[4, 8, 12].map(n => `<button class="chip${statsRange === n ? ' on' : ''}" data-range="${n}" type="button">${n} semanas</button>`).join('')}</div>
+    <div class="chart">${goal ? `<div class="goalline" style="bottom:${17 + Math.round(goal.target / sc * 90)}px" title="Objetivo"></div>` : ''}${wk.map((ws, i) => { const d = parseYmd(ws); return `<div class="barcol"><b>${vals[i] || ''}</b><i style="height:${Math.round(vals[i] / sc * 90)}px"></i><small>${d.getDate()}/${d.getMonth() + 1}</small></div>`; }).join('')}</div>
+    ${goal ? `<div class="notice">Línea naranja: tu objetivo (${goal.mode === 'min' ? 'mínimo' : 'máximo'} ${goal.target}).</div>` : ''}`;
+
+  /* recetas más cocinadas y olvidadas */
+  const cnt = {}, last = {};
+  Object.entries(ALLW).forEach(([ws, m]) => m.forEach(d => MEALS.forEach(([k]) => { const id = d[k]; if (!id || String(id).startsWith('~')) return; cnt[id] = (cnt[id] || 0) + 1; if (!last[id] || ws > last[id]) last[id] = ws; })));
+  const item = (r, sub) => `<button class="pick" data-id="${r.id}" type="button"><span class="pthumb">${r.image_url ? `<img src="${esc(r.image_url)}" alt="" loading="lazy">` : '🥘'}</span><span><b>${esc(r.name)}</b><small>${esc(sub)}</small></span></button>`;
+  const top = RECIPES.filter(r => cnt[r.id]).sort((a, b) => cnt[b.id] - cnt[a.id] || a.name.localeCompare(b.name, 'es')).slice(0, 5);
+  const limit = ymd(addDays(new Date(), -56));
+  const old = RECIPES.filter(r => !last[r.id] || last[r.id] < limit).sort((a, b) => (last[a.id] ? 1 : 0) - (last[b.id] ? 1 : 0) || (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0) || String(last[a.id]).localeCompare(String(last[b.id]))).slice(0, 6);
+  h += '<div class="ssec">🏆 Tus más cocinadas</div>' + (top.length ? top.map(r => item(r, `${cnt[r.id]} vez${cnt[r.id] === 1 ? '' : 'es'} en el menú`)).join('') : '<div class="empty">Cuando planifiques semanas, aquí verás tus favoritas de verdad.</div>');
+  h += '<div class="ssec">😴 Hace tiempo que no las haces<small>para variar</small></div>' + (old.length ? old.map(r => item(r, last[r.id] ? 'Última vez: ' + fdate(last[r.id]) : 'Nunca la has puesto en el menú')).join('') : '<div class="empty">Estás rotando todas tus recetas. 👏</div>');
+  box.innerHTML = h;
+}
+$('statsBody').addEventListener('click', e => {
+  const r = e.target.closest('[data-range]'); if (r) { statsRange = +r.dataset.range; return renderStats(); }
+  const pk = e.target.closest('.pick'); if (pk) showRecipe(pk.dataset.id);
+});
+$('statsBody').addEventListener('change', e => { if (e.target.id === 'statsCat') { statsCat = e.target.value; renderStats(); } });
+$('statsPrev').onclick = () => $('weekPrev').click(); $('statsNext').onclick = () => $('weekNext').click(); $('statsLabel').onclick = () => $('weekLabel').click();
+
+/* editor de objetivos */
+function readGoals() {
+  document.querySelectorAll('#gBody .grow').forEach(row => {
+    const g = gDraft[+row.dataset.i]; if (!g) return;
+    row.querySelectorAll('[data-f]').forEach(el => { g[el.dataset.f] = el.dataset.f === 'target' ? Math.max(0, +el.value || 0) : el.value.trim(); });
+  });
+}
+function drawGoals() {
+  const names = sortCats(CATS).map(c => c.name).filter(n => !LOCK.includes(n));
+  $('gBody').innerHTML = `<div class="editbar"><div class="sheet-top"><h2>🎯 Objetivos</h2><div class="btns"><button class="btn secondary" data-ga="close">Cancelar</button><button class="btn" id="btnGSave" data-ga="save">Guardar</button></div></div><div class="notice" id="gMsg"></div></div>
+    <div class="notice" style="margin:10px 0 0">Cada objetivo cuenta cuántas comidas de la semana llevan una receta de esa categoría.</div>
+    ${gDraft.map((g, i) => `<div class="grow" data-i="${i}"><div class="grow1"><input class="ico" data-f="icon" maxlength="4" value="${esc(g.icon || '')}"><input data-f="label" value="${esc(g.label)}" placeholder="Nombre"><button class="btn secondary" data-ga="del" data-i="${i}" type="button">✕</button></div>
+      <div class="grow2"><select data-f="key">${(names.includes(g.key) ? names : [g.key, ...names]).map(n => `<option value="${esc(n)}"${n === g.key ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>
+      <select data-f="mode"><option value="min"${g.mode === 'min' ? ' selected' : ''}>Mínimo</option><option value="max"${g.mode === 'max' ? ' selected' : ''}>Máximo</option></select><input type="number" min="0" data-f="target" value="${g.target}"></div></div>`).join('')}
+    <div class="row"><button class="btn secondary" data-ga="add" type="button">＋ Añadir objetivo</button><button class="btn secondary" data-ga="reset" type="button">Restaurar por defecto</button></div>`;
+}
+async function saveGoals() {
+  readGoals(); const msg = $('gMsg'), btn = $('btnGSave');
+  const list = gDraft.filter(g => g.key).map(g => ({ label: g.label || g.key, key: g.key, target: g.target, mode: g.mode === 'max' ? 'max' : 'min', icon: g.icon || icon(g.key) }));
+  btn.disabled = true; msg.className = 'notice'; msg.textContent = 'Guardando…';
+  try { await db.saveGoals(list); GOALS = list; $('gModal').classList.remove('show'); renderStats(); }
+  catch (e) { btn.disabled = false; msg.className = 'notice err'; msg.textContent = 'No se pudo guardar: ' + e.message; }
+}
+$('btnGoals').onclick = () => { gDraft = GOALS.map(g => ({ ...g })); drawGoals(); $('gModal').classList.add('show'); };
+$('gBody').addEventListener('click', e => {
+  const b = e.target.closest('[data-ga]'); if (!b) return; const a = b.dataset.ga;
+  if (a === 'close') return $('gModal').classList.remove('show');
+  if (a === 'save') return saveGoals();
+  readGoals();
+  if (a === 'del') gDraft.splice(+b.dataset.i, 1);
+  if (a === 'add') gDraft.push({ label: '', key: (sortCats(CATS).map(c => c.name).filter(n => !LOCK.includes(n))[0]) || '', target: 1, mode: 'min', icon: '🎯' });
+  if (a === 'reset') { if (!confirm('¿Volver a los objetivos por defecto?')) return; gDraft = DEFAULT_GOALS.map(g => ({ ...g })); }
+  drawGoals();
+});
+
 /* ============ 5. ARRANQUE ============ */
 function onSession(session) {
   db.user = session ? session.user : null;
   $('login').classList.toggle('hidden', !!session);
   $('app').classList.toggle('hidden', !session);
-  if (session) { setLoginMsg(''); runDiagnosis().catch(e => { $('cloudBtn').className = 'btn secondary err'; }); loadRecipes().then(loadWeek); loadPantry(); requestAnimationFrame(setHH); }
+  if (session) { setLoginMsg(''); runDiagnosis().catch(e => { $('cloudBtn').className = 'btn secondary err'; }); loadRecipes().then(loadWeek); loadPantry(); loadStats(); requestAnimationFrame(setHH); }
 }
 $('btnSignIn').onclick = signIn;
 $('btnSignUp').onclick = signUp;
