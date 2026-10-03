@@ -784,6 +784,9 @@ function renderOptions() {
       <button class="menuitem" data-act="optcsv"><span>📥</span><span>Descargar recetas (CSV)<small>Copia de seguridad para abrir en Excel</small></span></button>
       <button class="menuitem" data-act="optimport"><span>📤</span><span>Importar recetas (CSV)<small>Añade las de un archivo descargado antes</small></span></button>
       <input type="file" id="csvFile" accept=".csv,text/csv" class="hidden">
+      <button class="menuitem" data-act="optmenus"><span>🗓️</span><span>Descargar menús (CSV)<small>Una fila por semana, día y comida</small></span></button>
+      <button class="menuitem" data-act="optmenusimp"><span>📥</span><span>Importar menús (CSV)<small>Añade menús desde un archivo descargado</small></span></button>
+      <input type="file" id="menusFile" accept=".csv,text/csv" class="hidden">
       <button class="menuitem" data-act="optbackup"><span>💾</span><span>Copia de seguridad completa<small>Recetas, menús, categorías y despensa en un archivo</small></span></button>
       <button class="menuitem" data-act="optrestore"><span>♻️</span><span>Restaurar copia de seguridad<small>Añade lo que falte desde un archivo .json</small></span></button>
       <input type="file" id="bkFile" accept=".json,application/json" class="hidden">
@@ -911,7 +914,7 @@ async function importCsv(file) {
     optMsg(`Importadas ${out.length} recetas.`, true);
   } catch (e) { optMsg('No se pudo importar: ' + e.message); }
 }
-$('optBody').addEventListener('change', e => { if (e.target.id === 'csvFile' && e.target.files[0]) importCsv(e.target.files[0]); if (e.target.id === 'bkFile' && e.target.files[0]) { const f = e.target.files[0]; e.target.value = ''; restoreFile(f); } });
+$('optBody').addEventListener('change', e => { if (e.target.id === 'csvFile' && e.target.files[0]) importCsv(e.target.files[0]); if (e.target.id === 'menusFile' && e.target.files[0]) { const f = e.target.files[0]; e.target.value = ''; importMenusCsv(f); } if (e.target.id === 'bkFile' && e.target.files[0]) { const f = e.target.files[0]; e.target.value = ''; restoreFile(f); } });
 $('optBtn').onclick = () => { optView = 'main'; editingCat = null; renderOptions(); $('optModal').classList.add('show'); };
 $('optBody').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return; const n = b.dataset.name;
@@ -923,7 +926,7 @@ $('optBody').addEventListener('click', e => {
      catnew: () => { editingCat = '__new'; renderOptions(); }, catedit: () => { editingCat = n; renderOptions(); },
      catcancel: () => { editingCat = null; renderOptions(); },
      catsave: () => saveCat(n), catdel: () => delCat(n),
-     optfixed: () => { optView = 'fixed'; renderOptions(); }, optbasics: () => { optView = 'basics'; renderOptions(); },
+     optfixed: () => { optView = 'fixed'; renderOptions(); }, optmenus: exportMenusCsv, optmenusimp: () => $('menusFile').click(), optbasics: () => { optView = 'basics'; renderOptions(); },
      bsadd: () => { const v = $('bsNew').value.trim().toLowerCase(); if (!v) return; if (BASICS.some(b => norm(b) === norm(v))) return optMsg('Ya está en la lista.'); saveBasics([...BASICS, v]); },
      bsdel: () => saveBasics(BASICS.filter((_, k) => k !== +b.dataset.i)), bsreset: () => saveBasics(['agua', 'sal', 'aceite']), optrestore: () => $('bkFile').click(), optinstall: installApp,
      fxmeal: () => { fxRead(); fx.meal = b.dataset.m; renderOptions(); }, fxday: () => { fxRead(); const d = +b.dataset.d; fx.days.has(d) ? fx.days.delete(d) : fx.days.add(d); renderOptions(); },
@@ -1026,88 +1029,204 @@ const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { c
 const catsOf = r => r.categories || [];
 const isSide = r => catsOf(r).includes('Guarnición');
 const SELF = ['Arroces', 'Pasta', 'Guisos', 'Sopas', 'Ensaladas', 'Legumbres', 'Vegano', 'Vegetariano'];
-const NUMW = { un: 1, una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7 };
+const NUMW = { un: 1, una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
 const QSYN = [
   [/pescado azul/, ['Pescado azul'], 'pescado azul'], [/pescado blanco/, ['Pescado blanco'], 'pescado blanco'], [/pescado/, ['Pescado', 'Pescado azul', 'Pescado blanco'], 'pescado'],
   [/carne roja/, ['Carne roja'], 'carne roja'], [/carne blanca|pollo|pavo/, ['Carne blanca'], 'carne blanca'], [/carne/, ['Carne roja', 'Carne blanca'], 'carne'],
   [/legumbre|lentej|garbanz|alubia/, ['Legumbres'], 'legumbres'], [/ensalada/, ['Ensaladas'], 'ensalada'], [/pasta|macarron|espagueti/, ['Pasta'], 'pasta'], [/arroz/, ['Arroces'], 'arroz'],
   [/huevo|tortilla/, ['Huevos'], 'huevos'], [/verdura/, ['Verduras'], 'verdura'], [/marisco/, ['Marisco'], 'marisco'], [/vegetarian/, ['Vegetariano', 'Vegano'], 'vegetariano'],
   [/vegano/, ['Vegano'], 'vegano'], [/sopa|crema/, ['Sopas'], 'sopa'], [/guiso|cuchara/, ['Guisos'], 'guiso'], [/horno/, ['Al horno'], 'horno'], [/plancha|parrilla/, ['A la parrilla'], 'plancha']];
+const DAYRE = '(?:lunes|martes|miercoles|jueves|viernes|sabados?|domingos?|fines? de semana|findes?|entre semana|todos los dias|cada dia)';
+const MEALW = [['desayuno', /desayun/], ['almuerzo', /almuerz/], ['merienda', /merend|merienda/], ['cena', /\bcenas?\b|cenar/], ['comida', /\bcomidas?\b|\bcomer\b/]];
+const WSTOP = /\b(el|los|las|la|lo|de|del|en|para|quiero|quiere|pon|poner|ponme|que|sea|haz|hazme|un|una|unos|unas|con|y|e|a|al|por|favor|toca|me|gustaria|mejor|algo|menu|semana|solo|tambien|ese|esa|dia|este)\b/g;
+const STYLEW = /rapid|expres|poco tiempo|media hora|30 min|menu|semana|favor|quiero|haz|crea|dame|plan|pensando|despensa|caduc|aprovech|variad|sentido|equilibrad|sano|saludable|ligero|gracias/;
+const MONTHS = { enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5, julio: 6, agosto: 7, septiembre: 8, setiembre: 8, octubre: 9, noviembre: 10, diciembre: 11 };
+const dn = i => cap(DAYS[i].toLowerCase());
+function daysOf(c) {
+  const d = new Set();
+  if (/entre semana/.test(c)) [0, 1, 2, 3, 4].forEach(x => d.add(x));
+  if (/fines? de semana|findes?/.test(c)) [5, 6].forEach(x => d.add(x));
+  if (/todos los dias|cada dia/.test(c)) [0, 1, 2, 3, 4, 5, 6].forEach(x => d.add(x));
+  [['lunes', 0], ['martes', 1], ['miercoles', 2], ['jueves', 3], ['viernes', 4], ['sabado', 5], ['domingo', 6]].forEach(([n, i]) => { if (new RegExp('\\b' + n + 's?\\b').test(c)) d.add(i); });
+  return [...d];
+}
+function matchRecipe(c, min = 0.99) {
+  const tk = c.split(/\s+/).filter(w => w.length >= 3); if (!tk.length) return null;
+  let best = [], bs = 0;
+  RECIPES.forEach(r => { const nt = norm(r.name).split(/\s+/), hits = tk.filter(t => nt.some(n => same(n, t))).length, sc = hits / tk.length; if (!hits) return; if (sc > bs) { bs = sc; best = [r]; } else if (sc === bs) best.push(r); });
+  return bs >= min ? best[Math.floor(Math.random() * best.length)] : null;
+}
+function weekFromDay(d, mon) {
+  const now = new Date(), m = mon && MONTHS[mon] !== undefined ? MONTHS[mon] : now.getMonth(); let dt = new Date(now.getFullYear(), m, d);
+  if (!mon && dt > now) dt = new Date(now.getFullYear(), m - 1, d); if (mon && dt > addDays(now, 30)) dt = new Date(now.getFullYear() - 1, m, d);
+  return ymd(mondayOf(dt));
+}
 function parseWish(text) {
-  const quotas = [], exclude = new Set(), exLabels = [], quick = /rapid|expres|poco tiempo|media hora|30 min/.test(norm(text));
-  norm(text).split(/[,;.\n]+|\s+y\s+|\s+e\s+/).map(x => x.trim()).filter(Boolean).forEach(ch => {
-    const syn = QSYN.find(([re]) => re.test(ch)); if (!syn) return;
-    if (/^(sin|nada de|no )\s*/.test(ch)) { syn[1].forEach(c => exclude.add(c)); exLabels.push(syn[2]); return; }
-    const m = ch.match(/\b(\d+|un|una|uno|dos|tres|cuatro|cinco|seis|siete)\b/);
-    quotas.push({ cats: syn[1], n: m ? (+m[1] || NUMW[m[1]]) : 1, label: syn[2] });
+  let t = norm(text);
+  const out = { quotas: [], exclude: new Set(), exLabels: [], quick: /rapid|expres|poco tiempo|media hora|30 min/.test(t), slots: [], repeat: null, change: null, unknown: [] };
+  const rm = t.match(/(?:igual|repite|repetir|repetimos|como|copia|copiar|parecid[oa]|misma)\b[^.;\n]*?(semana pasada|semana anterior|ultima semana|semana del (\d{1,2})(?: de (\w+))?)/);
+  if (rm) { out.repeat = rm[2] ? { day: +rm[2], month: rm[3] || '' } : { prev: true }; t = t.replace(rm[0], ' '); }
+  const cm = t.match(/(?:cambiando|cambia|cambiar|variando|varia|variar)\s+(?:solo\s+)?(\d+|un|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|la mitad|mitad|todo|todos)\b(?:\s+(?:platos|comidas|recetas|cosas))?/);
+  if (cm) { out.change = /mitad/.test(cm[1]) ? 'half' : /todo/.test(cm[1]) ? 'all' : (+cm[1] || NUMW[cm[1]]); t = t.replace(cm[0], ' '); }
+  const clauses = t.split(new RegExp('[;.\\n]+|,\\s*(?=(?:el |los |las |este )?' + DAYRE + ')|\\s+y\\s+(?=(?:el |los |las )?' + DAYRE + ')')).map(x => (x || '').trim()).filter(Boolean);
+  let pend = [];
+  for (const c of clauses) {
+    const ds = daysOf(c);
+    if (ds.length) {
+      const days = [...new Set([...pend, ...ds])], meal = (MEALW.find(([, re]) => re.test(c)) || [])[0] || '';
+      let content = c.replace(new RegExp(DAYRE, 'g'), ' '); MEALW.forEach(([, re]) => { content = content.replace(re, ' '); });
+      content = content.replace(WSTOP, ' ').replace(/\s+/g, ' ').trim();
+      if (!content) { pend = days; continue; } pend = [];
+      let sl = null;
+      if (/fuera|restaurante|invitad|\bbar\b/.test(c)) sl = { note: meal === 'cena' ? 'Cenar fuera' : 'Comer fuera', desc: 'fuera de casa' };
+      else if (/sobras/.test(c)) sl = { note: 'Sobras', desc: 'sobras' };
+      else if (/\b(libre|nada|ayuno|saltar|salto)\b/.test(c)) sl = { skip: true, desc: 'libre' };
+      else { const syn0 = QSYN.find(([re]) => re.test(content)), r = days.length > 1 && syn0 ? null : matchRecipe(content); if (r) sl = { id: r.id, desc: r.name };
+        else { const syn = QSYN.find(([re]) => re.test(content)); if (syn) sl = { cats: syn[1], label: syn[2], desc: syn[2] }; else { const r2 = matchRecipe(content, 0.6); if (r2) sl = { id: r2.id, desc: r2.name }; } } }
+      if (!sl) { out.unknown.push(c); continue; }
+      days.forEach(i => out.slots.push({ day: i, meal, ...sl })); continue;
+    }
+    c.split(/,|\s+y\s+|\s+e\s+/).map(x => x.trim()).filter(Boolean).forEach(ch => {
+      const syn = QSYN.find(([re]) => re.test(ch));
+      if (!syn) { if (!STYLEW.test(ch) && ch.replace(WSTOP, ' ').trim().length >= 4) out.unknown.push(ch); return; }
+      if (/^(sin|nada de|no )\s*/.test(ch)) { syn[1].forEach(x => out.exclude.add(x)); out.exLabels.push(syn[2]); return; }
+      const m = ch.match(/\b(\d+|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b/);
+      out.quotas.push({ cats: syn[1], n: m ? (+m[1] || NUMW[m[1]]) : 1, label: syn[2] });
+    });
+  }
+  return out;
+}
+function applySlotRules(menu, rules) {
+  const locked = new Set(), pinned = []; let n = 0;
+  rules.forEach(sl => {
+    const i = sl.day; if (i < 0 || i > 6) return;
+    if (sl.skip) { (sl.meal ? [sl.meal] : ['comida', 'cena']).forEach(k => locked.add(i + k)); return; }
+    if (sl.note) { const k = sl.meal || 'comida', v = '~' + sl.note; if (!slotItems(menu[i][k]).includes(v)) { menu[i][k] = [...slotItems(menu[i][k]), v]; n++; } return; }
+    if (sl.id) { const r = RECIPES.find(x => x.id === sl.id); if (!r) return; const c = catsOf(r), k = sl.meal || (c.includes('Cena') && !c.includes('Comida') ? 'cena' : 'comida'); if (!slotItems(menu[i][k]).includes(r.id)) { menu[i][k] = [...slotItems(menu[i][k]), r.id]; n++; } return; }
+    if (sl.cats) { let k = sl.meal || 'comida'; if (!sl.meal && slotItems(menu[i].comida).length) k = 'cena'; if (!slotItems(menu[i][k]).length) pinned.push({ i, k, cats: sl.cats }); }
   });
-  return { quotas, exclude, exLabels, quick };
+  return { locked, pinned, n };
+}
+
+/* ---- planificador: despensa, variedad, proteínas, objetivos ---- */
+const PROT = [['pescado', ['Pescado', 'Pescado azul', 'Pescado blanco', 'Marisco']], ['carne roja', ['Carne roja']], ['carne blanca', ['Carne blanca']], ['huevo', ['Huevos']], ['legumbre', ['Legumbres']], ['pasta', ['Pasta']], ['arroz', ['Arroces']]];
+const protein = r => { const c = catsOf(r), p = PROT.find(([, cs]) => cs.some(x => c.includes(x))); return p ? p[0] : ''; };
+const LIGHT = ['Ensaladas', 'Verduras', 'Huevos', 'Pescado blanco', 'Sopas', 'Vegetariano', 'Vegano'], HEAVY = ['Legumbres', 'Guisos', 'Arroces', 'Pasta', 'Carne roja'];
+let lastFill = { urgent: [], cover: null };
+function pantryInfo(r) {
+  const its = []; lines(r.ingredients).forEach(l => addIng(its, l, r.name));
+  const real = its.filter(i => !isBasic(i.key)), urgent = []; let hit = 0, frozen = 0;
+  real.forEach(i => { const p = PANTRY.find(p => Number(p.units ?? 1) > 0 && fuzzy(norm(p.name), i.key)); if (!p) return; hit++; if (p.expiry_date && daysTo(p.expiry_date) <= 5) urgent.push(cap(p.name)); if (pLocOf(p) === 'congelador') frozen++; });
+  return { cov: real.length ? hit / real.length : 0, urgent, frozen };
 }
 function autoFill(menu, o = {}) {
-  const avoid = o.avoid || new Set(), ex = o.exclude || new Set(), rm = new Map(RECIPES.map(r => [r.id, r])), touched = new Set();
-  const used = new Set(menu.flatMap(d => MEALS.flatMap(([k]) => slotItems(d[k]).filter(x => !isNote(x))))), mains = ['comida', 'cena']; let n = 0;
+  const ex = o.exclude || new Set(), ban = o.ban || new Set(), locked = o.locked || new Set(), rec = o.recency || {}, mains = ['comida', 'cena'];
+  const rm = new Map(RECIPES.map(r => [r.id, r])), touched = new Set(), info = new Map(), usedP = new Set(), covs = [];
+  const used = new Set(menu.flatMap(d => MEALS.flatMap(([k]) => slotItems(d[k]).filter(x => !isNote(x)))));
+  if (o.pantry !== false && PANTRY.length) RECIPES.forEach(r => info.set(r.id, pantryInfo(r)));
+  let n = 0;
   const qk = (r, i) => !o.quick || i > 4 || (timeMins(r.time) === null || timeMins(r.time) <= 30);
   const ok = r => !catsOf(r).some(c => ex.has(c)), capCats = new Set((o.quotas || []).flatMap(q => q.cats));
-  const weight = (r, cnt) => { let w = (r.favorite ? 2 : 1) + (r.rating >= 4 ? 1 : 0); if (r.rating && r.rating <= 2) w = Math.max(0.3, w - 0.7); for (const g of GOALS) { if (!catsOf(r).includes(g.key)) continue; const c = cnt[g.key] || 0; if (g.mode === 'min' && c < g.target) w += 3; if (g.mode === 'max' && c >= g.target) w = 0; } return w; };
-  const choose = (cand, goals) => {
-    const base = [cand.filter(r => !used.has(r.id) && !avoid.has(r.id)), cand.filter(r => !used.has(r.id)), cand].find(t => t.length); if (!base) return null;
-    const cnt = goals ? weekCounts(menu).cats : {};
-    let pool = base.map(r => [r, goals ? weight(r, cnt) : (r.favorite ? 2 : 1)]).filter(x => x[1] > 0); if (!pool.length) pool = base.map(r => [r, 1]);
-    let x = Math.random() * pool.reduce((a, y) => a + y[1], 0);
-    for (const [r, w] of pool) { x -= w; if (x <= 0) return r; } return pool[pool.length - 1][0];
+  const protAt = (i, k) => { const its = slotItems((menu[i] || {})[k]).filter(x => !isNote(x)), r0 = its.length && rm.get(its[0]); return r0 ? protein(r0) : ''; };
+  const near = (i, k) => k === 'comida' ? [[i, 'cena'], [i - 1, 'cena']] : [[i, 'comida'], [i + 1, 'comida']];
+  const weight = (r, i, k, cnt) => {
+    let w = 1 + (r.favorite ? 0.6 : 0) + (r.rating >= 4 ? 0.6 : 0) - (r.rating && r.rating <= 2 ? 0.7 : 0);
+    for (const g of GOALS) { if (!catsOf(r).includes(g.key)) continue; const c = cnt[g.key] || 0; if (g.mode === 'min' && c < g.target) w += 2.5; if (g.mode === 'max' && c >= g.target) return 0; }
+    const f = info.get(r.id); if (f) { w += 3 * f.cov + Math.min(4, f.urgent.length * 2) + Math.min(1.5, f.frozen * 0.5); }
+    if (rec[r.id]) w *= rec[r.id] === 1 ? 0.15 : rec[r.id] === 2 ? 0.4 : 0.7;
+    const pr = protein(r); if (pr && mains.includes(k) && near(i, k).some(([a, b]) => a >= 0 && a < 7 && protAt(a, b) === pr)) w *= 0.2;
+    const c = catsOf(r), tm = timeMins(r.time), light = c.some(x => LIGHT.includes(x)), heavy = c.some(x => HEAVY.includes(x));
+    if (k === 'cena' && light) w *= 1.5; if (k === 'comida' && heavy) w *= 1.3; if (k === 'cena' && heavy && !light) w *= 0.7;
+    if (i < 5 && tm !== null && tm > 60) w *= 0.5; if (i >= 5 && tm !== null && tm > 45) w *= 1.25;
+    return Math.max(w, 0);
   };
-  const put = (i, k, r, mark) => { menu[i][k] = [...slotItems(menu[i][k]), r.id]; used.add(r.id); n++; if (mark) touched.add(i + k); };
+  const choose = (cand, i, k, goals) => {
+    cand = cand.filter(r => !ban.has(r.id)); const base = [cand.filter(r => !used.has(r.id)), cand].find(t => t.length); if (!base) return null;
+    const cnt = goals ? weekCounts(menu).cats : {};
+    let pool = base.map(r => [r, weight(r, i, k, cnt)]).filter(x => x[1] > 0); if (!pool.length) pool = base.map(r => [r, 0.5]);
+    let x = Math.random() * pool.reduce((a, y) => a + y[1], 0); for (const [r, w] of pool) { x -= w; if (x <= 0) return r; } return pool[pool.length - 1][0];
+  };
+  const put = (i, k, r, mark) => { menu[i][k] = [...slotItems(menu[i][k]), r.id]; used.add(r.id); n++; if (mark) touched.add(i + k); const f = info.get(r.id); if (f && mark) { covs.push(f.cov); f.urgent.forEach(u => usedP.add(u)); } };
+  (o.pinned || []).forEach(p => { if (slotItems(menu[p.i][p.k]).length) return; let cand = RECIPES.filter(r => ok(r) && !isSide(r) && catsOf(r).some(c => p.cats.includes(c))); const fit = cand.filter(r => catsOf(r).includes(MEALS.find(m => m[0] === p.k)[1])); if (fit.length) cand = fit; const r = choose(cand, p.i, p.k, false); if (r) put(p.i, p.k, r, true); });
   (o.quotas || []).forEach(q => { for (let t = 0; t < q.n; t++) {
-    for (const [i, k] of shuffle(menu.flatMap((d, i) => mains.filter(k => !slotItems(d[k]).length).map(k => [i, k])))) {
+    for (const [i, k] of shuffle(menu.flatMap((d, i) => mains.filter(k => !slotItems(d[k]).length && !locked.has(i + k)).map(k => [i, k])))) {
       const label = MEALS.find(m => m[0] === k)[1];
       let cand = RECIPES.filter(r => ok(r) && !isSide(r) && catsOf(r).some(c => q.cats.includes(c))); const fit = cand.filter(r => catsOf(r).includes(label)); if (fit.length) cand = fit;
       const fq = cand.filter(r => qk(r, i)); if (fq.length) cand = fq;
-      const r = choose(cand, false); if (r) { put(i, k, r, true); break; }
+      const r = choose(cand, i, k, false); if (r) { put(i, k, r, true); break; }
     } } });
   menu.forEach((d, i) => MEALS.forEach(([k, label]) => {
-    if (slotItems(d[k]).length) return;
+    if (slotItems(d[k]).length || locked.has(i + k)) return;
     const base0 = RECIPES.filter(r => ok(r) && catsOf(r).includes(label) && !(mains.includes(k) && isSide(r))), bq = base0.filter(r => qk(r, i)), base = bq.length ? bq : base0;
     const free = base.filter(r => !catsOf(r).some(c => capCats.has(c)));
-    const r = choose(free.length ? free : base, true); if (r) put(i, k, r, true);
+    const r = choose(free.length ? free : base, i, k, true); if (r) put(i, k, r, true);
   }));
   if (o.side) menu.forEach((d, i) => mains.forEach(k => {
     if (!touched.has(i + k)) return; const it = slotItems(d[k]).filter(x => !isNote(x)); if (it.length !== 1) return;
     const r0 = rm.get(it[0]); if (!r0 || isSide(r0) || SELF.some(c => catsOf(r0).includes(c))) return;
-    const side = choose(RECIPES.filter(r => ok(r) && isSide(r)), false); if (side) put(i, k, side, false);
+    const side = choose(RECIPES.filter(r => ok(r) && isSide(r)), i, k, false); if (side) put(i, k, side, false);
   }));
+  lastFill = { urgent: [...usedP], cover: covs.length && PANTRY.length ? covs.reduce((a, b) => a + b, 0) / covs.length : null };
   return n;
 }
-async function lastWeekIds(ws) {
-  try { return new Set((await db.week(ymd(addDays(parseYmd(ws), -7)))).flatMap(d => MEALS.flatMap(([k]) => slotItems(d[k]))).filter(x => !isNote(x))); } catch (e) { return new Set(); }
+async function recencyFor(ws) {
+  const rec = {}, weeks = await Promise.all([1, 2, 3].map(k => db.week(ymd(addDays(parseYmd(ws), -7 * k))).catch(() => emptyMenu())));
+  weeks.forEach((m, idx) => m.forEach(d => MEALS.forEach(([k]) => slotItems(d[k]).forEach(id => { if (!isNote(id)) rec[id] = rec[id] ? Math.min(rec[id], idx + 1) : idx + 1; }))));
+  return rec;
 }
-async function generateMenu({ ws, text, mode, side, quick }) {
-  let base = ws === WS ? JSON.parse(JSON.stringify(MENU)) : await db.week(ws);
-  if (mode === 'all') base = emptyMenu();
-  const avoid = await lastWeekIds(ws), wish = parseWish(text);
-  let n = applyFixed(base); n += autoFill(base, { avoid, quotas: wish.quotas, exclude: wish.exclude, side, quick: quick || wish.quick });
-  const understood = wish.quotas.length || wish.exclude.size || quick || wish.quick ? 'He entendido: ' + [...wish.quotas.map(q => `${q.n} de ${q.label}`), ...wish.exLabels.map(l => 'sin ' + l), ...(quick || wish.quick ? ['platos rápidos entre semana'] : [])].join(', ') + '.' : text ? 'No he sabido interpretar el texto, he seguido tus objetivos.' : 'He seguido tus objetivos.';
-  const msg = n ? `✨ Menú creado. ${understood} Toca cualquier receta para cambiarla.` : 'No he podido añadir recetas: faltan recetas con las categorías Desayuno, Almuerzo, Comida, Merienda o Cena.';
-  return { base, msg };
+async function generateMenu({ ws, text, mode, side, quick, pantry }) {
+  let base = ws === WS ? JSON.parse(JSON.stringify(MENU)) : await db.week(ws); if (mode === 'all') base = emptyMenu(); base = normMenu(base);
+  const wish = parseWish(text), info = [], ban = new Set(), recency = await recencyFor(ws); let n = 0;
+  const understood = [...wish.quotas.map(q => `${q.n} de ${q.label}`), ...wish.slots.map(sl => `${dn(sl.day)}${sl.meal ? ' (' + sl.meal + ')' : ''}: ${sl.desc}`), ...wish.exLabels.map(l => 'sin ' + l)];
+  if (wish.quick || quick) understood.push('platos rápidos entre semana'); if (side) understood.push('con guarnición');
+  const sr = applySlotRules(base, wish.slots); n += sr.n;
+  if (wish.repeat) {
+    const src = wish.repeat.prev ? ymd(addDays(parseYmd(ws), -7)) : weekFromDay(wish.repeat.day, wish.repeat.month), copied = [];
+    const sm = cleanMenu(await db.week(src).catch(() => emptyMenu()));
+    base.forEach((d, i) => MEALS.forEach(([k]) => { if (!slotItems(d[k]).length && !sr.locked.has(i + k) && slotItems(sm[i][k]).length) { d[k] = slotItems(sm[i][k]).slice(); copied.push([i, k]); n += d[k].length; } }));
+    base.forEach((d, i) => MEALS.forEach(([k]) => { if (!slotItems(d[k]).length && !slotItems(sm[i][k]).length) sr.locked.add(i + k); }));
+    if (!copied.length) info.push(`⚠️ La semana a repetir (${wkRange(src)}) está vacía.`);
+    else {
+      const withRec = copied.filter(([i, k]) => base[i][k].some(x => !isNote(x)));
+      const N = Math.min(withRec.length, wish.change === 'half' ? Math.ceil(withRec.length / 2) : wish.change === 'all' ? withRec.length : (wish.change || 0));
+      shuffle(withRec).slice(0, N).forEach(([i, k]) => { base[i][k].filter(x => !isNote(x)).forEach(id => ban.add(id)); const keep = base[i][k].filter(isNote); if (keep.length) base[i][k] = keep; else delete base[i][k]; });
+      info.push(`🔁 He copiado la semana del ${wkRange(src)}${N ? ' y cambiado ' + N + ' plato' + (N === 1 ? '' : 's') : ''}.`);
+    }
+  }
+  n += applyFixed(base);
+  n += autoFill(base, { recency, quotas: wish.quotas, exclude: wish.exclude, side, quick: quick || wish.quick, pantry: pantry !== false, locked: sr.locked, pinned: sr.pinned, ban });
+  if (understood.length) info.unshift('📋 He entendido: ' + understood.join(' · ') + '.'); else if (text) info.unshift('📋 No he sabido interpretar el texto: he seguido tus objetivos y tu despensa.');
+  if (wish.unknown.length) info.push('❓ No he entendido: «' + wish.unknown.join('», «') + '».');
+  if (lastFill.urgent.length) info.push('⏰ Gasto lo que caduca pronto: ' + lastFill.urgent.join(', ') + '.');
+  if (lastFill.cover !== null) info.push(`🏠 Despensa: las recetas nuevas aprovechan de media un ${Math.round(lastFill.cover * 100)}% de ingredientes que ya tienes.`);
+  if (GOALS.length) { const wc = weekCounts(base), bad = GOALS.filter(g => !goalOk(g, wc.cats[g.key] || 0)); info.push(`🎯 Objetivos: cumples ${GOALS.length - bad.length} de ${GOALS.length}${bad.length ? ' (revisa: ' + bad.map(g => g.label).join(', ') + ')' : ''}.`); }
+  info.push('🧠 Variedad: evito lo cocinado en las últimas 3 semanas y repetir la misma proteína en comidas seguidas.');
+  const msg = n ? `✨ Menú creado (${n} elemento${n === 1 ? '' : 's'}). Toca cualquier receta para cambiarla.` : 'No he podido añadir recetas: faltan recetas con las categorías Desayuno, Almuerzo, Comida, Merienda o Cena.';
+  return { base, msg, info };
+}
+function showMenuSummary(r, ws) {
+  openP(`<div class="editbar"><div class="sheet-top"><h2>✨ Menú ${esc(wkRange(ws))}</h2><button class="btn" data-pa="close">Entendido</button></div></div>` + r.info.map(l => `<div class="ing">${esc(l)}</div>`).join(''));
 }
 async function commitMenu(ws, base) {
   if (ws === WS) { MENU = base; renderMenu(); await persistWeek(); } else { await db.saveWeek(ws, base); goWeek(ws); }
 }
-let ai = { target: 'next', mode: 'fill', side: false, quick: false, text: '' };
+let ai = { target: 'next', mode: 'fill', side: false, quick: false, pantry: true, text: '' };
 function drawAI() {
   const chip = (on, attr, label) => `<button type="button" class="chip${on ? ' on' : ''}" data-ai="${attr}">${label}</button>`;
   $('aiBody').innerHTML = `<div class="editbar"><div class="sheet-top"><h2>✨ Crear menú</h2><button class="btn secondary" data-ai="close">Cerrar</button></div><div class="notice" id="aiMsg"></div></div>
-    <div class="field"><label>¿Qué quieres? (opcional)</label><textarea class="big" id="aiText" placeholder="Ej.: 3 comidas de pescado y 2 de carne, una de legumbres. Sin marisco.">${esc(ai.text)}</textarea>
-      <div class="notice">Sin texto, sigo tus objetivos semanales.</div></div>
+    <div class="field"><label>¿Qué quieres? (opcional)</label><textarea class="big" id="aiText" placeholder="Ej.: 3 de pescado y 2 de carne. El viernes pizza. Domingo comer fuera. Sin marisco.">${esc(ai.text)}</textarea>
+      <div class="chips" style="margin-top:6px">${['El viernes pizza', 'Domingo comer fuera', '3 de pescado y 2 de carne', 'Sin marisco', 'Igual que la semana pasada cambiando 3 platos'].map(x => `<button type="button" class="chip" data-ai="ex" data-t="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+      <div class="notice">Sin texto, sigo tus objetivos, lo que hay en casa y lo que no repetiste hace poco.</div></div>
     <div class="field"><label>Para qué semana</label><div class="chips">${chip(ai.target === 'next', 't-next', '➡️ Siguiente (' + wkRange(nextWs()) + ')')}${WS !== nextWs() ? chip(ai.target === 'shown', 't-shown', '👁️ La que veo (' + wkRange(WS) + ')') : ''}</div></div>
     <div class="field"><label>Si ya hay recetas puestas</label><div class="chips">${chip(ai.mode === 'fill', 'm-fill', 'Solo rellenar huecos')}${chip(ai.mode === 'all', 'm-all', 'Rehacer toda la semana')}</div></div>
-    <div class="field"><label>Extras</label><div class="chips">${chip(ai.side, 'side', '🥗 Añadir guarnición en comida y cena')}${chip(ai.quick, 'quick', '⚡ Platos rápidos entre semana (≤ 30 min)')}</div></div>
+    <div class="field"><label>Extras</label><div class="chips">${chip(ai.side, 'side', '🥗 Añadir guarnición en comida y cena')}${chip(ai.quick, 'quick', '⚡ Platos rápidos entre semana (≤ 30 min)')}${chip(ai.pantry, 'pantry', '🏠 Usar lo que hay en casa')}</div></div>
     <button class="btn" id="aiGo" data-ai="go" type="button" style="width:100%">✨ Crear menú</button>`;
 }
 async function aiGo() {
   const btn = $('aiGo'), msg = $('aiMsg'); ai.text = $('aiText').value.trim(); btn.disabled = true; msg.className = 'notice'; msg.textContent = 'Preparando tu menú…';
   try {
-    const ws = ai.target === 'next' ? nextWs() : WS, r = await generateMenu({ ws, text: ai.text, mode: ai.mode, side: ai.side, quick: ai.quick });
-    $('aiModal').classList.remove('show'); await commitMenu(ws, r.base); menuMsg(r.msg);
+    const ws = ai.target === 'next' ? nextWs() : WS, r = await generateMenu({ ws, text: ai.text, mode: ai.mode, side: ai.side, quick: ai.quick, pantry: ai.pantry });
+    $('aiModal').classList.remove('show'); await commitMenu(ws, r.base); menuMsg(r.msg); showMenuSummary(r, ws);
   } catch (e) { btn.disabled = false; msg.className = 'notice err'; msg.textContent = 'No se pudo crear el menú: ' + e.message; }
 }
 $('aiBody').addEventListener('click', e => {
@@ -1115,7 +1234,8 @@ $('aiBody').addEventListener('click', e => {
   if (a === 'go') return aiGo();
   if (a === 'close') return $('aiModal').classList.remove('show');
   const t = $('aiText'); if (t) ai.text = t.value;
-  if (a === 't-next') ai.target = 'next'; if (a === 't-shown') ai.target = 'shown'; if (a === 'm-fill') ai.mode = 'fill'; if (a === 'm-all') ai.mode = 'all'; if (a === 'side') ai.side = !ai.side; if (a === 'quick') ai.quick = !ai.quick;
+  if (a === 't-next') ai.target = 'next'; if (a === 't-shown') ai.target = 'shown'; if (a === 'm-fill') ai.mode = 'fill'; if (a === 'm-all') ai.mode = 'all'; if (a === 'side') ai.side = !ai.side; if (a === 'quick') ai.quick = !ai.quick; if (a === 'pantry') ai.pantry = !ai.pantry;
+  if (a === 'ex') ai.text = (ai.text.trim() ? ai.text.trim().replace(/[.]+$/, '') + '. ' : '') + b.dataset.t;
   drawAI();
 });
 async function quickNext() {
@@ -1123,13 +1243,13 @@ async function quickNext() {
   try {
     const cur = ws === WS ? MENU : await db.week(ws);
     if (menuHas(cur) && !confirm('La semana siguiente ya tiene recetas. ¿Rellenar solo los huecos que faltan?')) return menuMsg('');
-    const r = await generateMenu({ ws, text: '', mode: 'fill', side: false }); await commitMenu(ws, r.base); menuMsg(r.msg);
+    const r = await generateMenu({ ws, text: '', mode: 'fill', side: false }); await commitMenu(ws, r.base); menuMsg(r.msg); showMenuSummary(r, ws);
   } catch (e) { menuMsg('No se pudo preparar la semana: ' + e.message, true); }
 }
 
 /* acciones de la semana */
 async function fillGaps() {
-  const n = applyFixed(MENU) + autoFill(MENU, { avoid: await lastWeekIds(WS) }); renderMenu(); if (n) persistWeek();
+  const n = applyFixed(MENU) + autoFill(MENU, { recency: await recencyFor(WS) }); renderMenu(); if (n) persistWeek();
   menuMsg(n ? `Se han añadido ${n} receta${n === 1 ? '' : 's'}, evitando repetir y acercándose a tus objetivos. Toca cualquiera para cambiarla.` : 'No hay huecos que rellenar con las categorías que tienes.');
 }
 async function shareMenu() {
@@ -2115,6 +2235,38 @@ async function goOnline() {
 }
 window.addEventListener('online', goOnline); window.addEventListener('offline', updateBanner);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) flushPending(); });
+
+/* ---- CSV de menús ---- */
+async function exportMenusCsv() {
+  try {
+    const rows = await db.allWeeks(); if (!rows.length) return optMsg('Todavía no hay menús que descargar.');
+    const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"', out = [['Semana', 'Día', 'Fecha', 'Comida', 'Tipo', 'Receta', 'Cocinado'].map(q).join(';')];
+    rows.sort((a, b) => a.week_start.localeCompare(b.week_start)).forEach(w => normMenu(w.menu).forEach((d, i) => MEALS.forEach(([k, l]) => slotItems(d[k]).forEach(id => {
+      const note = isNote(id), r = !note && RECIPES.find(x => x.id === id), name = note ? id.slice(1) : r ? r.name : null; if (!name) return;
+      out.push([w.week_start, dn(i), ymd(addDays(parseYmd(w.week_start), i)), l, note ? 'Nota' : 'Receta', name, (d._done || []).includes(k + ':' + id) ? 'Sí' : 'No'].map(q).join(';'));
+    }))));
+    saveBlob(new Blob(['\ufeff' + out.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'menus-' + ymd(new Date()) + '.csv'); optMsg(`Descargados ${out.length - 1} registros de menú.`, true);
+  } catch (e) { optMsg('No se pudo descargar: ' + e.message); }
+}
+async function importMenusCsv(file) {
+  try {
+    const rows = parseCsv(await file.text()); if (rows.length < 2) return optMsg('El archivo está vacío.');
+    const h = rows[0].map(norm), col = n => h.indexOf(n), g = (r, n) => { const i = col(n); return i < 0 ? '' : (r[i] || '').trim(); };
+    if (col('receta') < 0 || (col('fecha') < 0 && col('semana') < 0)) return optMsg('No encuentro las columnas Fecha (o Semana) y Receta.');
+    const byWs = {}; let skipped = 0, total = 0;
+    rows.slice(1).forEach(r => {
+      const meal = MEALS.find(m => norm(m[1]) === norm(g(r, 'comida'))), name = g(r, 'receta'), ds = g(r, 'fecha'); let ws = '', di = -1;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(ds)) { const d = parseYmd(ds); ws = ymd(mondayOf(d)); di = (d.getDay() + 6) % 7; } else { ws = g(r, 'semana'); di = DAYS.findIndex(x => norm(x) === norm(g(r, 'dia'))); }
+      if (!meal || !name || di < 0 || !/^\d{4}-\d{2}-\d{2}$/.test(ws)) { skipped++; return; }
+      let id; if (norm(g(r, 'tipo')) === 'nota' || name.startsWith('~')) id = '~' + name.replace(/^~/, ''); else { const rec = RECIPES.find(x => norm(x.name) === norm(name)); if (!rec) { skipped++; return; } id = rec.id; }
+      (byWs[ws] = byWs[ws] || []).push({ di, k: meal[0], id }); total++;
+    });
+    if (!total) return optMsg('No hay nada que importar' + (skipped ? ` (${skipped} filas con recetas desconocidas)` : '') + '.');
+    if (!confirm(`Se añadirán ${total} elementos de menú en ${Object.keys(byWs).length} semanas${skipped ? ` (${skipped} filas se saltan)` : ''}. No se borra nada de lo que ya tienes. ¿Continuar?`)) return;
+    for (const ws of Object.keys(byWs)) { const m = normMenu(await db.week(ws)); byWs[ws].forEach(({ di, k, id }) => { if (!slotItems(m[di][k]).includes(id)) m[di][k] = [...slotItems(m[di][k]), id]; }); await db.saveWeek(ws, m); }
+    await Promise.all([loadWeek(), loadStats()]); optMsg(`Importados ${total} elementos de menú.`, true);
+  } catch (e) { optMsg('No se pudo importar: ' + e.message); }
+}
 
 /* ============ 5. ARRANQUE ============ */
 function onSession(session) {
