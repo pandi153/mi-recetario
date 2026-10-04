@@ -33,7 +33,7 @@ input{width:100%;padding:13px;margin:6px 0;border:1px solid #355570;border-radiu
 /* App */
 header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:12px 14px;padding-top:max(12px,env(safe-area-inset-top));background:#07192df2;border-bottom:1px solid var(--border)}
 header h1{flex:1;margin:0;font-size:22px}
-#cloudBtn,#optBtn{width:42px;height:42px;padding:0;font-size:20px}
+#cloudBtn,#optBtn,#srchBtn{width:42px;height:42px;padding:0;font-size:20px}
 #cloudBtn.ok{background:var(--accent);color:#07192d;border-color:var(--accent)}
 #cloudBtn.err{background:#5b2630;border-color:#9b4a57}
 main{max-width:900px;margin:auto;padding:14px 12px 96px}
@@ -239,6 +239,7 @@ textarea.big{width:100%;min-height:96px;padding:12px;border:1px solid #355570;bo
   <header>
     <button class="btn secondary" id="cloudBtn" type="button" title="Estado de la nube" aria-label="Estado de la nube">☁️</button>
     <h1>🐼 Pandi recetas</h1>
+    <button class="btn secondary" id="srchBtn" type="button" title="Buscar" aria-label="Buscar">🔎</button>
     <button class="btn secondary" id="optBtn" type="button" title="Opciones" aria-label="Opciones">⚙️</button>
   </header>
   <main>
@@ -250,6 +251,7 @@ textarea.big{width:100%;min-height:96px;padding:12px;border:1px solid #355570;bo
       </div>
       <div class="today hidden" id="todayCard"></div>
       <div class="aibar"><button class="btn" id="mAI" type="button">✨ Crear menú</button><button class="btn secondary" id="mNext" type="button">📅 Semana siguiente</button></div>
+      <button class="btn secondary" id="mToday" type="button" style="width:100%;margin-top:8px">🍳 ¿Qué cocino hoy?</button>
       <div class="chips" style="margin:10px 0 4px"><button class="chip" id="mFill" type="button">🎲 Rellenar huecos</button><button class="chip" id="mCopy" type="button">📋 Copiar semana anterior</button><button class="chip" id="mTpl" type="button">📑 Plantillas</button><button class="chip" id="mShare" type="button">📤 Compartir menú</button><button class="chip" id="mClear" type="button">🗑️ Vaciar</button></div>
       <div class="notice" id="menuMsg"></div>
       <div id="menuDays"></div>
@@ -310,6 +312,7 @@ textarea.big{width:100%;min-height:96px;padding:12px;border:1px solid #355570;bo
 
 <div class="modal" id="pickModal"><div class="sheet" id="pickBody"></div></div>
 <div class="modal" id="pModal"><div class="sheet" id="pBody"></div></div>
+<div class="modal" id="srchModal"><div class="sheet" id="srchBody"></div></div>
 <div class="modal" id="gModal"><div class="sheet" id="gBody"></div></div>
 <div class="cookview hidden" id="cookView"></div>
 <div class="toast" id="toast"></div>
@@ -411,6 +414,10 @@ const db = {
   async savePantry(it) {
     const row = { name: it.name, quantity: it.quantity, units: it.units, min_units: it.min_units ?? null, location: it.location, entry_date: it.entry_date || null, expiry_date: it.expiry_date || null };
     const { error } = it.id ? await sb.from('pantry').update(row).eq('id', it.id) : await sb.from('pantry').insert(row);
+    if (error) throw error;
+  },
+  async updateRecipe(id, patch) {
+    const { error } = await sb.from('recipes').update(patch).eq('id', id);
     if (error) throw error;
   },
   async setRating(id, rating) {
@@ -685,14 +692,14 @@ function editRecipe(id) {
       <button class="btn secondary" data-act="photosearch" type="button" style="width:100%;margin-top:6px">🔎 Buscar foto en internet</button></div>
     <div class="field"><label>Categorías</label><button class="btn secondary" data-act="suggest" type="button" style="width:100%;margin-bottom:8px">🪄 Sugerir categorías según título e ingredientes</button><div class="chips" id="fCats"></div></div>
     <div class="field"><label>Raciones</label><input id="fServ" type="number" min="1" value="${esc(r.servings || 2)}"></div>
-    <div class="field"><label>Tiempo</label><input id="fTime" value="${esc(r.time)}" placeholder="Ej.: 30 min"></div>
+    <div class="field"><label>Tiempo</label><input id="fTime" value="${esc(r.time)}" placeholder="Ej.: 30 min"><button class="btn secondary" data-act="estimate" type="button" style="width:100%;margin-top:6px">✨ Estimar tiempo y raciones</button></div>
     <div class="field"><label>Valoración</label><div class="stars" id="fStars"></div></div>
-    <div class="field"><label>Ingredientes (uno por línea)</label><textarea id="fIngs">${esc(r.ingredients)}</textarea></div>
+    <div class="field"><label>Ingredientes (uno por línea)</label><textarea id="fIngs">${esc(r.ingredients)}</textarea><div class="chips" id="ingSug" style="margin-top:6px"></div></div>
     <div class="field"><label>Preparación</label><textarea id="fSteps">${esc(r.steps)}</textarea></div>
     <div class="field"><label>Notas (opcional)</label><textarea id="fNotes" placeholder="Ej.: se congela bien; mejor con menos sal">${esc(r.notes || '')}</textarea></div>
     <div class="field"><label>Enlace (opcional)</label><input id="fLink" type="url" inputmode="url" autocapitalize="off" placeholder="https://… (Instagram, TikTok, web…)" value="${esc(r.link || '')}"></div>
     `);
-  drawChips(); drawPhoto(); drawStars();
+  drawChips(); drawPhoto(); drawStars(); ingIdx = buildIngIndex();
 }
 function drawStars() { $('fStars').innerHTML = [1, 2, 3, 4, 5].map(n => `<button type="button" class="${n <= draft.rating ? 'on' : ''}" data-star="${n}" aria-label="${n} estrellas">★</button>`).join(''); }
 function drawChips() {
@@ -722,6 +729,7 @@ async function saveRecipe() {
   const rawLink = $('fLink').value.trim(), link = safeUrl(rawLink);
   if (rawLink && !link) return (msg.textContent = 'El enlace no parece válido.');
   if (!draft.cats.size) { const added = autoTagDraft(true); if (added.length) toast('🪄 Categorías añadidas: ' + added.join(', ')); }
+  if (!draft.id) { const dup = RECIPES.find(r => similar({ name, ingredients: $('fIngs').value }, r) >= 0.7); if (dup && !confirm(`Ya tienes «${dup.name}», que se parece mucho.\n\n¿Guardar esta igualmente?`)) { msg.textContent = ''; return; } }
   btn.disabled = true; msg.className = 'notice'; msg.textContent = 'Guardando…';
   try {
     let url = draft.removePhoto ? null : draft.image_url;
@@ -767,13 +775,14 @@ $('recipeBody').addEventListener('change', e => {
 $('recipeBody').addEventListener('click', e => {
   const chip = e.target.closest('[data-cat]');
   if (chip) { const n = chip.dataset.cat; draft.cats.has(n) ? draft.cats.delete(n) : draft.cats.add(n); return drawChips(); }
+  const sg = e.target.closest('[data-sug]'); if (sg) return applySug(sg.dataset.sug);
   const st = e.target.closest('[data-star]'); if (st) { const n = +st.dataset.star; draft.rating = draft.rating === n ? 0 : n; return drawStars(); }
   const qr = e.target.closest('[data-qrate]'); if (qr) { const r = RECIPES.find(x => x.id === qr.dataset.id), n = +qr.dataset.qrate, v = r.rating === n ? 0 : n; r.rating = v || null; showRecipe(r.id); renderRecipes(); return db.setRating(r.id, v).catch(e => toast('No se pudo guardar la valoración: ' + e.message)); }
   if (e.target.id === 'btnNoPhoto') { draft.file = null; draft.removePhoto = true; return drawPhoto(); }
   const b = e.target.closest('[data-act]'); if (!b) return;
   ({ close: closeRecipeModal, save: saveRecipe, newcat: newCategory,
      edit: () => editRecipe(b.dataset.id), delete: () => deleteRecipe(b.dataset.id),
-     fav: () => toggleFav(b.dataset.id).then(() => showRecipe(b.dataset.id)), dup: () => dupRecipe(b.dataset.id), share: () => shareRecipe(b.dataset.id), cook: () => startCook(b.dataset.id), paste: openPaste, tocart: () => recipeToCart(b.dataset.id), suggest: () => autoTagDraft(), photosearch: openPhotoSearch })[b.dataset.act]();
+     fav: () => toggleFav(b.dataset.id).then(() => showRecipe(b.dataset.id)), dup: () => dupRecipe(b.dataset.id), share: () => shareRecipe(b.dataset.id), cook: () => startCook(b.dataset.id), paste: openPaste, tocart: () => recipeToCart(b.dataset.id), suggest: () => autoTagDraft(), photosearch: openPhotoSearch, estimate: estimateDraft })[b.dataset.act]();
 });
 
 async function runDiagnosis() {
@@ -795,6 +804,8 @@ function renderOptions() {
     body.innerHTML = `<div class="sheet-top"><h2>⚙️ Opciones</h2><button class="btn secondary" data-act="optclose">Cerrar</button></div>
       <button class="menuitem" data-act="optcats"><span>🏷️</span><span>Categorías<small>Crear, renombrar, cambiar icono o borrar</small></span></button>
       <button class="menuitem" data-act="optfixed"><span>📌</span><span>Comidas fijas<small>Ej.: el mismo desayuno todos los días</small></span></button>
+      <button class="menuitem" data-act="optestimate"><span>✨</span><span>Estimar tiempo en recetas sin tiempo<small>Aproximado, según ingredientes y pasos</small></span></button>
+      <button class="menuitem" data-act="optdupes"><span>👯</span><span>Buscar recetas duplicadas<small>Parejas que se parecen mucho</small></span></button>
       <button class="menuitem" data-act="opttag"><span>🪄</span><span>Etiquetar recetas sin categorías<small>Las deduzco del título y los ingredientes</small></span></button>
       <button class="menuitem" data-act="optbasics"><span>🚫</span><span>Ingredientes básicos<small>Agua, sal, aceite…: no se apuntan en compra ni despensa</small></span></button>
       <button class="menuitem" data-act="optcsv"><span>📥</span><span>Descargar recetas (CSV)<small>Copia de seguridad para abrir en Excel</small></span></button>
@@ -815,6 +826,7 @@ function renderOptions() {
   }
   if (optView === 'fixed') return renderFixedView();
   if (optView === 'basics') return renderBasicsView();
+  if (optView === 'dupes') return renderDupesView();
   const uses = n => RECIPES.filter(r => (r.categories || []).includes(n)).length;
   const form = key => `<div class="catrow"><input class="ico" id="cIcon" maxlength="4" value="${key === '__new' ? '🏷️' : esc(icon(key))}">
       <input id="cName" value="${key === '__new' ? '' : esc(key)}" placeholder="Nombre">
@@ -942,7 +954,7 @@ $('optBody').addEventListener('click', e => {
      catnew: () => { editingCat = '__new'; renderOptions(); }, catedit: () => { editingCat = n; renderOptions(); },
      catcancel: () => { editingCat = null; renderOptions(); },
      catsave: () => saveCat(n), catdel: () => delCat(n),
-     optfixed: () => { optView = 'fixed'; renderOptions(); }, optmenus: exportMenusCsv, optmenusimp: () => $('menusFile').click(), optbasics: () => { optView = 'basics'; renderOptions(); }, opttag: tagUntagged,
+     optfixed: () => { optView = 'fixed'; renderOptions(); }, optmenus: exportMenusCsv, optmenusimp: () => $('menusFile').click(), optbasics: () => { optView = 'basics'; renderOptions(); }, opttag: tagUntagged, optestimate: estimateMissing, optdupes: () => { optView = 'dupes'; renderOptions(); }, dupview: () => showRecipe(b.dataset.id),
      bsadd: () => { const v = $('bsNew').value.trim().toLowerCase(); if (!v) return; if (BASICS.some(b => norm(b) === norm(v))) return optMsg('Ya está en la lista.'); saveBasics([...BASICS, v]); },
      bsdel: () => saveBasics(BASICS.filter((_, k) => k !== +b.dataset.i)), bsreset: () => saveBasics(['agua', 'sal', 'aceite']), optrestore: () => $('bkFile').click(), optinstall: installApp,
      fxmeal: () => { fxRead(); fx.meal = b.dataset.m; renderOptions(); }, fxday: () => { fxRead(); const d = +b.dataset.d; fx.days.has(d) ? fx.days.delete(d) : fx.days.add(d); renderOptions(); },
@@ -1567,6 +1579,7 @@ $('pantrySort').onclick = () => { pSort = { exp: 'az', az: 'new', new: 'exp' }[p
 $('pantryCook').onclick = cookIdeas;
 $('btnNewPantry').onclick = () => editPantry(null);
 $('pBody').addEventListener('click', e => {
+  const td = e.target.closest('[data-td]'); if (td) return todayAction(td);
   const lc = e.target.closest('[data-ploc]'); if (lc) { pEdit.loc = lc.dataset.ploc; return drawPLoc(); }
   const pk = e.target.closest('.pick'); if (pk) return showRecipe(pk.dataset.id);
   const b = e.target.closest('[data-pa]'); if (!b) return;
@@ -2362,6 +2375,156 @@ async function phPick(i) {
     $('txtModal').classList.remove('show'); toast('📷 Foto elegida: se guardará al pulsar Guardar');
   } catch (e) { msg.className = 'notice err'; msg.textContent = 'No se pudo descargar esa foto. Prueba con otra o súbela a mano.'; }
 }
+
+/* ---- Estimar tiempo y raciones ---- */
+const fmtMins = m => m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}` : m + ' min';
+function estTime(ings, steps) {
+  const n = lines(ings).length, sec = stepTimes(String(steps || '')).reduce((a, t) => a + Math.min(t.sec, 4 * 3600), 0);
+  if (!n && !sec) return null; const m = Math.round((sec / 60 + 5 + Math.ceil(n * 1.5)) / 5) * 5; return Math.max(5, Math.min(m, 600));
+}
+function estServ(ings, name, steps) {
+  const t = norm(name + ' ' + steps).match(/para (\d{1,2}) (personas|raciones|comensales)/); if (t) return +t[1];
+  const est = [];
+  lines(ings).forEach(l => {
+    const m = ING_RE.exec(l.replace(/^[\s\-–•*·]+/, '').trim()); if (!m || !m[1]) return; const q = parseQty(m[1]), u = m[2] ? norm(m[2]) : '', n = norm(m[3] || '');
+    if (!u && /huevo/.test(n)) return est.push(q / 2);
+    if (!UNITS[u] || UNITS[u][0] !== 'g') return; const g = q * UNITS[u][1];
+    const per = /pollo|pavo|ternera|cerdo|cordero|carne|filete|pechuga|solomillo|lomo|hamburguesa|pescado|salmon|merluza|bacalao|lubina|dorada|atun|gamba|calamar|pulpo/.test(n) ? 150 : /pasta|macarron|espagueti|fideo|tallarin/.test(n) ? 90 : /arroz/.test(n) ? 80 : /lentej|garbanz|alubia/.test(n) ? 80 : 0;
+    if (per) est.push(g / per);
+  });
+  if (!est.length) return null; est.sort((a, b) => a - b); return Math.max(1, Math.min(10, Math.round(est[Math.floor(est.length / 2)])));
+}
+function estimateDraft() {
+  const ings = $('fIngs').value, steps = $('fSteps').value, nm = $('fName').value, m = estTime(ings, steps), sv = estServ(ings, nm, steps), out = [];
+  if (m && !$('fTime').value.trim()) { $('fTime').value = fmtMins(m); out.push('tiempo ≈ ' + fmtMins(m)); }
+  if (sv && (!$('fServ').value || +$('fServ').value === 2)) { $('fServ').value = sv; out.push(sv + ' raciones'); }
+  toast(out.length ? '✨ Estimado: ' + out.join(' · ') : 'No he podido estimar nada: faltan ingredientes o pasos, o ya está relleno.');
+}
+async function estimateMissing() {
+  const todo = RECIPES.filter(r => !(r.time || '').trim()).map(r => ({ r, m: estTime(r.ingredients, r.steps) })).filter(x => x.m);
+  if (!todo.length) return optMsg('No hay recetas sin tiempo que pueda estimar.', true);
+  if (!confirm(`Voy a poner un tiempo estimado en ${todo.length} receta${todo.length === 1 ? '' : 's'} que no lo tienen (por ejemplo «${todo[0].r.name}»: ${fmtMins(todo[0].m)}). Son tiempos aproximados.\n\n¿Continuar?`)) return;
+  try { for (const x of todo) await db.updateRecipe(x.r.id, { time: fmtMins(x.m) }); await loadRecipes(); optMsg(`Estimado el tiempo de ${todo.length} recetas.`, true); } catch (e) { optMsg('No se pudo guardar: ' + e.message); }
+}
+
+/* ---- Autocompletar ingredientes ---- */
+let ingIdx = [];
+function buildIngIndex() {
+  const m = new Map(), add = nm => { nm = nm.trim().toLowerCase(); if (nm.length < 3) return; const k = norm(nm), e = m.get(k) || { name: nm, n: 0 }; e.n++; m.set(k, e); };
+  RECIPES.forEach(r => lines(r.ingredients).forEach(l => { const x = ING_RE.exec(l.replace(/^[\s\-–•*·]+/, '').trim()); if (x) add(x[3].replace(/\([^)]*\)/g, ' ').replace(/,.*$/, '').replace(/\s+/g, ' ')); }));
+  PANTRY.forEach(p => add(p.name)); return [...m.entries()].map(([k, e]) => ({ k, name: e.name, n: e.n }));
+}
+function curLine(ta) { const pos = ta.selectionStart, st = ta.value.lastIndexOf('\n', pos - 1) + 1, e = ta.value.indexOf('\n', pos), end = e < 0 ? ta.value.length : e; return { st, end, line: ta.value.slice(st, end) }; }
+function updateIngSug() {
+  const ta = $('fIngs'), box = $('ingSug'); if (!ta || !box) return;
+  const m = ING_RE.exec(curLine(ta).line.replace(/^[\s\-–•*·]+/, '')), typed = m ? norm(m[3]).trim() : '';
+  if (typed.length < 2) { box.innerHTML = ''; return; }
+  const out = ingIdx.filter(x => x.k !== typed && x.k.includes(typed)).sort((a, b) => (b.k.startsWith(typed) - a.k.startsWith(typed)) || b.n - a.n).slice(0, 6);
+  box.innerHTML = out.map(x => `<button type="button" class="chip" data-sug="${esc(x.name)}">${esc(x.name)}</button>`).join('');
+}
+function applySug(name) {
+  const ta = $('fIngs'), { st, end, line } = curLine(ta), body = line.replace(/^[\s\-–•*·]+/, ''), lead = line.slice(0, line.length - body.length), m = ING_RE.exec(body); if (!m) return;
+  const nl = lead + body.slice(0, body.length - m[3].length) + name; ta.value = ta.value.slice(0, st) + nl + ta.value.slice(end); const c = st + nl.length; ta.focus(); ta.setSelectionRange(c, c); updateIngSug();
+}
+['input', 'keyup', 'click'].forEach(ev => $('recipeBody').addEventListener(ev, e => { if (e.target.id === 'fIngs') updateIngSug(); }));
+
+/* ---- Recetas duplicadas ---- */
+const NSTOP = new Set(['con', 'del', 'las', 'los', 'una', 'uno', 'para']), ikc = new Map();
+const nameTok = n => norm(n).split(/\s+/).filter(w => w.length > 2 && !NSTOP.has(w)).map(w => w.replace(/(es|s)$/, ''));
+const jac = (a, b) => { const A = new Set(a), B = new Set(b); if (!A.size || !B.size) return 0; let i = 0; A.forEach(x => { if (B.has(x)) i++; }); return i / (A.size + B.size - i); };
+function ingKeys(r) {
+  const key = (r.id || 'p') + '|' + r.ingredients; if (ikc.has(key)) return ikc.get(key);
+  const its = []; lines(r.ingredients).forEach(l => addIng(its, l, r.name)); const k = its.map(i => i.key.replace(/(es|s)$/, '')); if (ikc.size > 800) ikc.clear(); ikc.set(key, k); return k;
+}
+function similar(a, b) {
+  if (norm(a.name) === norm(b.name)) return 1; const n = jac(nameTok(a.name), nameTok(b.name)), ka = ingKeys(a), kb = ingKeys(b), ing = ka.length >= 4 && kb.length >= 4 ? jac(ka, kb) : 0;
+  return Math.max(n >= 0.67 ? n : 0, ing >= 0.7 ? ing : 0);
+}
+function renderDupesView() {
+  const pairs = []; for (let i = 0; i < RECIPES.length; i++) for (let j = i + 1; j < RECIPES.length; j++) { const sc = similar(RECIPES[i], RECIPES[j]); if (sc >= 0.7) pairs.push([RECIPES[i], RECIPES[j], sc]); }
+  pairs.sort((a, b) => b[2] - a[2]);
+  $('optBody').innerHTML = `<div class="sheet-top"><h2>👯 Recetas parecidas</h2><button class="btn secondary" data-act="optback">Atrás</button></div><div class="notice" id="optMsg">${pairs.length ? 'Estas parejas se parecen mucho. Ábrelas (A y B) y borra o edita la que sobre.' : 'No he encontrado recetas duplicadas. 👏'}</div>` +
+    pairs.slice(0, 30).map(([a, b, sc]) => `<div class="catrow"><span>${esc(a.name)}<br><small>≈ ${esc(b.name)} (${Math.round(sc * 100)}%)</small></span><button class="btn secondary" data-act="dupview" data-id="${a.id}">A</button><button class="btn secondary" data-act="dupview" data-id="${b.id}">B</button></div>`).join('');
+}
+
+/* ---- Buscador global ---- */
+function openSearch() {
+  $('srchBody').innerHTML = `<div class="editbar"><div class="sheet-top"><h2>🔎 Buscar</h2><button class="btn secondary" data-sr="close">Cerrar</button></div><input id="srQ" type="search" placeholder="Receta, ingrediente, producto, menú…" autocomplete="off" style="margin-top:8px"></div><div id="srRes"></div>`;
+  $('srchModal').classList.add('show'); setTimeout(() => { const q = $('srQ'); if (q) q.focus(); }, 60); renderSearch();
+}
+function renderSearch() {
+  const q = norm($('srQ').value).split(/\s+/).filter(Boolean), box = $('srRes');
+  if (!q.length) return (box.innerHTML = '<div class="empty" style="margin-top:12px">Escribe para buscar en recetas, despensa, menús y compra.</div>');
+  const all = t => q.every(w => norm(t).includes(w)), row = (ic, a, t, sub, id) => `<button class="menuitem" data-sr="${a}" ${id}><span>${ic}</span><span>${esc(t)}<small>${esc(sub)}</small></span></button>`;
+  const rec = RECIPES.filter(r => all([r.name, r.ingredients, catsOf(r).join(' ')].join(' '))).slice(0, 8);
+  const pan = PANTRY.filter(p => all(p.name)).slice(0, 8), shp = shopItems().filter(i => all(i.name)).slice(0, 8), men = [];
+  Object.keys(ALLW).sort().reverse().forEach(ws => normMenu(ALLW[ws]).forEach((d, i) => MEALS.forEach(([k, l]) => slotItems(d[k]).forEach(id => {
+    const nm = isNote(id) ? id.slice(1) : (RECIPES.find(r => r.id === id) || {}).name; if (nm && men.length < 8 && all(nm)) men.push({ ws, i, l, nm }); }))));
+  const sec = (t, a) => a ? `<h3>${t}</h3>${a}` : '';
+  const html = sec('🔎 Recetas', rec.map(r => row('🥘', 'rec', r.name, catsOf(r).slice(0, 3).join(' · ') || (r.time || ''), `data-id="${r.id}"`)).join('')) +
+    sec('🏠 Despensa', pan.map(p => row(locIcon(pLocOf(p)), 'pan', p.name, `${fmtNum(Number(p.units ?? 1))} ud · ${(LOCS.find(l => l[0] === pLocOf(p)) || ['', ''])[1]}`, `data-name="${esc(p.name)}"`)).join('')) +
+    sec('🛒 Compra de esta semana', shp.map(i => row(i.done ? '☑' : '☐', 'shop', cap(i.name), i.qty || '', '')).join('')) +
+    sec('📅 Menús', men.map(x => row('📅', 'men', x.nm, `${addDays(parseYmd(x.ws), x.i).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })} · ${x.l}`, `data-ws="${x.ws}"`)).join(''));
+  box.innerHTML = html || '<div class="empty" style="margin-top:12px">No he encontrado nada.</div>';
+}
+$('srchBtn').onclick = openSearch;
+$('srchBody').addEventListener('input', e => { if (e.target.id === 'srQ') renderSearch(); });
+$('srchBody').addEventListener('click', e => {
+  const b = e.target.closest('[data-sr]'); if (!b) return; const a = b.dataset.sr; $('srchModal').classList.remove('show');
+  if (a === 'rec') showRecipe(b.dataset.id);
+  if (a === 'pan') { showTab('pantry'); pLoc = 'all'; $('pantrySearch').value = b.dataset.name; renderPantry(); }
+  if (a === 'shop') showTab('shop');
+  if (a === 'men') { showTab('menu'); goWeek(b.dataset.ws); }
+});
+
+/* ---- ¿Qué cocino hoy? ---- */
+let tdy = { meal: 'comida', max: 0 };
+function weeksSince(id) {
+  let best = null; const cur = mondayOf(new Date());
+  Object.keys(ALLW).forEach(ws => normMenu(ALLW[ws]).forEach(d => MEALS.forEach(([k]) => { if (slotItems(d[k]).includes(id)) { const w = Math.round((cur - parseYmd(ws)) / (7 * 864e5)); if (w >= 0 && (best === null || w < best)) best = w; } })));
+  return best;
+}
+function rankToday() {
+  const label = MEALS.find(m => m[0] === tdy.meal)[1], inWeek = new Set(MENU.flatMap(d => MEALS.flatMap(([k]) => slotItems(d[k])))), wc = weekCounts(MENU).cats;
+  return RECIPES.filter(r => catsOf(r).includes(label) && !isSide(r)).map(r => {
+    const tm = timeMins(r.time); if (tdy.max && tm !== null && tm > tdy.max) return null;
+    const f = pantryInfo(r), why = []; let sc = 1 + (r.favorite ? 0.6 : 0) + (r.rating >= 4 ? 0.6 : 0) - (r.rating && r.rating <= 2 ? 0.7 : 0) + 3 * f.cov;
+    if (f.cov >= 0.5) why.push(`Tienes el ${Math.round(f.cov * 100)}% de los ingredientes`);
+    if (f.urgent.length) { sc += 2 * Math.min(2, f.urgent.length); why.push('Gasta ' + [...new Set(f.urgent)].slice(0, 2).join(', ') + ' (caduca pronto)'); }
+    if (f.frozen) { sc -= 0.4; why.push('Lleva algo del congelador: sácalo con tiempo'); }
+    const w = weeksSince(r.id); if (w === null) { sc += 0.4; why.push('Aún no la has puesto en el menú'); } else if (w <= 1) sc -= 1.5; else if (w >= 4) { sc += 0.6; why.push(`Hace ${w} semanas que no la haces`); }
+    if (inWeek.has(r.id)) sc -= 1.2;
+    for (const g of GOALS) if (g.mode === 'min' && catsOf(r).includes(g.key) && (wc[g.key] || 0) < g.target) { sc += 0.8; why.push('Te ayuda con «' + g.label + '»'); break; }
+    if (tm !== null) why.push('⏱️ ' + fmtMins(tm));
+    return { r, sc: sc + Math.random() * 0.5, why };
+  }).filter(Boolean).sort((a, b) => b.sc - a.sc).slice(0, 6);
+}
+function drawToday() {
+  const chip = (on, a, l) => `<button type="button" class="chip${on ? ' on' : ''}" data-td="${a}">${l}</button>`, res = rankToday();
+  openP(`<div class="editbar"><div class="sheet-top"><h2>🍳 ¿Qué cocino hoy?</h2><button class="btn secondary" data-pa="close">Cerrar</button></div>
+    <div class="chips" style="margin-top:8px">${chip(tdy.meal === 'comida', 'm-comida', '🍽️ Comida')}${chip(tdy.meal === 'cena', 'm-cena', '🌙 Cena')}</div>
+    <div class="chips" style="margin-top:6px">${chip(!tdy.max, 't-0', 'Sin prisa')}${chip(tdy.max === 30, 't-30', '⚡ ≤ 30 min')}${chip(tdy.max === 60, 't-60', '≤ 1 h')}</div></div>` +
+    (res.length ? res.map(x => `<div class="grow" data-r="${x.r.id}"><div class="grow1"><span class="pthumb" style="flex:none">${x.r.image_url ? `<img src="${esc(x.r.image_url)}" alt="" loading="lazy">` : '🥘'}</span><b style="flex:1">${esc(x.r.name)}${rateInline(x.r)}</b></div>
+      <div class="notice">${x.why.map(esc).join(' · ')}</div><div class="row" style="margin-top:6px"><button class="btn secondary" data-td="view">Ver</button><button class="btn secondary" data-td="cook">👩‍🍳 Cocinar</button><button class="btn" data-td="put">📌 Poner hoy</button></div></div>`).join('')
+      : '<div class="empty" style="margin-top:12px">No tengo recetas para esa franja y ese tiempo. Prueba con "Sin prisa" o pon las categorías Comida y Cena en tus recetas.</div>'));
+}
+async function addItemAt(ws, di, meal, item) {
+  if (ws === WS) { if (!slotItems(MENU[di][meal]).includes(item)) slotSet(di, meal, -1, item); return; }
+  const m = normMenu(await db.week(ws)); if (!slotItems(m[di][meal]).includes(item)) m[di][meal] = [...slotItems(m[di][meal]), item];
+  await db.saveWeek(ws, m); delete wcache[ws]; renderToday();
+}
+async function todayAction(b) {
+  const a = b.dataset.td, row = b.closest('[data-r]'), id = row && row.dataset.r;
+  if (a === 'm-comida' || a === 'm-cena') { tdy.meal = a.slice(2); return drawToday(); }
+  if (a.startsWith('t-')) { tdy.max = +a.slice(2); return drawToday(); }
+  if (a === 'view') return showRecipe(id);
+  if (a === 'cook') { closePModal(); return startCook(id); }
+  if (a === 'put') {
+    const now = new Date(), label = MEALS.find(m => m[0] === tdy.meal)[1]; closePModal();
+    try { await addItemAt(ymd(mondayOf(now)), (now.getDay() + 6) % 7, tdy.meal, id); toast('📌 Puesto en la ' + label.toLowerCase() + ' de hoy'); } catch (e) { toast('No se pudo poner: ' + e.message); }
+  }
+}
+$('mToday').onclick = () => { tdy = { meal: new Date().getHours() < 16 ? 'comida' : 'cena', max: 0 }; drawToday(); };
 
 /* ============ 5. ARRANQUE ============ */
 function onSession(session) {
