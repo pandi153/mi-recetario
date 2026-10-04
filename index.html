@@ -202,6 +202,19 @@ textarea.big{width:100%;min-height:96px;padding:12px;border:1px solid #355570;bo
 .rate{position:absolute;left:0;right:0;bottom:0;text-align:center;font-size:11px;letter-spacing:1px;line-height:1;color:#f0b24a;background:linear-gradient(transparent,rgba(0,0,0,.75));padding:10px 0 3px;font-style:normal}
 .pthumb .rate{font-size:7px;letter-spacing:0;padding:8px 0 2px}
 .offbanner{position:fixed;left:10px;right:10px;bottom:80px;z-index:30;padding:9px 12px;border:1px solid #f0b24a;border-radius:12px;background:#3a3016;color:#ffe3a3;font-size:13px;font-weight:600;text-align:center}
+.day{background:#f4f8fc;border:1px solid #d3deea;color:#13283d}
+.day.today{border-color:#6fae1f;box-shadow:0 0 0 2px rgba(167,223,63,.35)}
+.dayhead .dn{background:#e1eaf4;color:#13283d}.day.today .dn{background:var(--accent);color:#07192d}
+.dayhead b{color:#13283d}.dayhead small{color:#6b8196}
+.srow{border-top:1px solid #dfe8f1}.slab{color:#5d758c;font-weight:600}
+.mitem{color:#13283d;background:#e8eef5}
+.srow.m-desayuno .mitem{background:#fff0cf}.srow.m-almuerzo .mitem{background:#ffe3cf}.srow.m-comida .mitem{background:#dcf2d8}
+.srow.m-merienda .mitem{background:#ebe2fa}.srow.m-cena .mitem{background:#d9e8fb}
+.mitem.note{background:#eceff3;color:#52677c}.mitem.done::before{color:#2e8b2e}
+.madd{border:1px dashed #b7c6d6;background:#fff;color:#7a91a7}
+.rs{color:#f0b24a;letter-spacing:1px;font-size:12px;margin-left:4px}.rs i{font-style:normal;color:#46637d}
+.phgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.phgrid button{padding:0;border:2px solid transparent;border-radius:10px;overflow:hidden;background:#000;cursor:pointer}.phgrid img{width:100%;height:110px;object-fit:cover;display:block}
 </style>
 </head>
 <body>
@@ -603,8 +616,8 @@ function renderRecipes() {
   $('recipeList').innerHTML = list.length ? list.map(r => `
     <div class="rcard" data-id="${r.id}">
       <button class="star" data-fav="${r.id}" aria-label="Favorita">${r.favorite ? '⭐' : '☆'}</button>
-      <div class="thumb">${r.image_url ? `<img src="${esc(r.image_url)}" alt="" loading="lazy">` : '🥘'}${rateHtml(r)}</div>
-      <div><h3>${esc(r.name)}</h3><small>👥 ${esc(r.servings || '—')} · ⏱️ ${esc(r.time || '—')}${COUNTS[r.id] ? ` · 🍳 ${COUNTS[r.id]}` : ''}</small>
+      <div class="thumb">${r.image_url ? `<img src="${esc(r.image_url)}" alt="" loading="lazy">` : '🥘'}</div>
+      <div><h3>${esc(r.name)}</h3><small>👥 ${esc(r.servings || '—')} · ⏱️ ${esc(r.time || '—')}${r.rating ? ' · ' + rateInline(r) : ''}${COUNTS[r.id] ? ` · 🍳 ${COUNTS[r.id]}` : ''}</small>
       <div class="tags">${esc((r.categories || []).slice(0, 4).map(catLabel).join(' · '))}</div></div></div>`).join('')
     : `<div class="empty">${RECIPES.length ? 'No hay recetas con esos filtros.' : 'Todavía no tienes recetas. Pulsa ＋ Nueva para crear la primera.'}</div>`;
 }
@@ -621,7 +634,7 @@ let toastT;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3600); }
 let FIXED = [], STORE_ORDER = null, BASICS = ['agua', 'sal', 'aceite'], TEMPLATES = [], OFFLINE = false;
 const isBasic = key => BASICS.some(b => { b = norm(b); return key === b || key.startsWith(b + ' '); });
-const rateHtml = r => r && r.rating ? `<span class="rate">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</span>` : '';
+const rateInline = r => r && r.rating ? `<span class="rs">${'★'.repeat(r.rating)}<i>${'★'.repeat(5 - r.rating)}</i></span>` : '';
 const lines = t => String(t || '').split('\n').map(x => x.trim()).filter(Boolean);
 
 function showRecipe(id) {
@@ -668,14 +681,15 @@ function editRecipe(id) {
     <div class="field"><label>Nombre</label><input id="fName" value="${esc(r.name)}"></div>
     <div class="field"><label>Foto</label><div class="photo-prev" id="photoPrev"></div>
       <input id="fPhoto" type="file" accept="image/*">
-      <button class="btn secondary" id="btnNoPhoto" type="button" style="margin-top:6px">Quitar foto</button></div>
-    <div class="field"><label>Categorías</label><div class="chips" id="fCats"></div></div>
+      <button class="btn secondary" id="btnNoPhoto" type="button" style="margin-top:6px">Quitar foto</button>
+      <button class="btn secondary" data-act="photosearch" type="button" style="width:100%;margin-top:6px">🔎 Buscar foto en internet</button></div>
+    <div class="field"><label>Categorías</label><button class="btn secondary" data-act="suggest" type="button" style="width:100%;margin-bottom:8px">🪄 Sugerir categorías según título e ingredientes</button><div class="chips" id="fCats"></div></div>
     <div class="field"><label>Raciones</label><input id="fServ" type="number" min="1" value="${esc(r.servings || 2)}"></div>
     <div class="field"><label>Tiempo</label><input id="fTime" value="${esc(r.time)}" placeholder="Ej.: 30 min"></div>
     <div class="field"><label>Valoración</label><div class="stars" id="fStars"></div></div>
     <div class="field"><label>Ingredientes (uno por línea)</label><textarea id="fIngs">${esc(r.ingredients)}</textarea></div>
     <div class="field"><label>Preparación</label><textarea id="fSteps">${esc(r.steps)}</textarea></div>
-    <div class="field"><label>Notas (opcional)</label><textarea id="fNotes" placeholder="Ej.: a los niños les encanta; mejor con menos sal">${esc(r.notes || '')}</textarea></div>
+    <div class="field"><label>Notas (opcional)</label><textarea id="fNotes" placeholder="Ej.: se congela bien; mejor con menos sal">${esc(r.notes || '')}</textarea></div>
     <div class="field"><label>Enlace (opcional)</label><input id="fLink" type="url" inputmode="url" autocapitalize="off" placeholder="https://… (Instagram, TikTok, web…)" value="${esc(r.link || '')}"></div>
     `);
   drawChips(); drawPhoto(); drawStars();
@@ -707,6 +721,7 @@ async function saveRecipe() {
   if (!name) return (msg.textContent = 'Escribe un nombre para la receta.');
   const rawLink = $('fLink').value.trim(), link = safeUrl(rawLink);
   if (rawLink && !link) return (msg.textContent = 'El enlace no parece válido.');
+  if (!draft.cats.size) { const added = autoTagDraft(true); if (added.length) toast('🪄 Categorías añadidas: ' + added.join(', ')); }
   btn.disabled = true; msg.className = 'notice'; msg.textContent = 'Guardando…';
   try {
     let url = draft.removePhoto ? null : draft.image_url;
@@ -758,7 +773,7 @@ $('recipeBody').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   ({ close: closeRecipeModal, save: saveRecipe, newcat: newCategory,
      edit: () => editRecipe(b.dataset.id), delete: () => deleteRecipe(b.dataset.id),
-     fav: () => toggleFav(b.dataset.id).then(() => showRecipe(b.dataset.id)), dup: () => dupRecipe(b.dataset.id), share: () => shareRecipe(b.dataset.id), cook: () => startCook(b.dataset.id), paste: openPaste, tocart: () => recipeToCart(b.dataset.id) })[b.dataset.act]();
+     fav: () => toggleFav(b.dataset.id).then(() => showRecipe(b.dataset.id)), dup: () => dupRecipe(b.dataset.id), share: () => shareRecipe(b.dataset.id), cook: () => startCook(b.dataset.id), paste: openPaste, tocart: () => recipeToCart(b.dataset.id), suggest: () => autoTagDraft(), photosearch: openPhotoSearch })[b.dataset.act]();
 });
 
 async function runDiagnosis() {
@@ -780,6 +795,7 @@ function renderOptions() {
     body.innerHTML = `<div class="sheet-top"><h2>⚙️ Opciones</h2><button class="btn secondary" data-act="optclose">Cerrar</button></div>
       <button class="menuitem" data-act="optcats"><span>🏷️</span><span>Categorías<small>Crear, renombrar, cambiar icono o borrar</small></span></button>
       <button class="menuitem" data-act="optfixed"><span>📌</span><span>Comidas fijas<small>Ej.: el mismo desayuno todos los días</small></span></button>
+      <button class="menuitem" data-act="opttag"><span>🪄</span><span>Etiquetar recetas sin categorías<small>Las deduzco del título y los ingredientes</small></span></button>
       <button class="menuitem" data-act="optbasics"><span>🚫</span><span>Ingredientes básicos<small>Agua, sal, aceite…: no se apuntan en compra ni despensa</small></span></button>
       <button class="menuitem" data-act="optcsv"><span>📥</span><span>Descargar recetas (CSV)<small>Copia de seguridad para abrir en Excel</small></span></button>
       <button class="menuitem" data-act="optimport"><span>📤</span><span>Importar recetas (CSV)<small>Añade las de un archivo descargado antes</small></span></button>
@@ -926,7 +942,7 @@ $('optBody').addEventListener('click', e => {
      catnew: () => { editingCat = '__new'; renderOptions(); }, catedit: () => { editingCat = n; renderOptions(); },
      catcancel: () => { editingCat = null; renderOptions(); },
      catsave: () => saveCat(n), catdel: () => delCat(n),
-     optfixed: () => { optView = 'fixed'; renderOptions(); }, optmenus: exportMenusCsv, optmenusimp: () => $('menusFile').click(), optbasics: () => { optView = 'basics'; renderOptions(); },
+     optfixed: () => { optView = 'fixed'; renderOptions(); }, optmenus: exportMenusCsv, optmenusimp: () => $('menusFile').click(), optbasics: () => { optView = 'basics'; renderOptions(); }, opttag: tagUntagged,
      bsadd: () => { const v = $('bsNew').value.trim().toLowerCase(); if (!v) return; if (BASICS.some(b => norm(b) === norm(v))) return optMsg('Ya está en la lista.'); saveBasics([...BASICS, v]); },
      bsdel: () => saveBasics(BASICS.filter((_, k) => k !== +b.dataset.i)), bsreset: () => saveBasics(['agua', 'sal', 'aceite']), optrestore: () => $('bkFile').click(), optinstall: installApp,
      fxmeal: () => { fxRead(); fx.meal = b.dataset.m; renderOptions(); }, fxday: () => { fxRead(); const d = +b.dataset.d; fx.days.has(d) ? fx.days.delete(d) : fx.days.add(d); renderOptions(); },
@@ -964,7 +980,7 @@ function renderMenu() {
         const its = slotItems(day[k]);
         const rows = its.map((id, j) => { const note = isNote(id), r = !note && RECIPES.find(x => x.id === id);
           return `<button class="mitem${note ? ' note' : ''}${(day._done || []).includes(k + ':' + id) ? ' done' : ''}" data-day="${i}" data-meal="${k}" data-idx="${j}" type="button">${note ? '📝 ' + esc(id.slice(1)) : r ? esc(r.name) : 'Receta eliminada'}</button>`; }).join('');
-        return `<div class="srow${its.length ? ' has' : ''}"><div class="slab">${ic} ${label}</div><div class="sitems">${rows}<button class="madd" data-day="${i}" data-meal="${k}" data-idx="-1" type="button" aria-label="Añadir">${its.length ? '＋' : '＋ Añadir'}</button></div></div>`;
+        return `<div class="srow m-${k}${its.length ? ' has' : ''}"><div class="slab">${ic} ${label}</div><div class="sitems">${rows}<button class="madd" data-day="${i}" data-meal="${k}" data-idx="-1" type="button" aria-label="Añadir">${its.length ? '＋' : '＋ Añadir'}</button></div></div>`;
       }).join('') + '</div>';
   }).join('');
   renderShop(); renderStats(); renderToday();
@@ -1003,7 +1019,7 @@ function renderPickList() {
   const q = norm($('pickSearch').value).split(/\s+/).filter(Boolean);
   const all = RECIPES.filter(r => q.every(w => norm([r.name, r.ingredients, (r.categories || []).join(' ')].join(' ')).includes(w))).sort((a, b) => a.name.localeCompare(b.name, 'es'));
   const match = all.filter(r => (r.categories || []).includes(label)), other = all.filter(r => !match.includes(r));
-  const item = r => `<button class="pick${curs.has(r.id) ? ' sel' : ''}" data-id="${r.id}" type="button"><span class="pthumb">${r.image_url ? `<img src="${esc(r.image_url)}" alt="" loading="lazy">` : '🥘'}${rateHtml(r)}</span><span><b>${esc(r.name)}</b><small>${esc((r.categories || []).slice(0, 3).join(' · '))}</small></span></button>`;
+  const item = r => `<button class="pick${curs.has(r.id) ? ' sel' : ''}" data-id="${r.id}" type="button"><span class="pthumb">${r.image_url ? `<img src="${esc(r.image_url)}" alt="" loading="lazy">` : '🥘'}</span><span><b>${esc(r.name)}</b>${rateInline(r)}<small>${esc((r.categories || []).slice(0, 3).join(' · '))}</small></span></button>`;
   $('pickList').innerHTML = (match.length ? `<h3>${ic} Recomendadas para ${esc(label)}</h3>${match.map(item).join('')}` : '') +
     (other.length ? `<h3>${match.length ? 'Otras recetas' : 'Recetas'}</h3>${other.map(item).join('')}` : '') ||
     `<div class="empty">${RECIPES.length ? 'No hay recetas con esa búsqueda.' : 'Todavía no tienes recetas. Créalas en la pestaña Recetas.'}</div>`;
@@ -1512,7 +1528,7 @@ function cookIdeas() {
   }).filter(x => x.hit.length && x.total)
     .sort((a, b) => b.urgent.length - a.urgent.length || b.hit.length / b.total - a.hit.length / a.total || b.hit.length - a.hit.length).slice(0, 20);
   openP(`<div class="editbar"><div class="sheet-top"><h2>🍳 Cocinar con lo que tengo</h2><button class="btn secondary" data-pa="close">Cerrar</button></div><div class="notice">Primero las que usan lo que caduca antes.</div></div>` +
-    (res.length ? res.map(x => `<button class="pick" data-id="${x.r.id}" type="button"><span class="pthumb">${x.r.image_url ? `<img src="${esc(x.r.image_url)}" alt="" loading="lazy">` : '🥘'}${rateHtml(x.r)}</span><span><b>${esc(x.r.name)}</b>
+    (res.length ? res.map(x => `<button class="pick" data-id="${x.r.id}" type="button"><span class="pthumb">${x.r.image_url ? `<img src="${esc(x.r.image_url)}" alt="" loading="lazy">` : '🥘'}</span><span><b>${esc(x.r.name)}</b>${rateInline(x.r)}
       <small>Tienes ${x.hit.length} de ${x.total} ingredientes</small>${x.urgent.length ? `<small class="exp warn">⏰ Usa: ${esc(x.urgent.map(u => cap(u.h.n)).join(', '))}</small>` : ''}</span></button>`).join('')
       : '<div class="empty" style="margin-top:12px">Ninguna receta usa lo que tienes apuntado. Prueba a añadir más cosas o a revisar los ingredientes de tus recetas.</div>'));
 }
@@ -1630,7 +1646,7 @@ function renderStats() {
   /* recetas más cocinadas y olvidadas */
   const cnt = {}, last = {};
   Object.entries(ALLW).forEach(([ws, m]) => m.forEach(d => MEALS.forEach(([k]) => slotItems(d[k]).forEach(id => { if (isNote(id)) return; cnt[id] = (cnt[id] || 0) + 1; if (!last[id] || ws > last[id]) last[id] = ws; }))));
-  const item = (r, sub) => `<button class="pick" data-id="${r.id}" type="button"><span class="pthumb">${r.image_url ? `<img src="${esc(r.image_url)}" alt="" loading="lazy">` : '🥘'}${rateHtml(r)}</span><span><b>${esc(r.name)}</b><small>${esc(sub)}</small></span></button>`;
+  const item = (r, sub) => `<button class="pick" data-id="${r.id}" type="button"><span class="pthumb">${r.image_url ? `<img src="${esc(r.image_url)}" alt="" loading="lazy">` : '🥘'}</span><span><b>${esc(r.name)}</b>${rateInline(r)}<small>${esc(sub)}</small></span></button>`;
   const top = RECIPES.filter(r => cnt[r.id]).sort((a, b) => cnt[b.id] - cnt[a.id] || a.name.localeCompare(b.name, 'es')).slice(0, 5);
   const limit = ymd(addDays(new Date(), -56));
   const old = RECIPES.filter(r => !last[r.id] || last[r.id] < limit).sort((a, b) => (last[a.id] ? 1 : 0) - (last[b.id] ? 1 : 0) || (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0) || String(last[a.id]).localeCompare(String(last[b.id]))).slice(0, 6);
@@ -2072,12 +2088,15 @@ $('txtBody').addEventListener('change', async e => {
 $('txtBody').addEventListener('click', async e => {
   const b = e.target.closest('[data-tx]'); if (!b) return; const a = b.dataset.tx, msg = $('txMsg');
   if (a === 'close') return $('txtModal').classList.remove('show');
+  if (a === 'psearch') return phSearch(); if (a === 'ppick') return phPick(+b.dataset.i);
+  if (a === 'pgoogle') { window.open('https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(($('phQ').value || '') + ' receta'), '_blank', 'noopener'); return; }
   if (a === 'photo') return $('recipeImg').click();
   if (a === 'clip') { try { $('txText').value = await navigator.clipboard.readText(); } catch (er) { msg.className = 'notice err'; msg.textContent = 'No he podido leer el portapapeles. Pega el texto a mano en el cuadro.'; } return; }
   const o = parseRecipeText($('txText').value);
   if (!o.ingredients && !o.steps && !o.name) { msg.className = 'notice err'; return (msg.textContent = 'No he encontrado nada que importar. Pega el texto de la receta.'); }
   const set = (id, v, force) => { const el = $(id); if (el && v && (force || !el.value.trim())) el.value = v; };
-  set('fName', o.name); set('fIngs', o.ingredients, true); set('fSteps', o.steps, true); set('fTime', o.time); set('fLink', o.link); if (o.servings) $('fServ').value = o.servings;
+  set('fIngs', o.ingredients, true); set('fName', o.name); set('fSteps', o.steps, true); set('fTime', o.time); set('fLink', o.link); if (o.servings) $('fServ').value = o.servings;
+  if (!draft.cats.size) autoTagDraft(true);
   $('txtModal').classList.remove('show'); toast('Receta importada. Revísala y pulsa Guardar.');
 });
 
@@ -2266,6 +2285,82 @@ async function importMenusCsv(file) {
     for (const ws of Object.keys(byWs)) { const m = normMenu(await db.week(ws)); byWs[ws].forEach(({ di, k, id }) => { if (!slotItems(m[di][k]).includes(id)) m[di][k] = [...slotItems(m[di][k]), id]; }); await db.saveWeek(ws, m); }
     await Promise.all([loadWeek(), loadStats()]); optMsg(`Importados ${total} elementos de menú.`, true);
   } catch (e) { optMsg('No se pudo importar: ' + e.message); }
+}
+
+/* ---- Etiquetado automático de recetas ---- */
+const TAGRULES = [
+  ['Pescado azul', /\b(salmon|atun|sardina|caballa|boqueron|bonito|anchoa|jurel|trucha)/, 'any'],
+  ['Pescado blanco', /\b(merluza|bacalao|lubina|dorada|lenguado|rape|pescadilla|gallo|rodaballo|abadejo|mero|panga|tilapia|besugo|pez espada)/, 'any'],
+  ['Marisco', /\b(gamba|langostino|mejillon|calamar|pulpo|almeja|sepia|chipiron|berberecho|cigala|vieira|navaja|centollo|bogavante|marisco)/, 'any'],
+  ['Carne blanca', /\b(pollo|pavo|conejo|pechuga|muslo|contramuslo)/, 'any'],
+  ['Carne roja', /\b(ternera|cerdo|cordero|vacuno|entrecot|solomillo|hamburguesa|costilla|chuleta|albondiga|carne picada|lomo|secreto|presa|buey|cochinillo)/, 'any'],
+  ['Legumbres', /\b(lentej|garbanz|alubia|judias? (blancas|pintas)|soja texturizada|hummus|frijol)/, 'any'],
+  ['Pasta', /\b(pasta|macarron|espagueti|spaghetti|tallarin|lasana|canelon|fideo|raviol|tortellini|noqui|penne|fusilli)/, 'any'],
+  ['Arroces', /\b(arroz|paella|risotto|sushi)/, 'name'], ['Huevos', /\b(huevo|tortilla|revuelto|omelet)/, 'name'],
+  ['Sopas', /\b(sopa|crema de|gazpacho|salmorejo|vichyssoise|pure de|caldo)/, 'name'], ['Ensaladas', /\b(ensalada|ensaladilla)/, 'name'],
+  ['Al horno', /\b(horno|hornea|asad[oa]|gratinad)/, 'ns'], ['A la parrilla', /\b(plancha|parrilla|brasa|barbacoa|grill)/, 'ns'],
+  ['A la sartén', /\b(sarten|frit[oa]|salteado|rebozad)/, 'name'], ['Al vapor', /\bvapor\b/, 'ns'],
+  ['Guisos', /\b(guiso|estofad|cocido|cuchara|fabada|potaje|callos)/, 'name'],
+  ['Postres', /\b(tarta|bizcocho|flan|natillas|brownie|tiramisu|pudin|mousse|helado|galleta|magdalena|cheesecake|arroz con leche|coulant|crepe|dulce)/, 'name'],
+  ['Aperitivos y entrantes', /\b(croqueta|empanadilla|tapa\b|aperitivo|entrante|nacho|bruschetta|bravas|tosta)/, 'name'],
+  ['Guarnición', /\b(guarnicion|acompanamiento|patatas fritas|arroz blanco)/, 'name'], ['Fruta', /\b(fruta|macedonia|smoothie)/, 'name'],
+  ['Desayuno', /\b(desayuno|tostada|avena|porridge|tortitas|pancakes|granola|cereales|batido)/, 'name'], ['Merienda', /\b(merienda|bocadillo|sandwich|bocata)/, 'name']];
+const ANIMAL = /\b(pollo|pavo|conejo|ternera|cerdo|cordero|vacuno|entrecot|solomillo|hamburguesa|costilla|chuleta|albondiga|carne|lomo|secreto|jamon|chorizo|bacon|panceta|salchicha|morcilla|atun|salmon|sardina|caballa|merluza|bacalao|lubina|dorada|pescado|gamba|langostino|marisco|mejillon|calamar|pulpo|anchoa)/;
+const VEGW = /\b(cebolla|ajo|tomate|pimiento|calabacin|berenjena|zanahoria|espinaca|brocoli|coliflor|judias verdes|champinon|seta|lechuga|puerro|calabaza|pepino|apio|alcachofa|esparrago|repollo|acelga|guisante)/g;
+function suggestCats(name, ings, steps) {
+  const nm = norm(name), cl = t => norm(t).replace(/caldo de \w+/g, ' ').replace(/lomos? de (salmon|atun|bacalao|merluza|rape|pescado|pez espada)/g, '$1').replace(/pasta de (tomate|curry|dientes|ajo|anchoas|pimiento)/g, ' ');
+  const any = cl(name + ' ' + ings), ns = norm(name + ' ' + steps), out = new Set(), lns = lines(ings).length;
+  TAGRULES.forEach(([c, re, sc]) => { if (re.test(sc === 'any' ? any : sc === 'ns' ? ns : nm)) out.add(c); });
+  if (out.has('Pescado azul') || out.has('Pescado blanco')) out.add('Pescado');
+  if (/\b(verdura|vegetal|hortaliza)/.test(nm) || new Set(any.match(VEGW) || []).size >= 3) out.add('Verduras');
+  if (lns >= 3 && !ANIMAL.test(any) && !['Postres', 'Desayuno', 'Merienda', 'Fruta', 'Aperitivos y entrantes'].some(c => out.has(c))) { out.add('Vegetariano'); if (!/\b(huevo|leche|queso|yogur|nata|mantequilla|miel|mayonesa)/.test(any)) out.add('Vegano'); }
+  const sideOnly = ['Postres', 'Aperitivos y entrantes', 'Guarnición', 'Fruta'], methods = ['Al horno', 'A la parrilla', 'A la sartén', 'Al vapor'];
+  const main = [...out].filter(c => !sideOnly.includes(c) && !methods.includes(c) && c !== 'Desayuno' && c !== 'Merienda');
+  if (!out.has('Desayuno') && !out.has('Merienda') && !(sideOnly.some(c => out.has(c)) && !main.length) && main.length) {
+    const light = new Set(['Ensaladas', 'Huevos', 'Sopas', 'Verduras', 'Vegetariano', 'Vegano', 'Pescado blanco', 'Pescado']);
+    if (main.some(c => ['Legumbres', 'Guisos', 'Arroces', 'Pasta'].includes(c))) out.add('Comida'); else if (main.every(c => light.has(c))) out.add('Cena'); else { out.add('Comida'); out.add('Cena'); }
+  }
+  const names = new Set(CATS.map(c => c.name)); return [...out].filter(c => names.has(c));
+}
+function autoTagDraft(silent) {
+  const sg = suggestCats($('fName').value, $('fIngs').value, $('fSteps').value), add = sg.filter(c => !draft.cats.has(c));
+  add.forEach(c => draft.cats.add(c)); drawChips();
+  if (!silent) toast(add.length ? '🪄 Categorías añadidas: ' + add.join(', ') : 'No he encontrado categorías claras: elígelas a mano.');
+  return add;
+}
+async function tagUntagged() {
+  const todo = RECIPES.filter(r => !(r.categories || []).length), plan = todo.map(r => ({ r, c: suggestCats(r.name, r.ingredients, r.steps) })).filter(x => x.c.length);
+  if (!todo.length) return optMsg('Todas tus recetas ya tienen categorías.', true);
+  if (!plan.length) return optMsg('No he podido deducir categorías de las recetas sin etiquetar.');
+  if (!confirm(`Voy a etiquetar ${plan.length} receta${plan.length === 1 ? '' : 's'} (de ${todo.length} sin categorías) según su título e ingredientes.\nEjemplo: "${plan[0].r.name}" → ${plan[0].c.join(', ')}.\n\n¿Continuar?`)) return;
+  try { for (const x of plan) await db.setRecipeCategories(x.r.id, x.c); await loadRecipes(); optMsg(`Etiquetadas ${plan.length} recetas.`, true); } catch (e) { optMsg('No se pudo etiquetar: ' + e.message); }
+}
+
+/* ---- Buscar foto en internet (Wikimedia Commons) ---- */
+let phRes = [];
+function openPhotoSearch() {
+  const q0 = ($('fName') && $('fName').value.trim()) || '';
+  $('txtBody').innerHTML = `<div class="editbar"><div class="sheet-top"><h2>🔎 Buscar foto</h2><button class="btn secondary" data-tx="close">Cerrar</button></div><div class="notice" id="txMsg">Fotos libres de Wikimedia Commons. Si no sale la tuya, busca en Google Imágenes y súbela a mano.</div></div>
+    <div class="noterow"><input id="phQ" value="${esc(q0)}" placeholder="Nombre del plato"><button class="btn" data-tx="psearch" type="button">Buscar</button></div>
+    <button class="btn secondary" data-tx="pgoogle" type="button" style="width:100%;margin:8px 0">🌐 Abrir Google Imágenes</button><div id="phList" class="phgrid"></div>`;
+  $('txtModal').classList.add('show'); if (q0) phSearch();
+}
+async function phSearch() {
+  const q = $('phQ').value.trim(), msg = $('txMsg'); if (!q) return; msg.className = 'notice'; msg.textContent = 'Buscando…';
+  try {
+    const u = 'https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrlimit=20&gsrsearch=' + encodeURIComponent(q + ' filetype:bitmap') + '&prop=imageinfo&iiprop=url|mime|extmetadata&iiurlwidth=800&format=json&origin=*';
+    const j = await (await fetch(u)).json();
+    phRes = Object.values((j.query && j.query.pages) || {}).filter(p => p.imageinfo && /image\/(jpeg|png)/.test(p.imageinfo[0].mime) && p.imageinfo[0].thumburl).map(p => ({ url: p.imageinfo[0].thumburl, title: p.title }));
+    $('phList').innerHTML = phRes.map((x, i) => `<button type="button" data-tx="ppick" data-i="${i}"><img src="${esc(x.url)}" alt="" loading="lazy"></button>`).join('');
+    msg.textContent = phRes.length ? 'Toca la foto que quieras usar.' : 'No he encontrado fotos. Prueba con otro nombre o usa Google Imágenes.';
+  } catch (e) { msg.className = 'notice err'; msg.textContent = 'No se pudo buscar: ' + e.message; }
+}
+async function phPick(i) {
+  const x = phRes[i], msg = $('txMsg'); if (!x) return; msg.className = 'notice'; msg.textContent = 'Descargando la foto…';
+  try {
+    const blob = await (await fetch(x.url)).blob(); draft.file = new File([blob], 'foto.jpg', { type: blob.type || 'image/jpeg' }); draft.removePhoto = false; drawPhoto();
+    $('txtModal').classList.remove('show'); toast('📷 Foto elegida: se guardará al pulsar Guardar');
+  } catch (e) { msg.className = 'notice err'; msg.textContent = 'No se pudo descargar esa foto. Prueba con otra o súbela a mano.'; }
 }
 
 /* ============ 5. ARRANQUE ============ */
