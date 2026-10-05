@@ -218,6 +218,9 @@ textarea.big{width:100%;min-height:96px;padding:12px;border:1px solid #355570;bo
 .cropcv{width:100%;border-radius:10px;background:#000;display:block;margin-top:10px}
 .crow{display:grid;grid-template-columns:78px 1fr;gap:8px;align-items:center;margin:6px 0;font-size:13px;color:var(--muted)}
 .crow input{margin:0;padding:0;accent-color:var(--accent)}
+.mrow{display:flex;gap:6px;align-items:stretch}.mrow .mitem{flex:1;min-width:0}
+.msw{width:40px;flex:none;border:1px solid #c9d6e4;border-radius:9px;background:#fff;font-size:16px;cursor:pointer;padding:0}
+.msw.lk{background:#fff4c9;border-color:#e2c35a}
 </style>
 </head>
 <body>
@@ -255,7 +258,7 @@ textarea.big{width:100%;min-height:96px;padding:12px;border:1px solid #355570;bo
       <div class="today hidden" id="todayCard"></div>
       <div class="aibar"><button class="btn" id="mAI" type="button">✨ Crear menú</button><button class="btn secondary" id="mNext" type="button">📅 Semana siguiente</button></div>
       <button class="btn secondary" id="mToday" type="button" style="width:100%;margin-top:8px">🍳 ¿Qué cocino hoy?</button>
-      <div class="chips" style="margin:10px 0 4px"><button class="chip" id="mFill" type="button">🎲 Rellenar huecos</button><button class="chip" id="mCopy" type="button">📋 Copiar semana anterior</button><button class="chip" id="mTpl" type="button">📑 Plantillas</button><button class="chip" id="mShare" type="button">📤 Compartir menú</button><button class="chip" id="mClear" type="button">🗑️ Vaciar</button></div>
+      <div class="chips" style="margin:10px 0 4px"><button class="chip hidden" id="mUndo" type="button"></button><button class="chip" id="mFill" type="button">🎲 Rellenar huecos</button><button class="chip" id="mCopy" type="button">📋 Copiar semana anterior</button><button class="chip" id="mTpl" type="button">📑 Plantillas</button><button class="chip" id="mShare" type="button">📤 Compartir menú</button><button class="chip" id="mClear" type="button">🗑️ Vaciar</button></div>
       <div class="notice" id="menuMsg"></div>
       <div id="menuDays"></div>
     </section>
@@ -359,7 +362,7 @@ const DEFAULT_GOALS = [
 const emptyMenu = () => DAYS.map(() => ({}));
 const slotItems = v => Array.isArray(v) ? v : (v ? [v] : []);
 const isNote = x => String(x).startsWith('~');
-const normMenu = m => { const a = Array.isArray(m) ? m : []; return DAYS.map((_, i) => { const d = (a[i] && typeof a[i] === 'object') ? a[i] : {}, o = {}; MEALS.forEach(([k]) => { const it = slotItems(d[k]).filter(Boolean); if (it.length) o[k] = it; }); if (Array.isArray(d._done) && d._done.length) o._done = d._done.filter(x => typeof x === 'string'); return o; }); };
+const normMenu = m => { const a = Array.isArray(m) ? m : []; return DAYS.map((_, i) => { const d = (a[i] && typeof a[i] === 'object') ? a[i] : {}, o = {}; MEALS.forEach(([k]) => { const it = slotItems(d[k]).filter(Boolean); if (it.length) o[k] = it; }); if (Array.isArray(d._done) && d._done.length) o._done = d._done.filter(x => typeof x === 'string'); if (Array.isArray(d._lock) && d._lock.length) o._lock = d._lock.filter(x => typeof x === 'string'); return o; }); };
 const menuHas = menu => menu.some(d => MEALS.some(([k]) => slotItems(d[k]).length));
 
 /* ============ 2. CAPA DE DATOS (todo online) ============
@@ -997,7 +1000,8 @@ function renderMenu() {
       MEALS.map(([k, label, ic]) => {
         const its = slotItems(day[k]);
         const rows = its.map((id, j) => { const note = isNote(id), r = !note && RECIPES.find(x => x.id === id);
-          return `<button class="mitem${note ? ' note' : ''}${(day._done || []).includes(k + ':' + id) ? ' done' : ''}" data-day="${i}" data-meal="${k}" data-idx="${j}" type="button">${note ? '📝 ' + esc(id.slice(1)) : r ? esc(r.name) : 'Receta eliminada'}</button>`; }).join('');
+          const lk = (day._lock || []).includes(k + ':' + id);
+          return `<div class="mrow"><button class="mitem${note ? ' note' : ''}${(day._done || []).includes(k + ':' + id) ? ' done' : ''}" data-day="${i}" data-meal="${k}" data-idx="${j}" type="button">${note ? '📝 ' + esc(id.slice(1)) : r ? esc(r.name) : 'Receta eliminada'}</button>${!note && r ? (lk ? `<button class="msw lk" data-lock="1" data-day="${i}" data-meal="${k}" data-idx="${j}" type="button" title="Fijado: toca para soltar">🔒</button>` : `<button class="msw" data-swap="1" data-day="${i}" data-meal="${k}" data-idx="${j}" type="button" title="Cambiar por otra">🔄</button>`) : ''}</div>`; }).join('');
         return `<div class="srow m-${k}${its.length ? ' has' : ''}"><div class="slab">${ic} ${label}</div><div class="sitems">${rows}<button class="madd" data-day="${i}" data-meal="${k}" data-idx="-1" type="button" aria-label="Añadir">${its.length ? '＋' : '＋ Añadir'}</button></div></div>`;
       }).join('') + '</div>';
   }).join('');
@@ -1011,6 +1015,7 @@ async function persistWeek() {
 /* idx >= 0 con id: cambia esa receta · idx >= 0 con null: la quita · idx < 0: añade otra a la comida */
 function slotSet(day, meal, idx, id) {
   const arr = [...slotItems(MENU[day][meal])], old = idx >= 0 ? arr[idx] : null;
+  if (old && MENU[day]._lock) { MENU[day]._lock = MENU[day]._lock.filter(x => x !== meal + ':' + old); if (!MENU[day]._lock.length) delete MENU[day]._lock; }
   if (old && MENU[day]._done) { MENU[day]._done = MENU[day]._done.filter(x => x !== meal + ':' + old); if (!MENU[day]._done.length) delete MENU[day]._done; }
   if (id === null) arr.splice(idx, 1); else if (idx >= 0) arr[idx] = id; else if (!arr.includes(id)) arr.push(id);
   if (arr.length) MENU[day][meal] = arr; else delete MENU[day][meal];
@@ -1026,7 +1031,7 @@ function openPicker(day, meal, idx) {
     <div class="notice">${idx >= 0 ? 'Elige otra receta para cambiar esta' : 'Elige una receta para añadir a esta comida'}</div>
     <input id="pickSearch" type="search" placeholder="Buscar receta…" autocomplete="off">
     ${cur ? `<div class="row">${!curNote && RECIPES.some(r => r.id === cur) ? '<button class="btn secondary" data-pact="view">Ver receta</button>' : ''}<button class="btn danger" data-pact="remove">Quitar</button></div>` : ''}</div>
-    ${cur && !curNote && RECIPES.some(r => r.id === cur) ? `<div class="row" style="margin:10px 0 0"><button class="btn secondary" data-pact="cooked">${(MENU[day]._done || []).includes(meal + ':' + cur) ? '↩️ Quitar ✓' : '✅ Cocinado'}</button><button class="btn" data-pact="cook">👩‍🍳 Cocinar</button></div><button class="btn secondary" data-pact="leftovers" type="button" style="width:100%;margin-top:8px">🔁 Sobras para otra comida</button>` : ''}
+    ${cur && !curNote && RECIPES.some(r => r.id === cur) ? `<div class="row" style="margin:10px 0 0"><button class="btn secondary" data-pact="cooked">${(MENU[day]._done || []).includes(meal + ':' + cur) ? '↩️ Quitar ✓' : '✅ Cocinado'}</button><button class="btn" data-pact="cook">👩‍🍳 Cocinar</button></div><button class="btn secondary" data-pact="leftovers" type="button" style="width:100%;margin-top:8px">🔁 Sobras para otra comida</button><div class="row" style="margin:8px 0 0"><button class="btn secondary" data-pact="swap">🔄 Cambiar por otra</button><button class="btn secondary" data-pact="lock">${(MENU[day]._lock || []).includes(meal + ':' + cur) ? '🔓 Soltar' : '🔒 Fijar'}</button></div>` : ''}
     <div class="noterow"><input id="pickNote" maxlength="60" placeholder="Nota: comer fuera, sobras…" value="${curNote ? esc(cur.slice(1)) : ''}"><button class="btn" data-pact="note" type="button">Poner</button></div>
     <div class="chips" style="margin-bottom:6px"><button class="chip" data-pact="quick" data-text="Comer fuera" type="button">🍴 Comer fuera</button><button class="chip" data-pact="quick" data-text="Sobras" type="button">🥡 Sobras</button><button class="chip" data-pact="quick" data-text="Ayuno" type="button">⏭️ Saltar</button></div>
     <div id="pickList"></div>`;
@@ -1056,6 +1061,8 @@ $('pickBody').addEventListener('click', e => {
   if (a === 'cooked' && cur) markCooked(pick.day, pick.meal, cur);
   if (a === 'cook' && cur) startCook(cur);
   if (a === 'leftovers' && cur) leftovers(pick.day, pick.meal, cur);
+  if (a === 'swap' && cur) swapItem(pick.day, pick.meal, pick.idx);
+  if (a === 'lock' && cur) toggleLock(pick.day, pick.meal, cur);
 });
 
 /* ---- generador de menús: IA (si está activada) y asistente básico ---- */
@@ -1146,7 +1153,14 @@ function applySlotRules(menu, rules) {
 const PROT = [['pescado', ['Pescado', 'Pescado azul', 'Pescado blanco', 'Marisco']], ['carne roja', ['Carne roja']], ['carne blanca', ['Carne blanca']], ['huevo', ['Huevos']], ['legumbre', ['Legumbres']], ['pasta', ['Pasta']], ['arroz', ['Arroces']]];
 const protein = r => { const c = catsOf(r), p = PROT.find(([, cs]) => cs.some(x => c.includes(x))); return p ? p[0] : ''; };
 const LIGHT = ['Ensaladas', 'Verduras', 'Huevos', 'Pescado blanco', 'Sopas', 'Vegetariano', 'Vegano'], HEAVY = ['Legumbres', 'Guisos', 'Arroces', 'Pasta', 'Carne roja'];
-let lastFill = { urgent: [], cover: null };
+let lastFill = { urgent: [], cover: null, season: [] };
+const SEAS = { inv: 'naranja mandarina limon kiwi alcachofa coliflor col brocoli espinaca acelga puerro calabaza nabo remolacha cardo endibia escarola apio borraja pomelo manzana pera castana', pri: 'esparrago fresa guisante haba alcachofa espinaca lechuga rabano cereza nispero zanahoria puerro acelga albaricoque cebolleta brocoli ajo', ver: 'tomate pepino pimiento calabacin berenjena sandia melon melocoton nectarina albaricoque ciruela cereza higo judia maiz albahaca frambuesa lechuga', oto: 'calabaza seta castana granada caqui boniato membrillo uva higo col coliflor brocoli espinaca acelga puerro manzana pera mandarina naranja nuez cardo alcachofa lombarda' };
+const seasonOf = m => m === 11 || m <= 1 ? 'inv' : m <= 4 ? 'pri' : m <= 7 ? 'ver' : 'oto', stp = t => t.replace(/(es|s)$/, '');
+function seasonHits(r, month) {
+  const cur = new Set(SEAS[seasonOf(month)].split(' ').map(stp)), other = new Set(Object.keys(SEAS).filter(k => k !== seasonOf(month)).flatMap(k => SEAS[k].split(' ').map(stp)).filter(w => !cur.has(w))), inn = new Set(), out = new Set();
+  ingKeys(r).forEach(k => k.split(' ').forEach(t => { const x = stp(t); if (cur.has(x)) inn.add(x); else if (other.has(x)) out.add(x); }));
+  return { inn: [...inn], out: [...out] };
+}
 function pantryInfo(r) {
   const its = []; lines(r.ingredients).forEach(l => addIng(its, l, r.name));
   const real = its.filter(i => !isBasic(i.key)), urgent = []; let hit = 0, frozen = 0;
@@ -1155,9 +1169,10 @@ function pantryInfo(r) {
 }
 function autoFill(menu, o = {}) {
   const ex = o.exclude || new Set(), ban = o.ban || new Set(), locked = o.locked || new Set(), rec = o.recency || {}, mains = ['comida', 'cena'];
-  const rm = new Map(RECIPES.map(r => [r.id, r])), touched = new Set(), info = new Map(), usedP = new Set(), covs = [];
+  const rm = new Map(RECIPES.map(r => [r.id, r])), touched = new Set(), info = new Map(), usedP = new Set(), covs = [], usedKeys = new Map(), seasonUsed = new Set(), mon = o.month ?? new Date().getMonth();
   const used = new Set(menu.flatMap(d => MEALS.flatMap(([k]) => slotItems(d[k]).filter(x => !isNote(x)))));
   if (o.pantry !== false && PANTRY.length) RECIPES.forEach(r => info.set(r.id, pantryInfo(r)));
+  menu.forEach(d => MEALS.forEach(([k]) => slotItems(d[k]).forEach(id => { const r0 = rm.get(id); if (r0) ingKeys(r0).forEach(x => usedKeys.set(x, (usedKeys.get(x) || 0) + 1)); })));
   let n = 0;
   const qk = (r, i) => !o.quick || i > 4 || (timeMins(r.time) === null || timeMins(r.time) <= 30);
   const ok = r => !catsOf(r).some(c => ex.has(c)), capCats = new Set((o.quotas || []).flatMap(q => q.cats));
@@ -1166,7 +1181,10 @@ function autoFill(menu, o = {}) {
   const weight = (r, i, k, cnt) => {
     let w = 1 + (r.favorite ? 0.6 : 0) + (r.rating >= 4 ? 0.6 : 0) - (r.rating && r.rating <= 2 ? 0.7 : 0);
     for (const g of GOALS) { if (!catsOf(r).includes(g.key)) continue; const c = cnt[g.key] || 0; if (g.mode === 'min' && c < g.target) w += 2.5; if (g.mode === 'max' && c >= g.target) return 0; }
-    const f = info.get(r.id); if (f) { w += 3 * f.cov + Math.min(4, f.urgent.length * 2) + Math.min(1.5, f.frozen * 0.5); }
+    const f = info.get(r.id), pw = o.style === 'pantry' ? 2 : 1; if (f) { w += pw * (3 * f.cov + Math.min(4, f.urgent.length * 2) + Math.min(1.5, f.frozen * 0.5)); }
+    const ov = ingKeys(r).filter(x => usedKeys.has(x)).length; w += (o.style === 'min' ? 2.6 : 0.3) * Math.min(4, ov) * 0.6;
+    if (o.season !== false) { const sh = seasonHits(r, mon); w += Math.max(-2, Math.min(3, sh.inn.length - 0.7 * sh.out.length)) * 0.5; }
+    if (o.like) { const lc = catsOf(o.like); if (catsOf(r).some(c => lc.includes(c) && !MEALS.some(m => m[1] === c))) w *= 1.6; }
     if (rec[r.id]) w *= rec[r.id] === 1 ? 0.15 : rec[r.id] === 2 ? 0.4 : 0.7;
     const pr = protein(r); if (pr && mains.includes(k) && near(i, k).some(([a, b]) => a >= 0 && a < 7 && protAt(a, b) === pr)) w *= 0.2;
     const c = catsOf(r), tm = timeMins(r.time), light = c.some(x => LIGHT.includes(x)), heavy = c.some(x => HEAVY.includes(x));
@@ -1180,7 +1198,8 @@ function autoFill(menu, o = {}) {
     let pool = base.map(r => [r, weight(r, i, k, cnt)]).filter(x => x[1] > 0); if (!pool.length) pool = base.map(r => [r, 0.5]);
     let x = Math.random() * pool.reduce((a, y) => a + y[1], 0); for (const [r, w] of pool) { x -= w; if (x <= 0) return r; } return pool[pool.length - 1][0];
   };
-  const put = (i, k, r, mark) => { menu[i][k] = [...slotItems(menu[i][k]), r.id]; used.add(r.id); n++; if (mark) touched.add(i + k); const f = info.get(r.id); if (f && mark) { covs.push(f.cov); f.urgent.forEach(u => usedP.add(u)); } };
+  const put = (i, k, r, mark) => { menu[i][k] = [...slotItems(menu[i][k]), r.id]; used.add(r.id); n++; if (mark) touched.add(i + k); const f = info.get(r.id); if (f && mark) { covs.push(f.cov); f.urgent.forEach(u => usedP.add(u)); }
+    ingKeys(r).forEach(x => usedKeys.set(x, (usedKeys.get(x) || 0) + 1)); if (o.season !== false && mark) seasonHits(r, mon).inn.forEach(w => seasonUsed.add(w)); };
   (o.pinned || []).forEach(p => { if (slotItems(menu[p.i][p.k]).length) return; let cand = RECIPES.filter(r => ok(r) && !isSide(r) && catsOf(r).some(c => p.cats.includes(c))); const fit = cand.filter(r => catsOf(r).includes(MEALS.find(m => m[0] === p.k)[1])); if (fit.length) cand = fit; const r = choose(cand, p.i, p.k, false); if (r) put(p.i, p.k, r, true); });
   (o.quotas || []).forEach(q => { for (let t = 0; t < q.n; t++) {
     for (const [i, k] of shuffle(menu.flatMap((d, i) => mains.filter(k => !slotItems(d[k]).length && !locked.has(i + k)).map(k => [i, k])))) {
@@ -1200,7 +1219,7 @@ function autoFill(menu, o = {}) {
     const r0 = rm.get(it[0]); if (!r0 || isSide(r0) || SELF.some(c => catsOf(r0).includes(c))) return;
     const side = choose(RECIPES.filter(r => ok(r) && isSide(r)), i, k, false); if (side) put(i, k, side, false);
   }));
-  lastFill = { urgent: [...usedP], cover: covs.length && PANTRY.length ? covs.reduce((a, b) => a + b, 0) / covs.length : null };
+  lastFill = { season: [...seasonUsed], urgent: [...usedP], cover: covs.length && PANTRY.length ? covs.reduce((a, b) => a + b, 0) / covs.length : null };
   return n;
 }
 async function recencyFor(ws) {
@@ -1208,8 +1227,9 @@ async function recencyFor(ws) {
   weeks.forEach((m, idx) => m.forEach(d => MEALS.forEach(([k]) => slotItems(d[k]).forEach(id => { if (!isNote(id)) rec[id] = rec[id] ? Math.min(rec[id], idx + 1) : idx + 1; }))));
   return rec;
 }
-async function generateMenu({ ws, text, mode, side, quick, pantry }) {
-  let base = ws === WS ? JSON.parse(JSON.stringify(MENU)) : await db.week(ws); if (mode === 'all') base = emptyMenu(); base = normMenu(base);
+async function generateMenu({ ws, text, mode, side, quick, pantry, season, style }) {
+  let base = ws === WS ? JSON.parse(JSON.stringify(MENU)) : await db.week(ws); base = normMenu(base); const before = JSON.parse(JSON.stringify(base));
+  if (mode === 'all') { const old = base; base = emptyMenu(); old.forEach((d, i) => (d._lock || []).forEach(key => { const k = key.split(':')[0], id = key.slice(k.length + 1); if (slotItems(d[k]).includes(id)) { base[i][k] = [...slotItems(base[i][k]), id]; base[i]._lock = [...(base[i]._lock || []), key]; } })); }
   const wish = parseWish(text), info = [], ban = new Set(), recency = await recencyFor(ws); let n = 0;
   const understood = [...wish.quotas.map(q => `${q.n} de ${q.label}`), ...wish.slots.map(sl => `${dn(sl.day)}${sl.meal ? ' (' + sl.meal + ')' : ''}: ${sl.desc}`), ...wish.exLabels.map(l => 'sin ' + l)];
   if (wish.quick || quick) understood.push('platos rápidos entre semana'); if (side) understood.push('con guarnición');
@@ -1228,15 +1248,17 @@ async function generateMenu({ ws, text, mode, side, quick, pantry }) {
     }
   }
   n += applyFixed(base);
-  n += autoFill(base, { recency, quotas: wish.quotas, exclude: wish.exclude, side, quick: quick || wish.quick, pantry: pantry !== false, locked: sr.locked, pinned: sr.pinned, ban });
+  n += autoFill(base, { recency, quotas: wish.quotas, exclude: wish.exclude, side, quick: quick || wish.quick, pantry: pantry !== false, locked: sr.locked, pinned: sr.pinned, ban, style, season, month: parseYmd(ws).getMonth() });
   if (understood.length) info.unshift('📋 He entendido: ' + understood.join(' · ') + '.'); else if (text) info.unshift('📋 No he sabido interpretar el texto: he seguido tus objetivos y tu despensa.');
   if (wish.unknown.length) info.push('❓ No he entendido: «' + wish.unknown.join('», «') + '».');
   if (lastFill.urgent.length) info.push('⏰ Gasto lo que caduca pronto: ' + lastFill.urgent.join(', ') + '.');
   if (lastFill.cover !== null) info.push(`🏠 Despensa: las recetas nuevas aprovechan de media un ${Math.round(lastFill.cover * 100)}% de ingredientes que ya tienes.`);
   if (GOALS.length) { const wc = weekCounts(base), bad = GOALS.filter(g => !goalOk(g, wc.cats[g.key] || 0)); info.push(`🎯 Objetivos: cumples ${GOALS.length - bad.length} de ${GOALS.length}${bad.length ? ' (revisa: ' + bad.map(g => g.label).join(', ') + ')' : ''}.`); }
   info.push('🧠 Variedad: evito lo cocinado en las últimas 3 semanas y repetir la misma proteína en comidas seguidas.');
+  const mt = menuMetrics(base, ws); info.push(`🛒 Con este menú compras ${mt.toBuy} productos${mt.have ? ' (ya tienes ' + mt.have + ')' : ''}.`);
+  if (season !== false && lastFill.season.length) info.push('🍂 De temporada: ' + lastFill.season.slice(0, 5).join(', ') + '.');
   const msg = n ? `✨ Menú creado (${n} elemento${n === 1 ? '' : 's'}). Toca cualquier receta para cambiarla.` : 'No he podido añadir recetas: faltan recetas con las categorías Desayuno, Almuerzo, Comida, Merienda o Cena.';
-  return { base, msg, info };
+  return { base, msg, info, before, metrics: mt, seasonTxt: season !== false && lastFill.season.length ? 'De temporada: ' + lastFill.season.slice(0, 4).join(', ') : '' };
 }
 function showMenuSummary(r, ws) {
   openP(`<div class="editbar"><div class="sheet-top"><h2>✨ Menú ${esc(wkRange(ws))}</h2><button class="btn" data-pa="close">Entendido</button></div></div>` + r.info.map(l => `<div class="ing">${esc(l)}</div>`).join(''));
@@ -1244,7 +1266,7 @@ function showMenuSummary(r, ws) {
 async function commitMenu(ws, base) {
   if (ws === WS) { MENU = base; renderMenu(); await persistWeek(); } else { await db.saveWeek(ws, base); goWeek(ws); }
 }
-let ai = { target: 'next', mode: 'fill', side: false, quick: false, pantry: true, text: '' };
+let ai = { target: 'next', mode: 'fill', side: false, quick: false, pantry: true, season: true, text: '' };
 function drawAI() {
   const chip = (on, attr, label) => `<button type="button" class="chip${on ? ' on' : ''}" data-ai="${attr}">${label}</button>`;
   $('aiBody').innerHTML = `<div class="editbar"><div class="sheet-top"><h2>✨ Crear menú</h2><button class="btn secondary" data-ai="close">Cerrar</button></div><div class="notice" id="aiMsg"></div></div>
@@ -1253,22 +1275,24 @@ function drawAI() {
       <div class="notice">Sin texto, sigo tus objetivos, lo que hay en casa y lo que no repetiste hace poco.</div></div>
     <div class="field"><label>Para qué semana</label><div class="chips">${chip(ai.target === 'next', 't-next', '➡️ Siguiente (' + wkRange(nextWs()) + ')')}${WS !== nextWs() ? chip(ai.target === 'shown', 't-shown', '👁️ La que veo (' + wkRange(WS) + ')') : ''}</div></div>
     <div class="field"><label>Si ya hay recetas puestas</label><div class="chips">${chip(ai.mode === 'fill', 'm-fill', 'Solo rellenar huecos')}${chip(ai.mode === 'all', 'm-all', 'Rehacer toda la semana')}</div></div>
-    <div class="field"><label>Extras</label><div class="chips">${chip(ai.side, 'side', '🥗 Añadir guarnición en comida y cena')}${chip(ai.quick, 'quick', '⚡ Platos rápidos entre semana (≤ 30 min)')}${chip(ai.pantry, 'pantry', '🏠 Usar lo que hay en casa')}</div></div>
-    <button class="btn" id="aiGo" data-ai="go" type="button" style="width:100%">✨ Crear menú</button>`;
+    <div class="field"><label>Extras</label><div class="chips">${chip(ai.side, 'side', '🥗 Añadir guarnición en comida y cena')}${chip(ai.quick, 'quick', '⚡ Platos rápidos entre semana (≤ 30 min)')}${chip(ai.pantry, 'pantry', '🏠 Usar lo que hay en casa')}${chip(ai.season, 'season', '🍂 De temporada')}</div></div>
+    <button class="btn" id="aiGo" data-ai="go" type="button" style="width:100%">✨ Crear menú</button>
+    <button class="btn secondary" id="aiVar" data-ai="var" type="button" style="width:100%;margin-top:8px">🔀 Ver 3 opciones para elegir</button>`;
 }
 async function aiGo() {
   const btn = $('aiGo'), msg = $('aiMsg'); ai.text = $('aiText').value.trim(); btn.disabled = true; msg.className = 'notice'; msg.textContent = 'Preparando tu menú…';
   try {
-    const ws = ai.target === 'next' ? nextWs() : WS, r = await generateMenu({ ws, text: ai.text, mode: ai.mode, side: ai.side, quick: ai.quick, pantry: ai.pantry });
-    $('aiModal').classList.remove('show'); await commitMenu(ws, r.base); menuMsg(r.msg); showMenuSummary(r, ws);
+    const ws = ai.target === 'next' ? nextWs() : WS, r = await generateMenu({ ws, text: ai.text, mode: ai.mode, side: ai.side, quick: ai.quick, pantry: ai.pantry, season: ai.season });
+    $('aiModal').classList.remove('show'); pushUndo(ws, r.before, 'Crear menú'); await commitMenu(ws, r.base); menuMsg(r.msg); showMenuSummary(r, ws);
   } catch (e) { btn.disabled = false; msg.className = 'notice err'; msg.textContent = 'No se pudo crear el menú: ' + e.message; }
 }
 $('aiBody').addEventListener('click', e => {
   const b = e.target.closest('[data-ai]'); if (!b) return; const a = b.dataset.ai;
   if (a === 'go') return aiGo();
+  if (a === 'var') return aiVariants();
   if (a === 'close') return $('aiModal').classList.remove('show');
   const t = $('aiText'); if (t) ai.text = t.value;
-  if (a === 't-next') ai.target = 'next'; if (a === 't-shown') ai.target = 'shown'; if (a === 'm-fill') ai.mode = 'fill'; if (a === 'm-all') ai.mode = 'all'; if (a === 'side') ai.side = !ai.side; if (a === 'quick') ai.quick = !ai.quick; if (a === 'pantry') ai.pantry = !ai.pantry;
+  if (a === 't-next') ai.target = 'next'; if (a === 't-shown') ai.target = 'shown'; if (a === 'm-fill') ai.mode = 'fill'; if (a === 'm-all') ai.mode = 'all'; if (a === 'side') ai.side = !ai.side; if (a === 'quick') ai.quick = !ai.quick; if (a === 'pantry') ai.pantry = !ai.pantry; if (a === 'season') ai.season = !ai.season;
   if (a === 'ex') ai.text = (ai.text.trim() ? ai.text.trim().replace(/[.]+$/, '') + '. ' : '') + b.dataset.t;
   drawAI();
 });
@@ -1277,13 +1301,14 @@ async function quickNext() {
   try {
     const cur = ws === WS ? MENU : await db.week(ws);
     if (menuHas(cur) && !confirm('La semana siguiente ya tiene recetas. ¿Rellenar solo los huecos que faltan?')) return menuMsg('');
-    const r = await generateMenu({ ws, text: '', mode: 'fill', side: false }); await commitMenu(ws, r.base); menuMsg(r.msg); showMenuSummary(r, ws);
+    const r = await generateMenu({ ws, text: '', mode: 'fill', side: false }); pushUndo(ws, r.before, 'Semana siguiente'); await commitMenu(ws, r.base); menuMsg(r.msg); showMenuSummary(r, ws);
   } catch (e) { menuMsg('No se pudo preparar la semana: ' + e.message, true); }
 }
 
 /* acciones de la semana */
 async function fillGaps() {
-  const n = applyFixed(MENU) + autoFill(MENU, { recency: await recencyFor(WS) }); renderMenu(); if (n) persistWeek();
+  pushUndo(WS, MENU, 'Rellenar huecos');
+  const n = applyFixed(MENU) + autoFill(MENU, { recency: await recencyFor(WS) }); if (!n) { undoStack.pop(); updateUndo(); } renderMenu(); if (n) persistWeek();
   menuMsg(n ? `Se han añadido ${n} receta${n === 1 ? '' : 's'}, evitando repetir y acercándose a tus objetivos. Toca cualquiera para cambiarla.` : 'No hay huecos que rellenar con las categorías que tienes.');
 }
 async function shareMenu() {
@@ -1305,15 +1330,20 @@ async function copyPrevWeek() {
     const prev = await db.week(ymd(addDays(parseYmd(WS), -7)));
     if (!menuHas(prev)) return menuMsg('La semana anterior está vacía.');
     if (menuHas(MENU) && !confirm('Esta semana ya tiene recetas. ¿Sustituirlas por las de la semana anterior?')) return;
-    MENU = prev; MENU.forEach(d => delete d._done); renderMenu(); persistWeek(); menuMsg('Semana anterior copiada.');
+    pushUndo(WS, MENU, 'Copiar semana'); MENU = prev; MENU.forEach(d => { delete d._done; delete d._lock; }); renderMenu(); persistWeek(); menuMsg('Semana anterior copiada.');
   } catch (e) { menuMsg('No se pudo copiar: ' + e.message, true); }
 }
 function clearWeek() {
   if (!menuHas(MENU)) return menuMsg('Esta semana ya está vacía.');
   if (!confirm('¿Vaciar todas las recetas de esta semana?')) return;
-  MENU = emptyMenu(); renderMenu(); persistWeek(); menuMsg('');
+  pushUndo(WS, MENU, 'Vaciar semana'); MENU = emptyMenu(); renderMenu(); persistWeek(); menuMsg('');
 }
-$('menuDays').onclick = e => { const b = e.target.closest('[data-meal]'); if (b) openPicker(+b.dataset.day, b.dataset.meal, +b.dataset.idx); };
+$('menuDays').onclick = e => {
+  const b = e.target.closest('[data-meal]'); if (!b) return; const d = +b.dataset.day, m = b.dataset.meal, i = +b.dataset.idx;
+  if (b.dataset.swap) return swapItem(d, m, i);
+  if (b.dataset.lock) return toggleLock(d, m, slotItems(MENU[d][m])[i]);
+  openPicker(d, m, i);
+};
 $('dayPills').onclick = e => { const b = e.target.closest('[data-pill]'); const el = b && document.getElementById('day-' + b.dataset.pill); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
 $('weekPrev').onclick = () => goWeek(ymd(addDays(parseYmd(WS), -7)));
 $('weekNext').onclick = () => goWeek(ymd(addDays(parseYmd(WS), 7)));
@@ -1590,7 +1620,7 @@ $('pBody').addEventListener('click', e => {
   const pk = e.target.closest('.pick'); if (pk) return showRecipe(pk.dataset.id);
   const b = e.target.closest('[data-pa]'); if (!b) return;
   ({ save: savePantryItem, del: delPantryItem,
-     exp: () => { $('pExp').value = b.dataset.days === '0' ? '' : ymd(addDays(new Date(), +b.dataset.days)); }, tadd: addTicketItems, cookdone: cookDone, cartadd: cartAdd, close: closePModal, cropgo: runTicketOcr, croprot: () => { crop.rot = (crop.rot + 1) % 4; drawCrop(); }, cropbw: () => { crop.bw = !crop.bw; $('cropBw').classList.toggle('on', crop.bw); },
+     exp: () => { $('pExp').value = b.dataset.days === '0' ? '' : ymd(addDays(new Date(), +b.dataset.days)); }, tadd: addTicketItems, cookdone: cookDone, cartadd: cartAdd, close: closePModal, varpick: () => pickVariant(+b.dataset.i), cropgo: runTicketOcr, croprot: () => { crop.rot = (crop.rot + 1) % 4; drawCrop(); }, cropbw: () => { crop.bw = !crop.bw; $('cropBw').classList.toggle('on', crop.bw); },
      tparse: () => { tRaw = $('tpText').value; tItems = parseTicketText(tRaw); drawTicket('📄 Ticket digital'); }, tclip: async () => { try { $('tpText').value = await navigator.clipboard.readText(); } catch (er) { const m = $('pMsg'); m.className = 'notice err'; m.textContent = 'No he podido leer el portapapeles: pega el texto a mano.'; } },
      reparse: () => { tRaw = $('rawText').value; tItems = parseTicketText(tRaw); drawTicket(tTitle); },
      scandirect: () => { scanCfg.direct = !scanCfg.direct; scanOpts(); }, scanloc: () => { scanCfg.loc = b.dataset.k; scanOpts(); }, rate: () => rateNow(b.dataset.id, +b.dataset.n),
@@ -2276,7 +2306,7 @@ async function liveSettings() {
 }
 
 /* ---- Plantillas de semana ---- */
-const cleanMenu = m => normMenu(JSON.parse(JSON.stringify(m))).map(d => { const o = { ...d }; delete o._done; return o; });
+const cleanMenu = m => normMenu(JSON.parse(JSON.stringify(m))).map(d => { const o = { ...d }; delete o._done; delete o._lock; return o; });
 function drawTemplates() {
   openP(`<div class="editbar"><div class="sheet-top"><h2>📑 Plantillas de semana</h2><button class="btn secondary" data-pa="close">Cerrar</button></div><div class="notice" id="pMsg">Guarda una semana que te gustó y aplícala cuando quieras.</div></div>` +
     (TEMPLATES.length ? TEMPLATES.map((t, i) => `<div class="catrow"><span>${esc(t.name)}<br><small>${t.menu.reduce((n, d) => n + MEALS.filter(([k]) => slotItems(d[k]).length).length, 0)} comidas</small></span><button class="btn" data-pa="tplapply" data-i="${i}">Aplicar</button><button class="btn secondary" data-pa="tpldel" data-i="${i}">🗑️</button></div>`).join('')
@@ -2303,7 +2333,7 @@ function applyTemplate(i) {
     if (!replace && slotItems(out[di][k]).length) return;
     const it = slotItems(d[k]).filter(x => isNote(x) || ids.has(x)); if (it.length) out[di][k] = it;
   }));
-  MENU = out; closePModal(); renderMenu(); persistWeek(); toast('📑 Plantilla aplicada: ' + t.name);
+  pushUndo(WS, MENU, 'Plantilla'); MENU = out; closePModal(); renderMenu(); persistWeek(); toast('📑 Plantilla aplicada: ' + t.name);
 }
 $('mTpl').onclick = () => { drawTemplates(); };
 
@@ -2652,6 +2682,61 @@ $('quickSug').addEventListener('click', async e => {
   const r = e.target.closest('[data-restock]'); if (!r) return; const p = PANTRY.find(x => x.id === r.dataset.restock); if (!p) return;
   p.units = 1; try { await db.setUnits(p.id, 1); toast('＋1 ' + cap(p.name)); renderPantry(); renderQuickSug(); } catch (er) { toast('No se pudo reponer: ' + er.message); }
 });
+
+/* ---- Cambiar plato, fijar, deshacer y tres opciones ---- */
+let undoStack = []; const recCache = {};
+function pushUndo(ws, menu, label) { undoStack.push({ ws, menu: JSON.parse(JSON.stringify(menu)), label }); if (undoStack.length > 6) undoStack.shift(); updateUndo(); }
+function updateUndo() { const b = $('mUndo'); if (!b) return; const u = undoStack[undoStack.length - 1]; b.classList.toggle('hidden', !u); if (u) b.textContent = '↩️ Deshacer: ' + u.label; }
+async function undo() { const u = undoStack.pop(); if (!u) return; updateUndo(); try { await commitMenu(u.ws, normMenu(u.menu)); toast('↩️ Deshecho: ' + u.label); } catch (e) { toast('No se pudo deshacer: ' + e.message); } }
+async function recencyCached(ws) { const c = recCache[ws]; if (c && Date.now() - c.t < 60000) return c.r; const r = await recencyFor(ws); recCache[ws] = { r, t: Date.now() }; return r; }
+function toggleLock(day, meal, id) {
+  const d = MENU[day], key = meal + ':' + id, arr = d._lock || []; d._lock = arr.includes(key) ? arr.filter(x => x !== key) : [...arr, key]; if (!d._lock.length) delete d._lock;
+  renderMenu(); persistWeek(); toast((d._lock || []).includes(key) ? '🔒 Fijado: "Crear menú" y "Rehacer" no lo tocarán' : '🔓 Suelto');
+}
+async function swapItem(day, meal, idx) {
+  const arr = slotItems(MENU[day][meal]), id = arr[idx], cur = RECIPES.find(r => r.id === id); if (!cur) return;
+  let nid = null;
+  if (isSide(cur)) {
+    const used = new Set(MENU.flatMap(d => MEALS.flatMap(([k]) => slotItems(d[k])))), pool = RECIPES.filter(r => isSide(r) && r.id !== id && !used.has(r.id)); nid = pool.length ? pool[Math.floor(Math.random() * pool.length)].id : null;
+  } else {
+    const copy = JSON.parse(JSON.stringify(MENU)); copy[day][meal] = []; const locked = new Set();
+    copy.forEach((d, i) => MEALS.forEach(([k]) => { if (!(i === day && k === meal) && !slotItems(d[k]).length) locked.add(i + k); }));
+    autoFill(copy, { recency: await recencyCached(WS), ban: new Set([id]), locked, like: cur, month: parseYmd(WS).getMonth() }); nid = slotItems(copy[day][meal])[0] || null;
+  }
+  if (!nid) return toast('No encuentro otra opción para esa comida.');
+  pushUndo(WS, MENU, 'Cambiar plato'); slotSet(day, meal, idx, nid);
+  toast(`🔄 ${cur.name} → ${(RECIPES.find(r => r.id === nid) || {}).name}`);
+}
+function menuMetrics(menu, ws) {
+  const items = [], times = [], urgent = new Set();
+  menu.forEach(d => MEALS.forEach(([k]) => slotItems(d[k]).forEach(id => { if (isNote(id)) return; const r = RECIPES.find(x => x.id === id); if (!r) return; lines(r.ingredients).forEach(l => addIng(items, l, r.name)); const t = timeMins(r.time); if (t !== null) times.push(t); pantryInfo(r).urgent.forEach(u => urgent.add(u)); })));
+  const real = items.filter(i => !isBasic(i.key)), have = real.filter(i => PANTRY.some(p => Number(p.units ?? 1) > 0 && fuzzy(norm(p.name), i.key))), wc = weekCounts(menu);
+  return { toBuy: real.length - have.length, have: have.length, total: real.length, goals: [GOALS.filter(g => goalOk(g, wc.cats[g.key] || 0)).length, GOALS.length], avgTime: times.length ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : null, urgent: [...urgent] };
+}
+let varCtx = null;
+async function aiVariants() {
+  const btn = $('aiVar'), msg = $('aiMsg'); ai.text = $('aiText').value.trim(); btn.disabled = true; msg.className = 'notice'; msg.textContent = 'Preparando 3 menús…';
+  try {
+    const ws = ai.target === 'next' ? nextWs() : WS, list = [];
+    for (const [style, title] of [['balanced', '⚖️ Equilibrado'], ['pantry', '🏠 Aprovecha tu despensa'], ['min', '🛒 Compra mínima']]) {
+      const r = await generateMenu({ ws, text: ai.text, mode: ai.mode, side: ai.side, quick: ai.quick, pantry: ai.pantry, season: ai.season, style }); r.title = title; list.push(r);
+    }
+    $('aiModal').classList.remove('show'); varCtx = { ws, list }; drawVariants();
+  } catch (e) { btn.disabled = false; msg.className = 'notice err'; msg.textContent = 'No se pudieron preparar los menús: ' + e.message; }
+}
+function drawVariants() {
+  const { ws, list } = varCtx, nm = id => (RECIPES.find(r => r.id === id) || {}).name;
+  openP(`<div class="editbar"><div class="sheet-top"><h2>🔀 Elige un menú</h2><button class="btn secondary" data-pa="close">Cerrar</button></div><div class="notice">${esc(wkRange(ws))}. Los tres siguen lo que pediste; cambia en qué se fijan.</div></div>` +
+    list.map((v, i) => { const m = v.metrics, sample = [0, 2, 4].map(di => { const d = v.base[di] || {}, ids = slotItems(d.comida).concat(slotItems(d.cena)).filter(x => !isNote(x)); return ids.length ? `${DAYS[di].slice(0, 3).toLowerCase()}: ${nm(ids[0])}` : ''; }).filter(Boolean).join(' · ');
+      return `<div class="grow"><div class="grow1"><b style="flex:1;font-size:16px">${v.title}</b></div><div class="notice">🛒 Compras ${m.toBuy} productos${m.have ? ` (ya tienes ${m.have})` : ''}</div>
+        ${m.urgent.length ? `<div class="notice">⏰ Gasta: ${esc(m.urgent.slice(0, 4).join(', '))}</div>` : ''}${m.goals[1] ? `<div class="notice">🎯 Objetivos ${m.goals[0]}/${m.goals[1]}${m.avgTime !== null ? ` · ⏱️ ~${m.avgTime} min por plato` : ''}</div>` : ''}
+        ${v.seasonTxt ? `<div class="notice">🍂 ${esc(v.seasonTxt)}</div>` : ''}<div class="notice">${esc(sample)}</div><button class="btn" data-pa="varpick" data-i="${i}" style="width:100%;margin-top:6px">Elegir este</button></div>`; }).join(''));
+}
+async function pickVariant(i) {
+  const v = varCtx.list[i], ws = varCtx.ws; closePModal(); pushUndo(ws, v.before, 'Crear menú');
+  try { await commitMenu(ws, v.base); menuMsg(v.msg); showMenuSummary(v, ws); } catch (e) { toast('No se pudo aplicar: ' + e.message); }
+}
+$('mUndo').onclick = undo;
 
 /* ============ 5. ARRANQUE ============ */
 function onSession(session) {
