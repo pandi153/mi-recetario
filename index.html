@@ -226,6 +226,15 @@ textarea.big{width:100%;min-height:96px;padding:12px;border:1px solid #355570;bo
 .seas{font-size:11px;margin-left:4px;font-weight:700}.seas.out{color:#f0b24a}.seas.in{color:#8fdc6b}
 #bellBtn{position:relative}#bellBtn.alert{background:#5b2630;border-color:#9b4a57}
 .bellN{position:absolute;top:-5px;right:-5px;background:var(--danger);color:#fff;border-radius:99px;font-size:11px;font-weight:800;min-width:18px;padding:1px 5px;line-height:1.3}
+.day{background:#0b2238;border:1px solid #1e4466;color:var(--text)}
+.day.today{background:#12385f;border-color:#4aa3ff;box-shadow:0 0 0 2px rgba(74,163,255,.35)}
+.dayhead .dn{background:#17354f;color:#fff}.day.today .dn{background:#4aa3ff;color:#06182b}
+.dayhead b{color:#e8f1fb}.dayhead small{color:#8fb0cc}
+.srow{border-top:1px solid #1d3f5c}.slab{color:#9db7cf;font-weight:600}
+.mitem.note{background:#27425a;color:#d7e6f5}
+.madd{border:1px dashed #3d6385;background:rgba(255,255,255,.05);color:#9db7cf}
+.msw{background:#17354f;border-color:#2c5578;color:#fff}.msw.lk{background:#5a4a14;border-color:#c9a93f}
+.emo{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-top:10px}.emo button{border:0;background:var(--surface2);border-radius:8px;font-size:24px;padding:6px 0;cursor:pointer}
 </style>
 </head>
 <body>
@@ -358,7 +367,7 @@ const DEFAULT_CATS = [
 const MEALS = [['desayuno', 'Desayuno', '🥞'], ['almuerzo', 'Almuerzo', '🍎'], ['comida', 'Comida', '🍽️'], ['merienda', 'Merienda', '🥪'], ['cena', 'Cena', '🌙']];
 const DAYS = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO', 'DOMINGO'];
 const LOCK = MEALS.map(m => m[1]);
-const sortCats = list => [...LOCK.map(n => list.find(c => c.name === n)).filter(Boolean), ...list.filter(c => !LOCK.includes(c.name)).sort((a, b) => a.name.localeCompare(b.name, 'es'))];
+const sortCats = list => [...LOCK.map(n => list.find(c => c.name === n)).filter(Boolean), ...list.filter(c => !LOCK.includes(c.name)).sort((a, b) => cmpName(a, b))];
 const DEFAULT_GOALS = [
   { label: 'Vegetales', key: 'Verduras', target: 10, mode: 'min', icon: '🥦' }, { label: 'Fruta', key: 'Fruta', target: 7, mode: 'min', icon: '🍎' },
   { label: 'Legumbres', key: 'Legumbres', target: 2, mode: 'min', icon: '🫘' }, { label: 'Pescado', key: 'Pescado', target: 2, mode: 'min', icon: '🐟' },
@@ -439,7 +448,7 @@ const db = {
     if (error) throw error;
   },
   async extras() {
-    for (const cols of ['fixed,store_order,basics,templates', 'fixed,store_order,basics', 'fixed,store_order']) {
+    for (const cols of ['fixed,store_order,basics,templates,seasons', 'fixed,store_order,basics,templates', 'fixed,store_order,basics', 'fixed,store_order']) {
       const r = await sb.from('settings').select(cols).maybeSingle();
       if (!r.error) return r.data || {};
       if (cols === 'fixed,store_order') throw r.error;
@@ -561,8 +570,8 @@ const db = {
     add('Columna platos cocinados', !rid.error, rid.error ? 'Falta ejecutar el SQL de platos cocinados' : 'correcta');
     const mu = await sb.from('pantry').select('min_units', { head: true, count: 'exact' });
     add('Columna stock mínimo', !mu.error, mu.error ? 'Falta ejecutar el SQL de stock mínimo' : 'correcta');
-    const bs = await sb.from('settings').select('basics,templates', { head: true, count: 'exact' });
-    add('Columnas básicos y plantillas', !bs.error, bs.error ? 'Falta ejecutar el SQL de básicos y plantillas' : 'correctas');
+    const bs = await sb.from('settings').select('basics,templates,seasons', { head: true, count: 'exact' });
+    add('Columnas básicos, plantillas y temporada', !bs.error, bs.error ? 'Falta ejecutar el SQL de temporada' : 'correctas');
     const ex = await sb.from('settings').select('fixed,store_order', { head: true, count: 'exact' });
     add('Columnas comidas fijas y orden', !ex.error, ex.error ? 'Falta ejecutar el SQL de comidas fijas' : 'correctas');
     const pu = await sb.from('pantry').select('units', { head: true, count: 'exact' });
@@ -635,7 +644,7 @@ function renderRecipes() {
   const q = norm($('recipeSearch').value).split(/\s+/).filter(Boolean);
   const list = RECIPES.filter(r => (!favOnly || r.favorite) && (!quickOnly || (timeMins(r.time) !== null && timeMins(r.time) <= 30)) && (!seasonOnly || !seasonHits(r, new Date().getMonth()).out.length) &&
     q.every(w => norm([r.name, r.ingredients, (r.categories || []).join(' ')].join(' ')).includes(w)));
-  const byName = (a, b) => a.name.localeCompare(b.name, 'es');
+  const byName = (a, b) => cmpName(a, b);
   list.sort(sortMode === 'new' ? (a, b) => String(b.created_at).localeCompare(String(a.created_at))
     : sortMode === 'cooked' ? (a, b) => (COUNTS[b.id] || 0) - (COUNTS[a.id] || 0) || byName(a, b) : sortMode === 'rating' ? (a, b) => (b.rating || 0) - (a.rating || 0) || byName(a, b) : byName);
   $('favFilter').classList.toggle('on', favOnly); $('quickFilter').classList.toggle('on', quickOnly); $('seasonFilter').classList.toggle('on', seasonOnly);
@@ -672,6 +681,7 @@ function showRecipe(id) {
     <div class="notice">👥 ${esc(r.servings || '—')} raciones · ⏱️ ${esc(r.time || '—')}</div>
     <div class="notice">${esc((r.categories || []).map(catLabel).join(' · '))}</div>
     ${dishOf(r.id).length ? `<div class="notice">🍲 Tienes ${dishTag(r.id).replace(' · 🍲 ', '')}</div>` : ''}
+    ${seasonHits(r, new Date().getMonth()).out.length ? `<div class="notice">☀️ Fuera de temporada: ${esc(seasonHits(r, new Date().getMonth()).out.join(', '))}</div><button class="btn secondary" data-act="allyear" data-id="${r.id}" type="button" style="width:100%;margin-top:6px">✅ Esos ingredientes sí hay todo el año</button>` : ''}
     <div class="stars">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="${n <= (r.rating || 0) ? 'on' : ''}" data-qrate="${n}" data-id="${r.id}" aria-label="${n} estrellas">★</button>`).join('')}</div>
     <h3>Ingredientes</h3>${lines(r.ingredients).map(x => `<div class="ing">${esc(x)}</div>`).join('') || '<div class="notice">Sin ingredientes.</div>'}
     <h3>Preparación</h3>${r.steps ? `<div class="step">${esc(r.steps)}</div>` : '<div class="notice">Sin pasos.</div>'}${r.notes ? `<h3>Notas</h3><div class="step">${esc(r.notes)}</div>` : ''}
@@ -709,7 +719,7 @@ function editRecipe(id) {
   openModal(`<div class="editbar"><div class="sheet-top"><h2>${id ? 'Editar receta' : 'Nueva receta'}</h2>
       <div class="btns"><button class="btn secondary" data-act="close">Cancelar</button><button class="btn" id="btnSaveRecipe" data-act="save">Guardar</button></div></div>
       <div class="notice" id="recipeMsg"></div></div>
-    <div class="field"><label>Nombre</label><input id="fName" value="${esc(r.name)}"></div>
+    <div class="field"><label>Nombre</label><div class="noterow" style="margin:0"><button class="btn secondary" data-act="emoji" type="button" title="Poner un emoji al título" aria-label="Emoji">😀</button><input id="fName" value="${esc(r.name)}"></div></div>
     <div class="field"><label>Foto</label><div class="photo-prev" id="photoPrev"></div>
       <input id="fPhoto" type="file" accept="image/*">
       <button class="btn secondary" id="btnNoPhoto" type="button" style="margin-top:6px">Quitar foto</button>
@@ -811,7 +821,7 @@ $('recipeBody').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   ({ close: closeRecipeModal, save: saveRecipe, newcat: newCategory,
      edit: () => editRecipe(b.dataset.id), delete: () => deleteRecipe(b.dataset.id),
-     fav: () => toggleFav(b.dataset.id).then(() => showRecipe(b.dataset.id)), dup: () => dupRecipe(b.dataset.id), share: () => shareRecipe(b.dataset.id), cook: () => startCook(b.dataset.id), paste: openPaste, tocart: () => recipeToCart(b.dataset.id), suggest: () => autoTagDraft(), photosearch: openPhotoSearch, estimate: estimateDraft, tomenu: () => openAddToMenu(b.dataset.id), suging: proposeIngs })[b.dataset.act]();
+     fav: () => toggleFav(b.dataset.id).then(() => showRecipe(b.dataset.id)), dup: () => dupRecipe(b.dataset.id), share: () => shareRecipe(b.dataset.id), cook: () => startCook(b.dataset.id), paste: openPaste, tocart: () => recipeToCart(b.dataset.id), suggest: () => autoTagDraft(), photosearch: openPhotoSearch, estimate: estimateDraft, tomenu: () => openAddToMenu(b.dataset.id), suging: proposeIngs, allyear: () => allYear(b.dataset.id), emoji: openEmoji })[b.dataset.act]();
 });
 
 async function runDiagnosis() {
@@ -836,6 +846,8 @@ function renderOptions() {
       <button class="menuitem" data-act="optestimate"><span>✨</span><span>Estimar tiempo en recetas sin tiempo<small>Aproximado, según ingredientes y pasos</small></span></button>
       <button class="menuitem" data-act="optdupes"><span>👯</span><span>Buscar recetas duplicadas<small>Parejas que se parecen mucho</small></span></button>
       <button class="menuitem" data-act="opttag"><span>🪄</span><span>Etiquetar recetas sin categorías<small>Las deduzco del título y los ingredientes</small></span></button>
+      <button class="menuitem" data-act="optseasons"><span>🍂</span><span>Ingredientes de temporada<small>Añade o quita lo que es de cada estación</small></span></button>
+      <button class="menuitem" data-act="optemoji"><span>😀</span><span>Poner emoji a los títulos<small>Automático, según el nombre de la receta</small></span></button>
       <button class="menuitem" data-act="optbasics"><span>🚫</span><span>Ingredientes básicos<small>Agua, sal, aceite…: no se apuntan en compra ni despensa</small></span></button>
       <button class="menuitem" data-act="optcsv"><span>📥</span><span>Descargar recetas (CSV)<small>Copia de seguridad para abrir en Excel</small></span></button>
       <button class="menuitem" data-act="optimport"><span>📤</span><span>Importar recetas (CSV)<small>Añade las de un archivo descargado antes</small></span></button>
@@ -856,6 +868,7 @@ function renderOptions() {
   if (optView === 'fixed') return renderFixedView();
   if (optView === 'basics') return renderBasicsView();
   if (optView === 'dupes') return renderDupesView();
+  if (optView === 'seasons') return renderSeasonsView();
   const uses = n => RECIPES.filter(r => (r.categories || []).includes(n)).length;
   const form = key => `<div class="catrow"><input class="ico" id="cIcon" maxlength="4" value="${key === '__new' ? '🏷️' : esc(icon(key))}">
       <input id="cName" value="${key === '__new' ? '' : esc(key)}" placeholder="Nombre">
@@ -983,7 +996,10 @@ $('optBody').addEventListener('click', e => {
      catnew: () => { editingCat = '__new'; renderOptions(); }, catedit: () => { editingCat = n; renderOptions(); },
      catcancel: () => { editingCat = null; renderOptions(); },
      catsave: () => saveCat(n), catdel: () => delCat(n),
-     optfixed: () => { optView = 'fixed'; renderOptions(); }, optmenus: exportMenusCsv, optmenusimp: () => $('menusFile').click(), optbasics: () => { optView = 'basics'; renderOptions(); }, opttag: tagUntagged, optestimate: estimateMissing, optdupes: () => { optView = 'dupes'; renderOptions(); }, dupview: () => showRecipe(b.dataset.id),
+     optfixed: () => { optView = 'fixed'; renderOptions(); }, optmenus: exportMenusCsv, optmenusimp: () => $('menusFile').click(), optbasics: () => { optView = 'basics'; renderOptions(); }, opttag: tagUntagged, optestimate: estimateMissing, optdupes: () => { optView = 'dupes'; renderOptions(); }, optemoji: emojiAll,
+     optseasons: () => { optView = 'seasons'; renderOptions(); }, sntab: () => { snTab = b.dataset.k; renderOptions(); },
+     sndel: () => { const d = { ...seasonData() }; d[snTab] = (d[snTab] || []).filter((_, k) => k !== +b.dataset.i); saveSeasons(d); },
+     snadd: () => addSeason(snTab, $('snNew').value), snreset: () => saveSeasons(defaultSeasons()), dupview: () => showRecipe(b.dataset.id),
      bsadd: () => { const v = $('bsNew').value.trim().toLowerCase(); if (!v) return; if (BASICS.some(b => norm(b) === norm(v))) return optMsg('Ya está en la lista.'); saveBasics([...BASICS, v]); },
      bsdel: () => saveBasics(BASICS.filter((_, k) => k !== +b.dataset.i)), bsreset: () => saveBasics(['agua', 'sal', 'aceite']), optrestore: () => $('bkFile').click(), optinstall: installApp,
      fxmeal: () => { fxRead(); fx.meal = b.dataset.m; renderOptions(); }, fxday: () => { fxRead(); const d = +b.dataset.d; fx.days.has(d) ? fx.days.delete(d) : fx.days.add(d); renderOptions(); },
@@ -1062,7 +1078,7 @@ function openPicker(day, meal, idx) {
 function renderPickList() {
   const [, label, ic] = MEALS.find(m => m[0] === pick.meal), curs = new Set(slotItems(MENU[pick.day][pick.meal]));
   const q = norm($('pickSearch').value).split(/\s+/).filter(Boolean);
-  const all = RECIPES.filter(r => q.every(w => norm([r.name, r.ingredients, (r.categories || []).join(' ')].join(' ')).includes(w))).sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  const all = RECIPES.filter(r => q.every(w => norm([r.name, r.ingredients, (r.categories || []).join(' ')].join(' ')).includes(w))).sort((a, b) => cmpName(a, b));
   const match = all.filter(r => (r.categories || []).includes(label)), other = all.filter(r => !match.includes(r));
   const item = r => `<button class="pick${curs.has(r.id) ? ' sel' : ''}" data-id="${r.id}" type="button"><span class="pthumb">${r.image_url ? `<img src="${esc(r.image_url)}" alt="" loading="lazy">` : '🥘'}</span><span><b>${esc(r.name)}</b>${rateInline(r)}<small>${esc((r.categories || []).slice(0, 3).join(' · '))}${dishTag(r.id)}${seasonTag(r)}</small></span></button>`;
   $('pickList').innerHTML = (match.length ? `<h3>${ic} Recomendadas para ${esc(label)}</h3>${match.map(item).join('')}` : '') +
@@ -1181,7 +1197,7 @@ let lastFill = { urgent: [], cover: null, season: [] };
 const SEAS = { inv: 'naranja mandarina limon kiwi alcachofa coliflor col brocoli espinaca acelga puerro calabaza nabo remolacha cardo endibia escarola apio borraja pomelo manzana pera castana', pri: 'esparrago fresa guisante haba alcachofa espinaca lechuga rabano cereza nispero zanahoria puerro acelga albaricoque cebolleta brocoli ajo', ver: 'tomate pepino pimiento calabacin berenjena sandia melon melocoton nectarina albaricoque ciruela cereza higo judia maiz albahaca frambuesa lechuga', oto: 'calabaza seta castana granada caqui boniato membrillo uva higo col coliflor brocoli espinaca acelga puerro manzana pera mandarina naranja nuez cardo alcachofa lombarda' };
 const seasonOf = m => m === 11 || m <= 1 ? 'inv' : m <= 4 ? 'pri' : m <= 7 ? 'ver' : 'oto', stp = t => t.replace(/(es|s)$/, '');
 function seasonHits(r, month) {
-  const cur = new Set(SEAS[seasonOf(month)].split(' ').map(stp)), other = new Set(Object.keys(SEAS).filter(k => k !== seasonOf(month)).flatMap(k => SEAS[k].split(' ').map(stp)).filter(w => !cur.has(w))), inn = new Set(), out = new Set();
+  const { cur, other } = seasonSets(month), inn = new Set(), out = new Set();
   ingKeys(r).forEach(k => k.split(' ').forEach(t => { const x = stp(t); if (cur.has(x)) inn.add(x); else if (other.has(x)) out.add(x); }));
   return { inn: [...inn], out: [...out] };
 }
@@ -1459,7 +1475,7 @@ function renderShop() {
   $('shopGroup').textContent = shopGrouped ? '🗂️ Por secciones' : '📃 Lista simple';
   $('shopProg').innerHTML = total ? `<div class="notice">${done} de ${total} comprados</div><div class="progress"><i style="width:${Math.round(done / total * 100)}%"></i></div>` : '';
   if (!items.length) return ($('shopList').innerHTML = '<div class="empty">Todavía no hay nada.<br>Añade recetas al menú de esta semana y sus ingredientes aparecerán aquí solos.</div>');
-  const byName = (a, b) => a.name.localeCompare(b.name, 'es');
+  const byName = (a, b) => cmpName(a, b);
   const row = i => `<div class="sitem${i.done ? ' done' : ''}" data-key="${esc(i.key)}"><span class="box">${i.done ? '☑' : '☐'}</span><span><b>${esc(cap(i.name))}</b><small>${esc(i.src)}</small></span><span class="sqty">${esc(i.qty)}</span>${i.extra ? `<button class="btn secondary xdel" data-del="${esc(i.key)}" type="button" aria-label="Quitar">✕</button>` : '<span></span>'}</div>`;
   const todo = items.filter(i => !i.done && !i.home).sort(byName), dn = items.filter(i => i.done).sort(byName), inHome = items.filter(i => !i.done && i.home).sort(byName);
   let html = '';
@@ -1484,8 +1500,8 @@ async function shareShop() {
   const items = shopItems().filter(i => !i.done); if (!items.length) return shopMsg('No queda nada por comprar.');
   const mon = parseYmd(WS), fmt = d => d.toLocaleDateString('es', { day: 'numeric', month: 'short' });
   const line = i => `☐ ${cap(i.name)}${i.qty ? ' — ' + i.qty : ''}`; let t = `🛒 *Compra ${fmt(mon)} – ${fmt(addDays(mon, 6))}*`;
-  if (shopGrouped) shopOrder().forEach(gi => { const g = GROUPS[gi], li = items.filter(i => classify(i.name) === gi).sort((a, b) => a.name.localeCompare(b.name, 'es')); if (li.length) t += `\n\n*${g.icon} ${g.name}*\n` + li.map(line).join('\n'); });
-  else t += '\n\n' + items.sort((a, b) => a.name.localeCompare(b.name, 'es')).map(line).join('\n');
+  if (shopGrouped) shopOrder().forEach(gi => { const g = GROUPS[gi], li = items.filter(i => classify(i.name) === gi).sort((a, b) => cmpName(a, b)); if (li.length) t += `\n\n*${g.icon} ${g.name}*\n` + li.map(line).join('\n'); });
+  else t += '\n\n' + items.sort((a, b) => cmpName(a, b)).map(line).join('\n');
   try {
     if (navigator.share) await navigator.share({ title: 'Lista de la compra', text: t });
     else { await navigator.clipboard.writeText(t); shopMsg('Lista copiada. Pégala donde quieras.'); }
@@ -1524,7 +1540,7 @@ const NOT_BASE = /^(caldo|salsa|sopa|crema|zumo|aceite|vinagre|pure|polvo|pasta|
 const fuzzy = (a, b) => {
   if (same(a, b)) return true; const fa = a.split(' ')[0], fb = b.split(' ')[0];
   if (same(fa, fb) && (a === fa || b === fb)) return true;
-  const [sh, lo] = a.length <= b.length ? [a, b] : [b, a];
+  if (a.length > b.length) return false; const sh = a, lo = b;
   return sh.length >= 4 && !sh.includes(' ') && !NOT_BASE.test(lo) && lo.split(' ').some(w => same(w, sh));
 };
 const fdate = d => parseYmd(d).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -1548,14 +1564,14 @@ function renderPantry() {
   $('pantryAlert').innerHTML = bad || soon ? `<button class="alertbar" id="pantryWarn" type="button">⚠️ ${bad ? bad + (bad > 1 ? ' caducados' : ' caducado') : ''}${bad && soon ? ' · ' : ''}${soon ? soon + (soon > 1 ? ' caducan' : ' caduca') + ' en 3 días' : ''}</button>` : '';
   const q = norm($('pantrySearch').value).split(/\s+/).filter(Boolean);
   const list = PANTRY.filter(p => (pLoc === 'all' || pLocOf(p) === pLoc) && q.every(w => norm(p.name + ' ' + (p.quantity || '')).includes(w)));
-  const byName = (a, b) => a.name.localeCompare(b.name, 'es');
+  const byName = (a, b) => cmpName(a, b);
   list.sort(pSort === 'az' ? byName : pSort === 'new' ? (a, b) => String(b.entry_date || '').localeCompare(String(a.entry_date || '')) || byName(a, b)
     : (a, b) => (a.expiry_date ? 0 : 1) - (b.expiry_date ? 0 : 1) || String(a.expiry_date).localeCompare(String(b.expiry_date)) || byName(a, b));
   $('pantrySort').textContent = { exp: '⏰ Por caducidad', az: '↕️ A–Z', new: '🆕 Recientes' }[pSort];
   $('pantryCount').textContent = `${list.length} producto${list.length === 1 ? '' : 's'}`;
   $('pantryList').innerHTML = list.length ? list.map(p => { const e = expInfo(p), u = Number(p.units ?? 1); return `<div class="pcard${u <= 0 ? ' zero' : ''}" data-id="${p.id}"><span class="pico">${p.recipe_id ? '🍲' : locIcon(pLocOf(p))}</span>
     <span><b>${esc(p.name)}</b><small>${esc(p.quantity ? p.quantity + ' · ' : '')}${u <= 0 ? 'Agotado' : p.entry_date ? 'desde ' + esc(fdate(p.entry_date)) : ''}${minOf(p) !== null ? ' · mín. ' + fmtNum(minOf(p)) : ''}</small>${e ? `<em class="exp ${e.cls}">${esc(e.txt)}</em>` : ''}</span>
-    <span class="pctl"><button class="stp" data-adj="-1" type="button" aria-label="Restar una unidad">−</button><span class="units${minOf(p) !== null && u <= minOf(p) ? ' low' : ''}">${fmtNum(u)}</span><button class="stp" data-adj="1" type="button" aria-label="Sumar una unidad">＋</button></span></div>`; }).join('')
+    <span class="pctl"><button class="stp" data-adj="-1" type="button" aria-label="Restar una unidad">−</button><span class="units${minOf(p) !== null && u <= minOf(p) ? ' low' : ''}">${fmtUnits(u)}</span><button class="stp" data-adj="1" type="button" aria-label="Sumar una unidad">＋</button></span></div>`; }).join('')
     : `<div class="empty">${PANTRY.length ? 'No hay productos con esos filtros.' : 'No hay nada apuntado todavía.<br>Pulsa ＋ Añadir, o marca lo que compras en Compra y pásalo aquí con "Guardar comprados en casa".'}</div>`;
 }
 const openP = html => { $('pBody').innerHTML = html; $('pModal').classList.add('show'); };
@@ -1565,8 +1581,8 @@ function editPantry(id) {
   pEdit = { id: p.id || null, loc: pLocOf(p) };
   openP(`<div class="editbar"><div class="sheet-top"><h2>${id ? 'Editar' : 'Añadir a casa'}</h2><div class="btns"><button class="btn secondary" data-pa="close">Cancelar</button><button class="btn" id="btnPSave" data-pa="save">Guardar</button></div></div><div class="notice" id="pMsg"></div></div>
     <div class="field"><label>Qué es</label><input id="pName" value="${esc(p.name)}" placeholder="Ej.: Pollo, leche, arroz…"></div>
-    <div class="field"><label>Unidades en stock (las que resta el −1)</label><input id="pUnits" type="number" min="0" step="1" value="${esc(p.units ?? 1)}"></div>
-    <div class="field"><label>Avísame al bajar de (stock mínimo, opcional)</label><input id="pMin" type="number" min="0" step="1" value="${esc(p.min_units ?? '')}" placeholder="Ej.: 2"></div>
+    <div class="field"><label>Unidades en stock (las que resta el −1)</label><input id="pUnits" type="text" inputmode="decimal" value="${esc(fmtUnits(p.units ?? 1))}" placeholder="Ej.: 1, 1/2, 3/4, 1,5"></div>
+    <div class="field"><label>Avísame al bajar de (stock mínimo, opcional)</label><input id="pMin" type="text" inputmode="decimal" value="${esc(p.min_units === null || p.min_units === undefined ? '' : fmtUnits(p.min_units))}" placeholder="Ej.: 2"></div>
     <div class="field"><label>Formato (opcional)</label><input id="pQty" value="${esc(p.quantity)}" placeholder="Ej.: 500 g, 1 L, bandeja"></div>
     <div class="field"><label>Dónde está</label><div class="chips" id="pLocChips"></div></div>
     <div class="field"><label>Fecha de entrada</label><input id="pEntry" type="date" value="${esc(p.entry_date || '')}"></div>
@@ -1580,7 +1596,7 @@ async function savePantryItem() {
   if (!name) { msg.className = 'notice err'; return (msg.textContent = 'Escribe qué es.'); }
   btn.disabled = true; msg.className = 'notice'; msg.textContent = 'Guardando…';
   try {
-    await db.savePantry({ id: pEdit.id, name, quantity: $('pQty').value.trim(), units: Math.max(0, Number($('pUnits').value) || 0), min_units: $('pMin').value === '' ? null : Math.max(0, Number($('pMin').value) || 0), location: pEdit.loc, entry_date: $('pEntry').value, expiry_date: $('pExp').value });
+    await db.savePantry({ id: pEdit.id, name, quantity: $('pQty').value.trim(), units: Math.max(0, parseUnits($('pUnits').value) ?? 0), min_units: $('pMin').value.trim() === '' ? null : Math.max(0, parseUnits($('pMin').value) ?? 0), location: pEdit.loc, entry_date: $('pEntry').value, expiry_date: $('pExp').value });
     $('pModal').classList.remove('show'); await loadPantry();
   } catch (e) { btn.disabled = false; msg.className = 'notice err'; msg.textContent = 'No se pudo guardar: ' + e.message; }
 }
@@ -1609,12 +1625,13 @@ $('pantryAlert').onclick = e => { if (e.target.closest('#pantryWarn')) { pLoc = 
 $('pantryList').onclick = e => {
   const c = e.target.closest('.pcard'); if (!c) return;
   const a = e.target.closest('[data-adj]'); if (a) return adjUnits(c.dataset.id, +a.dataset.adj);
+  if (e.target.closest('.units')) return editUnits(c.dataset.id);
   editPantry(c.dataset.id);
 };
 async function adjUnits(id, delta) {
   const p = PANTRY.find(x => x.id === id); if (!p) return; const cur = Number(p.units ?? 1);
   if (delta < 0 && cur <= 0) return;
-  const nu = Math.max(0, cur + delta); p.units = nu; renderPantry();
+  const nu = Math.max(0, Math.round((cur + delta * (Number.isInteger(cur) ? 1 : 0.25)) * 100) / 100); p.units = nu; renderPantry();
   const u = document.querySelector(`.pcard[data-id="${id}"] .units`); if (u && delta < 0) u.classList.add('flash');
   try { await db.setUnits(id, nu); }
   catch (e) { p.units = cur; renderPantry(); return alert('No se pudo guardar el cambio: ' + e.message); }
@@ -1664,7 +1681,7 @@ function weekCounts(menu) {
   menu.forEach(d => MEALS.forEach(([k]) => {
     const its = slotItems(d[k]); if (its.length) slots++;
     its.forEach(id => {
-      if (isNote(id)) { notes++; return; }
+      if (isNote(id)) { const sr = sobrasRecipe(id); if (sr) { meals++; (sr.categories || []).forEach(c => cats[c] = (cats[c] || 0) + 1); } else notes++; return; }
       const r = rm.get(id); if (!r) return;
       meals++; ids.add(id); (r.categories || []).forEach(c => cats[c] = (cats[c] || 0) + 1);
     });
@@ -1727,7 +1744,7 @@ function renderStats() {
   const cnt = {}, last = {};
   Object.entries(ALLW).forEach(([ws, m]) => m.forEach(d => MEALS.forEach(([k]) => slotItems(d[k]).forEach(id => { if (isNote(id)) return; cnt[id] = (cnt[id] || 0) + 1; if (!last[id] || ws > last[id]) last[id] = ws; }))));
   const item = (r, sub) => `<button class="pick" data-id="${r.id}" type="button"><span class="pthumb">${r.image_url ? `<img src="${esc(r.image_url)}" alt="" loading="lazy">` : '🥘'}</span><span><b>${esc(r.name)}</b>${rateInline(r)}<small>${esc(sub)}</small></span></button>`;
-  const top = RECIPES.filter(r => cnt[r.id]).sort((a, b) => cnt[b.id] - cnt[a.id] || a.name.localeCompare(b.name, 'es')).slice(0, 5);
+  const top = RECIPES.filter(r => cnt[r.id]).sort((a, b) => cnt[b.id] - cnt[a.id] || cmpName(a, b)).slice(0, 5);
   const limit = ymd(addDays(new Date(), -56));
   const old = RECIPES.filter(r => !last[r.id] || last[r.id] < limit).sort((a, b) => (last[a.id] ? 1 : 0) - (last[b.id] ? 1 : 0) || (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0) || String(last[a.id]).localeCompare(String(last[b.id]))).slice(0, 6);
   h += '<div class="ssec">🏆 Tus más cocinadas</div>' + (top.length ? top.map(r => item(r, `${cnt[r.id]} vez${cnt[r.id] === 1 ? '' : 'es'} en el menú`)).join('') : '<div class="empty">Cuando planifiques semanas, aquí verás tus favoritas de verdad.</div>');
@@ -2056,7 +2073,7 @@ $('ticketFile').onchange = e => { const f = e.target.files[0]; e.target.value = 
 /* ---- Mejoras: comidas fijas, cocinado, modo cocina, pegar receta, restaurar, instalar, orden del súper ---- */
 async function loadExtras() {
   if (OFFLINE) return;
-  try { const x = await db.extras(); FIXED = Array.isArray(x.fixed) ? x.fixed : []; STORE_ORDER = Array.isArray(x.store_order) ? x.store_order : null; if (Array.isArray(x.basics)) BASICS = x.basics; if (Array.isArray(x.templates)) TEMPLATES = x.templates; } catch (e) {}
+  try { const x = await db.extras(); FIXED = Array.isArray(x.fixed) ? x.fixed : []; STORE_ORDER = Array.isArray(x.store_order) ? x.store_order : null; if (Array.isArray(x.basics)) BASICS = x.basics; if (Array.isArray(x.templates)) TEMPLATES = x.templates; if (x.seasons && typeof x.seasons === 'object') { SEASONS = { ...defaultSeasons(), ...x.seasons }; seasonCache = {}; seasonVer++; } } catch (e) {}
   renderShop();
 }
 function applyFixed(menu) {
@@ -2082,7 +2099,7 @@ function renderFixedView() {
     <h3>Nueva comida fija</h3>
     <div class="chips">${MEALS.map(([k, l, ic]) => chip(fx.meal === k, 'fxmeal', ic + ' ' + l, `data-m="${k}"`)).join('')}</div>
     <div class="chips" style="margin-top:8px">${DL.map((l, i) => chip(fx.days.has(i), 'fxday', l, `data-d="${i}"`)).join('')}${chip(fx.days.size === 7, 'fxall', 'Todos')}</div>
-    <select class="sel" id="fxItem"><option value="">📝 Nota de texto (escríbela abajo)</option>${RECIPES.slice().sort((a, b) => a.name.localeCompare(b.name, 'es')).map(r => `<option value="${r.id}"${fx.item === r.id ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}</select>
+    <select class="sel" id="fxItem"><option value="">📝 Nota de texto (escríbela abajo)</option>${RECIPES.slice().sort((a, b) => cmpName(a, b)).map(r => `<option value="${r.id}"${fx.item === r.id ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}</select>
     <input id="fxNote" maxlength="60" placeholder="Nota (ej.: Comer fuera)" value="${esc(fx.note)}">
     <button class="btn" data-act="fxadd" style="width:100%;margin-top:8px">＋ Añadir regla</button>`;
 }
@@ -2259,6 +2276,7 @@ $('txtBody').addEventListener('click', async e => {
   const b = e.target.closest('[data-tx]'); if (!b) return; const a = b.dataset.tx, msg = $('txMsg');
   if (a === 'close') return $('txtModal').classList.remove('show');
   if (a === 'psearch') return phSearch(); if (a === 'ppick') return phPick(+b.dataset.i);
+  if (a === 'emo') return setEmoji(b.dataset.e); if (a === 'emosug') { const em = emojiFor($('fName').value); return em ? setEmoji(em) : toast('No sé qué emoji ponerle: elige uno de la lista.'); } if (a === 'emoclear') return setEmoji('');
   if (a === 'pgoogle') { window.open('https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(($('phQ').value || '') + ' receta'), '_blank', 'noopener'); return; }
   if (a === 'photo') return $('recipeImg').click();
   if (a === 'clip') { try { $('txText').value = await navigator.clipboard.readText(); } catch (er) { msg.className = 'notice err'; msg.textContent = 'No he podido leer el portapapeles. Pega el texto a mano en el cuadro.'; } return; }
@@ -2330,7 +2348,7 @@ function refreshLive(table) {
 async function liveSettings() {
   try {
     const [sh, ex, g, c] = await Promise.all([db.shop(), db.extras(), db.goals(), db.categories()]);
-    SHOP = sh; overlayPending(); if (Array.isArray(ex.fixed)) FIXED = ex.fixed; if (Array.isArray(ex.store_order)) STORE_ORDER = ex.store_order; if (Array.isArray(ex.basics)) BASICS = ex.basics; if (Array.isArray(ex.templates)) TEMPLATES = ex.templates; if (g) GOALS = g; CATS = c;
+    SHOP = sh; overlayPending(); if (Array.isArray(ex.fixed)) FIXED = ex.fixed; if (Array.isArray(ex.store_order)) STORE_ORDER = ex.store_order; if (Array.isArray(ex.basics)) BASICS = ex.basics; if (Array.isArray(ex.templates)) TEMPLATES = ex.templates; if (ex.seasons && typeof ex.seasons === 'object') { SEASONS = { ...defaultSeasons(), ...ex.seasons }; seasonCache = {}; seasonVer++; } if (g) GOALS = g; CATS = c;
   } catch (e) { return; }
   renderShop(); renderStats(); renderRecipes();
 }
@@ -2780,7 +2798,7 @@ let tupCtx = null;
 function drawTupper(id, then, manual) {
   const r = id ? RECIPES.find(x => x.id === id) : null; tupCtx = { id, then, loc: 'congelador', manual: !!manual };
   openP(`<div class="editbar"><div class="sheet-top"><h2>🍲 ${manual ? 'Plato cocinado' : 'Raciones que sobran'}</h2><div class="btns"><button class="btn secondary" data-pa="tupskip">${manual ? 'Cancelar' : 'No sobra'}</button><button class="btn" data-pa="tupsave">Guardar</button></div></div><div class="notice" id="pMsg">${manual ? 'Apunta un plato que ya tienes hecho (tupper, congelado…).' : 'Guárdalas en la despensa para saber que las tienes.'}</div></div>` +
-    (manual ? `<div class="field"><label>Receta</label><select class="sel" id="tpRec"><option value="">— Otro plato (escribe el nombre) —</option>${RECIPES.slice().sort((a, b) => a.name.localeCompare(b.name, 'es')).map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select><input id="tpName" placeholder="Nombre del plato (si no es una receta)" style="margin-top:6px"></div>` : `<div class="notice" style="margin:8px 0"><b>${esc(r ? r.name : '')}</b></div>`) +
+    (manual ? `<div class="field"><label>Receta</label><select class="sel" id="tpRec"><option value="">— Otro plato (escribe el nombre) —</option>${RECIPES.slice().sort((a, b) => cmpName(a, b)).map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select><input id="tpName" placeholder="Nombre del plato (si no es una receta)" style="margin-top:6px"></div>` : `<div class="notice" style="margin:8px 0"><b>${esc(r ? r.name : '')}</b></div>`) +
     `<div class="field"><label>Raciones</label><input id="tpN" type="number" min="1" step="1" value="${r ? (+r.servings || 2) : 2}"></div><div class="field"><label>Dónde las guardas</label><div class="chips" id="tpLoc"></div><div class="notice" id="tpExp"></div></div>`);
   drawTupLoc();
 }
@@ -2913,6 +2931,78 @@ function applyProp(v) {
   ta.value = ta.value.replace(/\s+$/, '') + (ta.value.trim() ? '\n' : '') + add.join('\n');
   if (v === 'all') { ingProp = []; $('ingProp').innerHTML = ''; } else { ingProp[+v] = null; $('ingProp').querySelectorAll('[data-prop="' + v + '"]').forEach(b => b.remove()); ingProp = ingProp.map(x => x); }
   updateIngSug();
+}
+
+/* ---- Unidades con fracciones, temporada editable, emoji, sobras ---- */
+const FRAC = { 0.25: '¼', 0.5: '½', 0.75: '¾' };
+function fmtUnits(n) {
+  n = Number(n); if (!isFinite(n)) return '0'; const w = Math.floor(n + 1e-9), f = Math.round((n - w) * 100) / 100;
+  if (FRAC[f] !== undefined) return w ? `${w}${FRAC[f]}` : FRAC[f]; if (f === 0 || f === 1) return String(Math.round(n)); return fmtNum(n);
+}
+function parseUnits(t) {
+  t = String(t ?? '').trim().replace(',', '.').replace(/(\d)\s*½/, '$1 1/2').replace(/(\d)\s*¼/, '$1 1/4').replace(/(\d)\s*¾/, '$1 3/4').replace('½', '1/2').replace('¼', '1/4').replace('¾', '3/4'); if (!t) return null;
+  const m = t.match(/^(\d+(?:\.\d+)?)?\s*(?:(\d+)\/(\d+))?$/); if (!m || (m[1] === undefined && m[2] === undefined)) { const v = parseFloat(t); return isNaN(v) ? null : v; }
+  let v = 0; if (m[1] !== undefined) v += parseFloat(m[1]); if (m[2] !== undefined) v += (+m[2]) / (+m[3] || 1); return v;
+}
+async function editUnits(id) {
+  const p = PANTRY.find(x => x.id === id); if (!p) return; const cur = Number(p.units ?? 1);
+  const t = prompt('¿Cuántas unidades quedan?\nPuedes poner 1/4, 1/2, 3/4, 1,5…', fmtUnits(cur)); if (t === null) return;
+  const v = parseUnits(t); if (v === null || v < 0) return toast('No entiendo esa cantidad.');
+  p.units = Math.round(v * 100) / 100; renderPantry();
+  try { await db.setUnits(id, p.units); } catch (e) { p.units = cur; renderPantry(); return toast('No se pudo guardar: ' + e.message); }
+  if (p.units < cur) await restockAfter([p]);
+}
+const sobrasRecipe = id => { const m = String(id).match(/^~sobras de (.+)$/i); if (!m) return null; const k = norm(plainName(m[1])); return RECIPES.find(r => norm(plainName(r.name)) === k) || null; };
+
+let SEASONS = null, seasonVer = 0, seasonCache = {}, snTab = 'ver';
+const defaultSeasons = () => ({ pri: SEAS.pri.split(' ').filter(w => w !== 'ajo'), ver: SEAS.ver.split(' '), oto: SEAS.oto.split(' '), inv: SEAS.inv.split(' '), all: ['ajo', 'cebolla', 'patata', 'zanahoria', 'limon', 'aceituna', 'oliva', 'champinon', 'aguacate', 'platano'] });
+const seasonData = () => SEASONS || (SEASONS = defaultSeasons());
+function seasonSets(month) {
+  const key = seasonOf(month) + seasonVer; if (seasonCache[key]) return seasonCache[key];
+  const d = seasonData(), all = new Set((d.all || []).map(stp)), cur = new Set((d[seasonOf(month)] || []).map(stp).filter(w => !all.has(w)));
+  const other = new Set(['pri', 'ver', 'oto', 'inv'].filter(k => k !== seasonOf(month)).flatMap(k => (d[k] || []).map(stp)).filter(w => !cur.has(w) && !all.has(w)));
+  return (seasonCache[key] = { cur, other });
+}
+const SNAMES = { pri: '🌱 Primavera', ver: '☀️ Verano', oto: '🍂 Otoño', inv: '❄️ Invierno', all: '♾️ Todo el año' };
+function renderSeasonsView() {
+  const list = seasonData()[snTab] || [];
+  $('optBody').innerHTML = `<div class="sheet-top"><h2>🍂 Temporada</h2><button class="btn secondary" data-act="optback">Atrás</button></div>
+    <div class="notice" id="optMsg">Lo que pongas en una estación cuenta como "de temporada" en ella y "fuera de temporada" en las otras. "Todo el año" no cuenta para nada (aceitunas, ajo, limón…).</div>
+    <div class="chips" style="margin:10px 0">${Object.entries(SNAMES).map(([k, l]) => `<button type="button" class="chip${snTab === k ? ' on' : ''}" data-act="sntab" data-k="${k}">${l}</button>`).join('')}</div>
+    <div class="chips" style="margin:10px 0">${list.length ? list.map((w, i) => `<button type="button" class="chip" data-act="sndel" data-i="${i}">${esc(cap(w))} ✕</button>`).join('') : '<span class="notice">Vacío</span>'}</div>
+    <div class="noterow"><input id="snNew" maxlength="30" placeholder="Añadir ingrediente (ej.: sandía)"><button class="btn" data-act="snadd" type="button">＋</button></div>
+    <button class="btn secondary" data-act="snreset" type="button" style="width:100%;margin-top:10px">Restaurar valores por defecto</button>`;
+}
+async function saveSeasons(d) { try { await db.saveExtras({ seasons: d }); SEASONS = d; seasonCache = {}; seasonVer++; renderOptions(); renderRecipes(); renderMenu(); } catch (e) { optMsg('No se pudo guardar: ' + e.message + ' (¿has ejecutado el SQL de temporada?)'); } }
+function addSeason(tab, word) {
+  const w = norm(word).trim(); if (!w) return; const d = { ...seasonData() };
+  d[tab] = [...new Set([...(d[tab] || []), w])];
+  if (tab === 'all') ['pri', 'ver', 'oto', 'inv'].forEach(k => { d[k] = (d[k] || []).filter(x => stp(x) !== stp(w)); }); else d.all = (d.all || []).filter(x => stp(x) !== stp(w));
+  saveSeasons(d);
+}
+async function allYear(id) {
+  const r = RECIPES.find(x => x.id === id); if (!r) return; const words = seasonHits(r, new Date().getMonth()).out, d = { ...seasonData() };
+  d.all = [...new Set([...(d.all || []), ...words])]; ['pri', 'ver', 'oto', 'inv'].forEach(k => { d[k] = (d[k] || []).filter(x => !words.includes(stp(x))); });
+  try { await db.saveExtras({ seasons: d }); SEASONS = d; seasonCache = {}; seasonVer++; toast('✅ Apuntado como "todo el año": ' + words.join(', ')); showRecipe(id); renderRecipes(); } catch (e) { toast('No se pudo guardar: ' + e.message + ' (¿has ejecutado el SQL de temporada?)'); }
+}
+
+const plainName = n => String(n || '').replace(/^[^\p{L}\p{N}]+/u, '');
+const cmpName = (a, b) => plainName(a.name).localeCompare(plainName(b.name), 'es');
+const EMO_RULES = [[/lentej|garbanz|alubia|fabada|potaje/, '🫘'], [/paella|arroz/, '🥘'], [/sushi/, '🍣'], [/pizza/, '🍕'], [/hamburguesa/, '🍔'], [/taco|burrito|fajita/, '🌮'], [/pasta|macarron|espagueti|lasana|canelon|tallarin|ravioli/, '🍝'], [/ensalada/, '🥗'], [/sopa|crema|gazpacho|salmorejo|caldo|pure/, '🥣'], [/tortilla|huevo|revuelto/, '🍳'], [/pollo|pavo|pechuga/, '🍗'], [/ternera|cerdo|cordero|carne|entrecot|solomillo|lomo|costilla|chuleta|albondiga/, '🥩'], [/salmon|atun|merluza|bacalao|dorada|lubina|pescado|rape|sardina|caballa|trucha/, '🐟'], [/gamba|langostino|marisco|mejillon/, '🦐'], [/calamar|pulpo|sepia/, '🦑'], [/tarta|bizcocho|pastel|brownie|magdalena|cheesecake/, '🍰'], [/helado/, '🍦'], [/flan|natillas|pudin|mousse/, '🍮'], [/tostada|pan\b|bocadillo|sandwich|bocata/, '🥪'], [/avena|porridge|cereal|granola/, '🥣'], [/tortita|pancake/, '🥞'], [/croqueta|empanad/, '🥟'], [/patata/, '🥔'], [/verdura|brocoli|coliflor|espinaca|calabacin|berenjena/, '🥦'], [/champi|seta|hongo/, '🍄'], [/fruta|macedonia|manzana|fresa/, '🍓'], [/queso/, '🧀'], [/guiso|estofad|cocido|cuchara/, '🍲'], [/yogur|batido|smoothie/, '🥛'], [/aguacate|guacamole/, '🥑'], [/tomate/, '🍅'], [/aceituna|oliva/, '🫒']];
+const emojiFor = name => { const n = norm(plainName(name)); const r = EMO_RULES.find(([re]) => re.test(n)); return r ? r[1] : ''; };
+const EMOJIS = ['🍲', '🥘', '🍝', '🍕', '🍔', '🌮', '🌯', '🥗', '🍛', '🍜', '🍚', '🍣', '🍤', '🥟', '🍗', '🍖', '🥩', '🥓', '🐟', '🦐', '🦑', '🥚', '🍳', '🥞', '🧇', '🍞', '🥐', '🥖', '🧀', '🥔', '🍟', '🥕', '🌽', '🥦', '🍅', '🍆', '🥑', '🥒', '🌶️', '🧄', '🧅', '🍄', '🫘', '🥜', '🫒', '🍎', '🍌', '🍊', '🍓', '🍇', '🍉', '🍑', '🥭', '🍍', '🍒', '🥝', '🍋', '🥧', '🍰', '🧁', '🍮', '🍪', '🍫', '🍩', '🍦', '🥛', '🥣', '🥙', '🥪', '🌭', '🥫', '🫕', '🍢', '🍿', '☕'];
+function openEmoji() {
+  $('txtBody').innerHTML = `<div class="editbar"><div class="sheet-top"><h2>😀 Emoji del título</h2><button class="btn secondary" data-tx="close">Cerrar</button></div></div>
+    <div class="row" style="margin-top:10px"><button class="btn" data-tx="emosug" type="button">🪄 Sugerir según el título</button><button class="btn secondary" data-tx="emoclear" type="button">Quitar emoji</button></div>
+    <div class="emo">${EMOJIS.map(e => `<button type="button" data-tx="emo" data-e="${e}">${e}</button>`).join('')}</div>`;
+  $('txtModal').classList.add('show');
+}
+function setEmoji(e) { const el = $('fName'); el.value = (e ? e + ' ' : '') + plainName(el.value).trim(); $('txtModal').classList.remove('show'); }
+async function emojiAll() {
+  const todo = RECIPES.filter(r => !/^\p{Extended_Pictographic}/u.test(r.name)).map(r => ({ r, e: emojiFor(r.name) })).filter(x => x.e);
+  if (!todo.length) return optMsg('No hay recetas sin emoji que pueda etiquetar.', true);
+  if (!confirm(`Voy a poner un emoji al título de ${todo.length} receta${todo.length === 1 ? '' : 's'}, por ejemplo «${todo[0].e} ${todo[0].r.name}».\n\n¿Continuar?`)) return;
+  try { for (const x of todo) await db.updateRecipe(x.r.id, { name: x.e + ' ' + x.r.name }); await loadRecipes(); optMsg(`Emoji añadido a ${todo.length} recetas.`, true); } catch (e) { optMsg('No se pudo guardar: ' + e.message); }
 }
 
 /* ============ 5. ARRANQUE ============ */
