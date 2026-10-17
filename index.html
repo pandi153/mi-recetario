@@ -505,7 +505,7 @@ const db = {
   },
   async addPantry(rows) {
     let { data, error } = await sb.from('pantry').insert(rows).select();
-    if (error && /zone/i.test(error.message || '')) ({ data, error } = await sb.from('pantry').insert(rows.map(({ zone, ...x }) => x)).select());
+    if (error && /zone|opened/i.test(error.message || '')) ({ data, error } = await sb.from('pantry').insert(rows.map(({ zone, opened, ...x }) => x)).select());
     if (error) throw error;
     return data || [];
   },
@@ -1053,17 +1053,17 @@ function renderMenu() {
   $('dayPills').innerHTML = MENU.map((d, i) => `<button class="pill${i === today ? ' today' : ''}${MEALS.some(([k]) => slotItems(d[k]).length) ? ' has' : ''}" data-pill="${i}" type="button">${L[i]}<b>${addDays(mon, i).getDate()}</b></button>`).join('');
   $('menuDays').innerHTML = MENU.map((day, i) => {
     const filled = MEALS.filter(([k]) => slotItems(day[k]).length).length;
-    return `<div class="day${i === today ? ' today' : ''}" id="day-${i}"><div class="dayhead"><span class="dn">${addDays(mon, i).getDate()}</span><b>${DAYS[i]}</b>${i === today ? '<em>Hoy</em>' : ''}<small>${filled}/5</small></div>` +
+    return `<div class="day${i === today ? ' today' : ''}" id="day-${i}"><div class="dayhead"><span class="dn">${addDays(mon, i).getDate()}</span><b>${DAYS[i]}</b>${i === today ? '<em>Hoy</em>' : ''}${missDayBadge(i, today)}<small>${filled}/5</small></div>` +
       MEALS.map(([k, label, ic]) => {
         const its = slotItems(day[k]);
         const rows = its.map((id, j) => { const note = isNote(id), r = !note && RECIPES.find(x => x.id === id);
           const ug = !note && r && !(day._done || []).includes(k + ':' + id) && !(day._tup || []).includes(k + ':' + id) ? pantryInfo(r).urgent : [];
-          const lk = (day._lock || []).includes(k + ':' + id), bd = ((day._x2 || []).includes(k + ':' + id) ? ' <span class="bd">×2</span>' : '') + ((day._tup || []).includes(k + ':' + id) ? ' <span class="bd">🍲 ración</span>' : '') + (ug.length ? ' <span class="bd" title="Gasta lo que caduca pronto">⚠️ gasta ' + esc(ug[0]) + '</span>' : '') + stockBadge(r, day, k, id);
+          const lk = (day._lock || []).includes(k + ':' + id), bd = ((day._x2 || []).includes(k + ':' + id) ? ' <span class="bd">×2</span>' : '') + ((day._tup || []).includes(k + ':' + id) ? ' <span class="bd">🍲 ración</span>' : '') + advBadge(ug, i, k, j, mon, today) + stockBadge(r, day, k, id);
           return `<div class="mrow"><button class="mitem${note ? ' note' : ''}${(day._done || []).includes(k + ':' + id) ? ' done' : ''}" data-day="${i}" data-meal="${k}" data-idx="${j}" type="button">${note ? '📝 ' + esc(id.slice(1)) : r ? esc(r.name) + bd : 'Receta eliminada'}</button>${!note && r ? (lk ? `<button class="msw lk" data-lock="1" data-day="${i}" data-meal="${k}" data-idx="${j}" type="button" title="Fijado: toca para soltar">🔒</button>` : '') : ''}</div>`; }).join('');
         return `<div class="srow m-${k}${its.length ? ' has' : ''}"><div class="slab">${ic} ${label}</div><div class="sitems">${rows}<button class="madd" data-day="${i}" data-meal="${k}" data-idx="-1" type="button" aria-label="Añadir">${its.length ? '＋' : '＋ Añadir'}</button></div></div>`;
       }).join('') + '</div>';
   }).join('');
-  renderShop(); renderStats(); renderToday(); renderSunday(); renderCooked();
+  renderShop(); renderStats(); renderToday(); renderSunday(); renderCooked(); renderMissBar();
 }
 async function persistWeek() {
   const ws = WS, m = JSON.parse(JSON.stringify(MENU));
@@ -1243,7 +1243,7 @@ function autoFill(menu, o = {}) {
   const weight = (r, i, k, cnt) => {
     let w = 1 + (r.favorite ? 0.6 : 0) + (r.rating >= 4 ? 0.6 : 0) - (r.rating && r.rating <= 2 ? 0.7 : 0);
     for (const g of GOALS) { if (!catsOf(r).includes(g.key)) continue; const c = cnt[g.key] || 0; if (g.mode === 'min' && c < g.target) w += 2.5; if (g.mode === 'max' && c >= g.target) return 0; }
-    const f = info.get(r.id), pw = o.style === 'pantry' ? 2 : 1; if (f) { w += pw * (3 * f.cov + Math.min(4, f.urgent.length * 2) + Math.min(1.5, f.frozen * 0.5)); }
+    const f = info.get(r.id), pw = o.style === 'pantry' ? 2 : o.style === 'waste' ? 1.5 : 1, uw = o.style === 'waste' ? 3 : 1; if (f) { w += pw * (3 * f.cov + Math.min(4 * uw, f.urgent.length * 2 * uw) + Math.min(1.5, f.frozen * 0.5)); }
     const ov = ingKeys(r).filter(x => usedKeys.has(x)).length; w += (o.style === 'min' ? 2.6 : 0.3) * Math.min(4, ov) * 0.6;
     if (o.season !== false) { const sh = seasonHits(r, mon); w += Math.max(-2, Math.min(3, sh.inn.length - 0.7 * sh.out.length)) * 0.5; if (sh.out.length) w *= 0.1; }
     if (o.like) { const lc = catsOf(o.like); if (catsOf(r).some(c => lc.includes(c) && !MEALS.some(m => m[1] === c))) w *= 1.6; }
@@ -1339,7 +1339,7 @@ function drawAI() {
     <div class="field"><label>Si ya hay recetas puestas</label><div class="chips">${chip(ai.mode === 'fill', 'm-fill', 'Solo rellenar huecos')}${chip(ai.mode === 'all', 'm-all', 'Rehacer toda la semana')}</div></div>
     <div class="field"><label>Extras</label><div class="chips">${chip(ai.side, 'side', '🥗 Añadir guarnición en comida y cena')}${chip(ai.quick, 'quick', '⚡ Platos rápidos entre semana (≤ 30 min)')}${chip(ai.pantry, 'pantry', '🏠 Usar lo que hay en casa')}${chip(ai.season, 'season', '🍂 De temporada')}</div></div>
     <button class="btn" id="aiGo" data-ai="go" type="button" style="width:100%">✨ Crear menú</button>
-    <button class="btn secondary" id="aiVar" data-ai="var" type="button" style="width:100%;margin-top:8px">🔀 Ver 3 opciones para elegir</button>`;
+    <button class="btn secondary" id="aiVar" data-ai="var" type="button" style="width:100%;margin-top:8px">🔀 Ver 4 opciones para elegir</button>`;
 }
 async function aiGo() {
   const btn = $('aiGo'), msg = $('aiMsg'); ai.text = $('aiText').value.trim(); btn.disabled = true; msg.className = 'notice'; msg.textContent = 'Preparando tu menú…';
@@ -1495,13 +1495,13 @@ function haveCover(p, u) {
 function shopItems(menu, ws) {
   const w = shopWeek(ws), ck = new Set(w.c), nb = new Set(w.n);
   const items = buildShopList(menu).map(it => {
-    let home = PANTRY.find(p => !p.recipe_id && fuzzy(norm(p.name), it.key) && Number(p.units ?? 1) > 0), qty = fmtQty(it.u), src = [...it.recipes].join(' · ');
+    let home = homeFor(it.key), qty = fmtQty(it.u), src = [...it.recipes].join(' · ');
     if (home && nb.has(it.key)) { home = undefined; src += ' · comprar igualmente'; }
     else if (home) { const c = haveCover(home, it.u); if (c && !c.ok) { qty = fmtQty({ [c.k]: c.miss }); src = 'Tienes ' + fmtQty({ [c.k]: c.have }) + ', faltan · ' + src; home = undefined; } }
-    return { key: it.key, name: it.name, qty, src, done: ck.has(it.key), extra: false,
+    return { key: it.key, name: brandName(it.name), raw: it.name, qty, src, done: ck.has(it.key), extra: false,
       units: (() => { const ks = Object.keys(it.u); return ks.length === 1 && ks[0] === '' ? Math.max(1, Math.round(it.u[''])) : 1; })(), home };
   });
-  w.x.forEach(x => items.push({ key: 'x:' + x.i, name: x.t, qty: x.q ? '× ' + fmtUnits(x.q) : '', q: x.q, s: x.s, src: x.r ? 'Compra recurrente 🔁' : 'Añadido por mí', done: !!x.d, extra: true }));
+  w.x.forEach(x => items.push({ key: 'x:' + x.i, name: brandName(x.t), qty: x.q ? '× ' + fmtUnits(x.q) : '', q: x.q, s: x.s, src: x.r ? 'Compra recurrente 🔁' : 'Añadido por mí', done: !!x.d, extra: true }));
   return items;
 }
 function renderShop() {
@@ -1554,13 +1554,13 @@ const HOME_LOC = ['frigorifico', 'frigorifico', 'frigorifico', 'despensa', 'desp
 async function stockBought() {
   const w = shopWeek(), all = shopItems(), today = ymd(new Date());
   const rowFor = (name, qty, units) => { const c = catFor(name), loc = c.loc || HOME_LOC[classify(name)]; return { name: cap(name), quantity: c.qty || qty, units, location: loc, zone: (ZONES[loc] || []).includes(c.zone) ? c.zone : null, min_units: c.min ? parseUnits(c.min) : null, entry_date: today, expiry_date: autoExp(name, loc) || null }; };
-  const news = all.filter(i => i.done && !i.extra && !PANTRY.some(p => !p.recipe_id && fuzzy(norm(p.name), i.key))).map(i => rowFor(i.name, i.units > 1 && /^\d+([.,]\d+)?$/.test(i.qty) ? '' : i.qty, i.units));
+  const news = all.filter(i => i.done && !i.extra && !PANTRY.some(p => !p.recipe_id && fuzzy(norm(p.name), i.key))).map(i => rowFor(i.raw || i.name, i.units > 1 && /^\d+([.,]\d+)?$/.test(i.qty) ? '' : i.qty, i.units));
   const ext = all.filter(i => i.done && i.extra && !i.s); let bumped = 0;
   try {
     for (const i of ext) {
-      const x = w.x.find(v => 'x:' + v.i === i.key); if (!x) continue; const q = Number(x.q) || 1, ps = PANTRY.find(p => !p.recipe_id && (norm(p.name) === norm(i.name) || fuzzy(norm(p.name), norm(i.name))));
+      const x = w.x.find(v => 'x:' + v.i === i.key); if (!x) continue; const q = Number(x.q) || 1, ps = PANTRY.find(p => !p.recipe_id && (norm(p.name) === norm(x.t) || fuzzy(norm(p.name), norm(x.t))));
       if (ps) { ps.units = Math.round((Number(ps.units ?? 1) + q) * 100) / 100; await db.setUnits(ps.id, ps.units); x.s = true; bumped++; }
-      else if (catFor(i.name).loc) { news.push(rowFor(i.name, '', q)); x.s = true; }
+      else if (catFor(x.t).loc) { news.push(rowFor(x.t, '', q)); x.s = true; }
     }
     if (!news.length && !bumped) return shopMsg('No hay comprados nuevos que guardar (o ya están en casa).');
     if (news.length) await db.addPantry(news);
@@ -1617,8 +1617,9 @@ function renderPantry() {
     : (a, b) => (a.expiry_date ? 0 : 1) - (b.expiry_date ? 0 : 1) || String(a.expiry_date).localeCompare(String(b.expiry_date)) || byName(a, b));
   $('pantrySort').textContent = { exp: '⏰ Por caducidad', az: '↕️ A–Z', new: '🆕 Recientes' }[pSort];
   $('pantryCount').textContent = `${list.length} producto${list.length === 1 ? '' : 's'}${list.some(isAutoExp) ? ' · ≈ = fecha estimada' : ''}`;
+  const lotInfo = lotMap();
   $('pantryList').innerHTML = list.length ? list.map(p => { const e = expInfo(p), u = Number(p.units ?? 1); return `<div class="pcard${u <= 0 ? ' zero' : ''}" data-id="${p.id}"><span class="pico">${p.recipe_id ? '🍲' : locIcon(pLocOf(p))}</span>
-    <span><b>${esc(p.name)}</b><small>${daysLeft(p) !== null && daysLeft(p) <= 14 ? '⏳ ≈' + daysLeft(p) + ' d · ' : ''}${(ZONES[pLocOf(p)] || []).includes(p.zone) ? '📍 ' + esc(p.zone) + ' · ' : ''}${esc(p.quantity ? p.quantity + ' · ' : '')}${u <= 0 ? 'Agotado' : p.entry_date ? 'desde ' + esc(fdate(p.entry_date)) : ''}${minOf(p) !== null ? ' · mín. ' + fmtNum(minOf(p)) : ''}</small>${e ? `<em class="exp ${e.cls}">${esc((isAutoExp(p) ? '≈ ' : '') + e.txt)}</em>` : ''}${pLocOf(p) === 'congelador' ? `<br><button class="chip" data-thaw1="${p.id}" type="button" style="margin-top:6px;padding:4px 10px;font-size:12px">🧊 Descongelar</button>` : ''}</span>
+    <span><b>${esc(p.name)}</b><small>${p.opened ? '📭 abierto · ' : ''}${lotInfo[p.id] ? lotInfo[p.id] + ' · ' : ''}${daysLeft(p) !== null && daysLeft(p) <= 14 ? '⏳ ≈' + daysLeft(p) + ' d · ' : ''}${(ZONES[pLocOf(p)] || []).includes(p.zone) ? '📍 ' + esc(p.zone) + ' · ' : ''}${esc(p.quantity ? p.quantity + ' · ' : '')}${u <= 0 ? 'Agotado' : p.entry_date ? 'desde ' + esc(fdate(p.entry_date)) : ''}${minOf(p) !== null ? ' · mín. ' + fmtNum(minOf(p)) : ''}</small>${e ? `<em class="exp ${e.cls}">${esc((isAutoExp(p) ? '≈ ' : '') + e.txt)}</em>` : ''}${pLocOf(p) === 'congelador' ? `<br><button class="chip" data-thaw1="${p.id}" type="button" style="margin-top:6px;padding:4px 10px;font-size:12px">🧊 Descongelar</button>` : ''}${chipsExtra(p)}</span>
     <span class="pctl"><button class="stp" data-adj="-1" type="button" aria-label="Restar una unidad">−</button><span class="units${minOf(p) !== null && u <= minOf(p) ? ' low' : ''}">${fmtUnits(u)}</span><button class="stp" data-adj="1" type="button" aria-label="Sumar una unidad">＋</button></span></div>`; }).join('')
     : `<div class="empty">${PANTRY.length ? 'No hay productos con esos filtros.' : 'No hay nada apuntado todavía.<br>Pulsa ＋ Añadir, o marca lo que compras en Compra y pásalo aquí con "Guardar comprados en casa".'}</div>`;
 }
@@ -1633,6 +1634,7 @@ function editPantry(id) {
     <div class="field"><label>Avísame al bajar de (stock mínimo, opcional)</label><input id="pMin" type="text" inputmode="decimal" value="${esc(p.min_units === null || p.min_units === undefined ? '' : fmtUnits(p.min_units))}" placeholder="Ej.: 2"></div>
     <div class="field"><label>Stock objetivo: cuántas quiero tener al reponer (opcional)</label><input id="pTgt" type="text" inputmode="decimal" value="${esc(catOf(p.name).target ? fmtUnits(catOf(p.name).target) : '')}" placeholder="Ej.: 6"></div>
     <div class="field"><label>Compra recurrente</label><select id="pRec"><option value="0">No</option><option value="1"${catOf(p.name).rec === 1 ? ' selected' : ''}>🔁 Cada semana</option><option value="2"${catOf(p.name).rec === 2 ? ' selected' : ''}>🔁 Cada 2 semanas</option></select></div>
+    <div class="field"><label>Marca / formato preferido (sale en la compra)</label><input id="pBrand" type="text" value="${esc(catOf(p.name).brand || '')}" placeholder="Ej.: Hacendado 1 l"></div>
     <div class="field"><label>Formato (opcional)</label><input id="pQty" value="${esc(p.quantity)}" placeholder="Ej.: 500 g, 1 L, bandeja"></div>
     <div class="field"><label>Dónde está</label><div class="chips" id="pLocChips"></div><div class="chips" id="pZoneChips" style="margin-top:6px"></div>${id && pLocOf(p) === 'congelador' ? `<button class="btn secondary" data-pa="thaw" data-id="${id}" type="button" style="width:100%;margin-top:8px">🧊 Descongelar (pasa al frigorífico)</button>` : ''}</div>
     <div class="field"><label>Fecha de entrada</label><input id="pEntry" type="date" value="${esc(p.entry_date || '')}"></div>
@@ -1646,7 +1648,7 @@ async function savePantryItem() {
   if (!name) { msg.className = 'notice err'; return (msg.textContent = 'Escribe qué es.'); }
   btn.disabled = true; msg.className = 'notice'; msg.textContent = 'Guardando…';
   try {
-    learnItem(name, pEdit, $('pQty').value.trim(), $('pMin').value.trim(), parseUnits($('pTgt').value) || '', +$('pRec').value || 0); await db.savePantry({ id: pEdit.id, name, quantity: $('pQty').value.trim(), units: Math.max(0, parseUnits($('pUnits').value) ?? 0), min_units: $('pMin').value.trim() === '' ? null : Math.max(0, parseUnits($('pMin').value) ?? 0), location: pEdit.loc, zone: (ZONES[pEdit.loc] || []).includes(pEdit.zone) ? pEdit.zone : null, entry_date: $('pEntry').value, expiry_date: $('pExp').value || ((pEdit.id || pEdit.noexp) ? '' : autoExp(name, pEdit.loc)) });
+    learnItem(name, pEdit, $('pQty').value.trim(), $('pMin').value.trim(), parseUnits($('pTgt').value) || '', +$('pRec').value || 0, $('pBrand').value.trim()); await db.savePantry({ id: pEdit.id, name, quantity: $('pQty').value.trim(), units: Math.max(0, parseUnits($('pUnits').value) ?? 0), min_units: $('pMin').value.trim() === '' ? null : Math.max(0, parseUnits($('pMin').value) ?? 0), location: pEdit.loc, zone: (ZONES[pEdit.loc] || []).includes(pEdit.zone) ? pEdit.zone : null, entry_date: $('pEntry').value, expiry_date: $('pExp').value || ((pEdit.id || pEdit.noexp) ? '' : autoExp(name, pEdit.loc)) });
     $('pModal').classList.remove('show'); await loadPantry();
   } catch (e) { btn.disabled = false; msg.className = 'notice err'; msg.textContent = 'No se pudo guardar: ' + e.message; }
 }
@@ -1673,7 +1675,7 @@ function cookIdeas() {
 $('locBar').onclick = e => { const b = e.target.closest('[data-loc]'); if (b) { pLoc = b.dataset.loc; renderPantry(); } };
 $('pantryAlert').onclick = e => { if (e.target.closest('#pantryWarn')) { pLoc = 'all'; pSort = 'exp'; $('pantrySearch').value = ''; renderPantry(); } };
 $('pantryList').onclick = e => {
-  const th1 = e.target.closest('[data-thaw1]'); if (th1) return thawItem(th1.dataset.thaw1);
+  const th1 = e.target.closest('[data-thaw1]'); if (th1) return thawItem(th1.dataset.thaw1); const op1 = e.target.closest('[data-open1]'); if (op1) return openItem(op1.dataset.open1); const fz1 = e.target.closest('[data-frz1]'); if (fz1) return bellFreeze(fz1.dataset.frz1);
   const c = e.target.closest('.pcard'); if (!c) return;
   const a = e.target.closest('[data-adj]'); if (a) return adjUnits(c.dataset.id, +a.dataset.adj);
   if (e.target.closest('.units')) return editUnits(c.dataset.id);
@@ -2066,20 +2068,19 @@ async function weekFor(ws) {
   if (ws === WS) return MENU; const c = wcache[ws]; if (c && Date.now() - c.t < 30000) return c.m;
   try { const m = await db.week(ws); wcache[ws] = { m, t: Date.now() }; return m; } catch (e) { return emptyMenu(); }
 }
+const thawRow = (l, t) => l.length ? `<div class="thaw"><span>${t}${esc(l.map(p => cap(p.name)).join(', '))}</span><button class="btn secondary" data-go="freezer" type="button">Ver</button><button class="btn secondary" data-thaw="${l.map(p => p.id).join(',')}" type="button">Ya lo saqué</button></div>` : '';
 async function renderToday() {
   const box = $('todayCard'); if (!box || !db.user) return;
   const now = new Date(), tmr = addDays(now, 1), di = (now.getDay() + 6) % 7, ti = (tmr.getDay() + 6) % 7;
   const [mt, mm] = await Promise.all([weekFor(ymd(mondayOf(now))), weekFor(ymd(mondayOf(tmr)))]);
   const line = d => MEALS.map(([k, l, ic]) => { const nm = slotItems((d || {})[k]).map(v => isNote(v) ? v.slice(1) : (RECIPES.find(r => r.id === v) || {}).name).filter(Boolean); return nm.length ? `${ic} ${l}: ${esc(nm.join(' + '))}` : ''; }).filter(Boolean);
   const hoy = line(mt[di]), man = line(mm[ti]);
-  const its = []; MEALS.forEach(([k]) => slotItems((mm[ti] || {})[k]).forEach(id => { if (isNote(id)) return; const r = RECIPES.find(x => x.id === id); if (r) lines(r.ingredients).forEach(l => addIng(its, l, r.name)); }));
-  const froz = [], seen = new Set();
-  its.forEach(i => { const p = PANTRY.find(p => pLocOf(p) === 'congelador' && Number(p.units ?? 1) > 0 && !p.recipe_id && fuzzy(norm(p.name), i.key)); if (p && !seen.has(p.id)) { seen.add(p.id); froz.push(p); } });
-  const tmrDay = mm[ti] || {}; MEALS.forEach(([k]) => slotItems(tmrDay[k]).forEach(id => { if (isNote(id)) return; const p = PANTRY.find(p => p.recipe_id === id && pLocOf(p) === 'congelador' && Number(p.units ?? 1) > 0); if (p && !seen.has(p.id)) { seen.add(p.id); froz.push(p); } }));
+  const frozFor = (day, skipDone) => { const out = [], sn = new Set(); MEALS.forEach(([k]) => slotItems((day || {})[k]).forEach(id => { if (isNote(id) || (skipDone && (day._done || []).includes(k + ':' + id))) return; const r = RECIPES.find(x => x.id === id); if (r) { const its = []; lines(r.ingredients).forEach(l => addIng(its, l, r.name)); its.forEach(i => { const p = PANTRY.find(p => pLocOf(p) === 'congelador' && Number(p.units ?? 1) > 0 && !p.recipe_id && fuzzy(norm(p.name), i.key)); if (p && !sn.has(p.id)) { sn.add(p.id); out.push(p); } }); } const dd = PANTRY.find(p => p.recipe_id === id && pLocOf(p) === 'congelador' && Number(p.units ?? 1) > 0); if (dd && !sn.has(dd.id)) { sn.add(dd.id); out.push(dd); } })); return out; };
+  const froz = frozFor(mm[ti], false), frozHoy = frozFor(mt[di], true).filter(p => !froz.some(x => x.id === p.id));
   if (!hoy.length && !man.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
   const dn = d => d.toLocaleDateString('es', { weekday: 'long', day: 'numeric' });
   box.innerHTML = (hoy.length ? `<div class="th">📍 Hoy · ${dn(now)}</div><div>${hoy.join('<br>')}</div>` : '') + (man.length ? `<div class="th">⏭️ Mañana · ${dn(tmr)}</div><div>${man.join('<br>')}</div>` : '') +
-    (froz.length ? `<div class="thaw"><span>🧊 Saca hoy del congelador: ${esc(froz.map(p => cap(p.name)).join(', '))}</span><button class="btn secondary" data-go="freezer" type="button">Ver</button><button class="btn secondary" data-thaw="${froz.map(p => p.id).join(',')}" type="button">Ya lo saqué</button></div>` : '');
+    thawRow(frozHoy, '⚠️ Hoy toca y sigue congelado: ') + thawRow(froz, '🧊 Saca hoy del congelador: ');
   box.classList.remove('hidden');
 }
 $('todayCard').onclick = async e => { const th = e.target.closest('[data-thaw]'); if (th) { for (const id of th.dataset.thaw.split(',')) await thawItem(id); return; } if (e.target.closest('[data-go]')) { showTab('pantry'); pLoc = 'congelador'; renderPantry(); } };
@@ -2201,7 +2202,7 @@ function markCooked(day, meal, id) {
   const r = RECIPES.find(x => x.id === id); if (!r) return;
   const its = []; lines(r.ingredients).forEach(l => addIng(its, l, r.name));
   const seen = new Set(), hits = [];
-  its.forEach(i => { if (isBasic(i.key)) return; const p = PANTRY.find(p => !p.recipe_id && fuzzy(norm(p.name), i.key) && Number(p.units ?? 1) > 0); if (p && !seen.has(p.id)) { seen.add(p.id); p._need = i.u; hits.push(p); } });
+  its.forEach(i => { if (isBasic(i.key)) return; const p = fifoFind(i.key); if (p && !seen.has(p.id)) { seen.add(p.id); p._need = i.u; hits.push(p); } });
   cookCtx = { day, meal, id, hits };
   if (!hits.length) { toggleDone(day, meal, id); toast('✅ Marcada como cocinada'); return afterCooked(day, meal, id); }
   openP(`<div class="editbar"><div class="sheet-top"><h2>✅ ${esc(r.name)}</h2><div class="btns"><button class="btn secondary" data-pa="close">Cancelar</button><button class="btn" data-pa="cookdone">Confirmar</button></div></div><div class="notice">Se descuenta la cantidad de la receta (o 1 unidad si no se puede calcular) de lo que dejes marcado.</div></div>` +
@@ -2815,10 +2816,10 @@ function menuMetrics(menu, ws) {
 }
 let varCtx = null;
 async function aiVariants() {
-  const btn = $('aiVar'), msg = $('aiMsg'); ai.text = $('aiText').value.trim(); btn.disabled = true; msg.className = 'notice'; msg.textContent = 'Preparando 3 menús…';
+  const btn = $('aiVar'), msg = $('aiMsg'); ai.text = $('aiText').value.trim(); btn.disabled = true; msg.className = 'notice'; msg.textContent = 'Preparando 4 menús…';
   try {
     const ws = ai.target === 'next' ? nextWs() : WS, list = [];
-    for (const [style, title] of [['balanced', '⚖️ Equilibrado'], ['pantry', '🏠 Aprovecha tu despensa'], ['min', '🛒 Compra mínima']]) {
+    for (const [style, title] of [['balanced', '⚖️ Equilibrado'], ['pantry', '🏠 Aprovecha tu despensa'], ['min', '🛒 Compra mínima'], ['waste', '♻️ Gasta lo que caduca']]) {
       const r = await generateMenu({ ws, text: ai.text, mode: ai.mode, side: ai.side, quick: ai.quick, pantry: ai.pantry, season: ai.season, style }); r.title = title; list.push(r);
     }
     $('aiModal').classList.remove('show'); varCtx = { ws, list }; drawVariants();
@@ -3219,8 +3220,9 @@ async function renderSunday() {
     const [cur, nxt] = await Promise.all([weekFor(ymd(mondayOf(now))), weekFor(nextWs())]);
     let plan = 0, done = 0, x2 = 0;
     (cur || []).forEach(d => { MEALS.forEach(([k]) => slotItems((d || {})[k]).forEach(id => { if (!isNote(id)) plan++; })); done += ((d || {})._done || []).length; x2 += ((d || {})._x2 || []).length; });
+    const lim7 = ymd(addDays(new Date(), -7)), w7 = WASTE.filter(x => x.d >= lim7), okw = w7.filter(x => x.k === 'ok').length, binw = w7.filter(x => x.k === 'bin').length, fgn = forgotten().length;
     const dishes = PANTRY.filter(p => p.recipe_id && Number(p.units ?? 1) > 0).length, soon = PANTRY.filter(p => p.expiry_date && Number(p.units ?? 1) > 0 && daysTo(p.expiry_date) <= 3).length, has = menuHas(nxt || []);
-    box.innerHTML = `<div class="th">📝 Resumen de la semana</div><div>🍳 Cocinado: ${done} de ${plan} platos${x2 ? ' · 🍲 ' + x2 + ' con ración doble' : ''}<br>🥡 Platos ya cocinados guardados: ${dishes}<br>${soon ? '⚠️ ' + soon + ' producto' + (soon > 1 ? 's' : '') + ' de la despensa caduca' + (soon > 1 ? 'n' : '') + ' en 3 días' : '✅ Nada caduca en los próximos 3 días'}<br>📅 Semana siguiente: ${has ? 'ya tiene menú' : 'sin menú todavía'}</div><div class="thaw"><button class="btn" data-sun="next" type="button">${has ? '🎲 Rellenar huecos' : '✨ Preparar semana siguiente'}</button><button class="btn secondary" data-sun="shop" type="button">🛒 Compra</button><button class="btn secondary" data-sun="hide" type="button">Ocultar</button></div>`;
+    box.innerHTML = `<div class="th">📝 Resumen de la semana</div><div>🍳 Cocinado: ${done} de ${plan} platos${x2 ? ' · 🍲 ' + x2 + ' con ración doble' : ''}<br>🥡 Platos ya cocinados guardados: ${dishes}<br>${soon ? '⚠️ ' + soon + ' producto' + (soon > 1 ? 's' : '') + ' de la despensa caduca' + (soon > 1 ? 'n' : '') + ' en 3 días' : '✅ Nada caduca en los próximos 3 días'}<br>♻️ Despensa esta semana: ${okw} aprovechados · ${binw} tirados${fgn ? ' · ' + fgn + ' sin tocar +60 días' : ''}<br>📅 Semana siguiente: ${has ? 'ya tiene menú' : 'sin menú todavía'}</div><div class="thaw"><button class="btn" data-sun="next" type="button">${has ? '🎲 Rellenar huecos' : '✨ Preparar semana siguiente'}</button><button class="btn secondary" data-sun="shop" type="button">🛒 Compra</button><button class="btn secondary" data-sun="hide" type="button">Ocultar</button></div>`;
     box.classList.remove('hidden');
   } catch (e) { box.classList.add('hidden'); }
 }
@@ -3291,18 +3293,23 @@ $('haveFilter').onclick = () => { haveSort = !haveSort; renderRecipes(); };
 const catalogNames = () => [...new Set([...Object.values(CATALOG).map(c => c.n).filter(Boolean), ...PANTRY.map(p => p.name)])].slice(0, 300);
 function saveCatalogSoon() { clearTimeout(catT); catT = setTimeout(() => db.saveExtras({ catalog: CATALOG }).catch(() => { if (!catWarn) { catWarn = true; toast('Falta la columna catalog en Supabase (mira el SQL).'); } }), 1500); }
 function noteUse(p, seenOnly, amt) { const c = CATALOG[norm(p.name)] = CATALOG[norm(p.name)] || { n: p.name }, t = ymd(new Date()); if (seenOnly) c.seen = t; else { c.use = c.use || []; c.ua = c.ua || []; while (c.ua.length < c.use.length) c.ua.unshift(1); c.use = [...c.use, t].slice(-12); c.ua = [...c.ua, amt > 0 ? Math.round(amt * 100) / 100 : 1].slice(-12); } saveCatalogSoon(); }
-function learnItem(name, pe, qty, min, tgt, rec) { const c = CATALOG[norm(name)] = CATALOG[norm(name)] || {}; c.n = name; c.loc = pe.loc; c.zone = pe.zone || ''; c.qty = qty; c.min = min; c.target = tgt || ''; if (rec && c.rec !== rec) c.recPhase = weekPar(ymd(mondayOf(new Date()))); c.rec = rec || 0; saveCatalogSoon(); }
+function learnItem(name, pe, qty, min, tgt, rec, brand) { const c = CATALOG[norm(name)] = CATALOG[norm(name)] || {}; c.n = name; c.loc = pe.loc; c.zone = pe.zone || ''; c.qty = qty; c.min = min; c.target = tgt || ''; c.brand = brand || ''; if (rec && c.rec !== rec) c.recPhase = weekPar(ymd(mondayOf(new Date()))); c.rec = rec || 0; saveCatalogSoon(); }
 function drawZone() { const el = $('pZoneChips'); if (!el || !pEdit) return; const zs = ZONES[pEdit.loc] || []; if (!zs.includes(pEdit.zone)) pEdit.zone = ''; el.innerHTML = zs.map(z => `<button type="button" class="chip${pEdit.zone === z ? ' on' : ''}" data-pzone="${esc(z)}">📍 ${esc(z)}</button>`).join(''); }
 function pantryQty(p) { const m = p.quantity ? /^\s*(\d+\/\d+|\d+(?:[.,]\d+)?|[½¼¾])\s*([a-zA-ZáéíóúñÑ]+)?\.?\s*$/.exec(String(p.quantity)) : null; if (!m) return null; let n = parseQty(m[1]), ur = m[2] ? norm(m[2]) : '', unit = ''; if (ur) { if (UNITS[ur]) { unit = UNITS[ur][0]; n *= UNITS[ur][1]; } else unit = UNIT_SING[ur] || ur; } return { k: unit, n }; }
 function usedUnits(p) { const ks = Object.keys(p._need || {}), q = pantryQty(p); if (ks.length === 1 && q && q.k === ks[0] && q.n > 0) return Math.max(0.05, Math.min(Number(p.units ?? 1), Math.round(p._need[ks[0]] / q.n * 100) / 100)); return 1; }
+function missingLines(r) {
+  const out = []; lines(r.ingredients).forEach(l => { const its = []; addIng(its, l, r.name); const i = its[0]; if (!i || isBasic(i.key)) return;
+    const p = homeFor(i.key); if (!p) return out.push({ l, key: i.key, note: '' });
+    const c = haveCover(p, i.u); if (c && !c.ok) out.push({ l, key: i.key, note: 'tienes ' + fmtQty({ [c.k]: c.have }) }); });
+  return out;
+}
 function stockBadge(r, day, k, id) {
   if (!r || !PANTRY.length || (day._done || []).includes(k + ':' + id) || (day._tup || []).includes(k + ':' + id)) return '';
-  const its = []; lines(r.ingredients).forEach(l => addIng(its, l, r.name)); const real = its.filter(i => !isBasic(i.key)); if (!real.length) return '';
-  const miss = real.filter(i => { const p = PANTRY.find(p => Number(p.units ?? 1) > 0 && !p.recipe_id && fuzzy(norm(p.name), i.key)); if (!p) return true; const c = haveCover(p, i.u); return !!(c && !c.ok); }).length;
-  return miss ? ` <span class="bd">🛒 faltan ${miss}</span>` : ' <span class="bd">✅ en casa</span>';
+  const miss = missingLines(r).length; return miss ? ` <span class="bd" data-miss="r:${r.id}">🛒 faltan ${miss} ›</span>` : ' <span class="bd">✅ en casa</span>';
 }
 const sing = n => norm(n).split(' ').map(w => w.length > 3 ? w.replace(/s$/, '') : w).join(' ');
-const dupeGroups = () => { const g = {}; PANTRY.filter(p => !p.recipe_id).forEach(p => { const k = sing(p.name) + '|' + pLocOf(p); (g[k] = g[k] || []).push(p); }); return Object.values(g).filter(a => a.length > 1); };
+const rawGroups = () => { const g = {}; PANTRY.filter(p => !p.recipe_id).forEach(p => { const k = sing(p.name) + '|' + pLocOf(p); (g[k] = g[k] || []).push(p); }); return Object.values(g).filter(a => a.length > 1); };
+const dupeGroups = () => rawGroups().filter(a => !catOf(a[0].name).lots);
 const forgotten = () => { const lim = ymd(addDays(new Date(), -60)); return PANTRY.filter(p => { const c = CATALOG[norm(p.name)] || {}; return !p.recipe_id && Number(p.units ?? 1) > 0 && p.entry_date && p.entry_date <= lim && !(c.seen && c.seen > lim) && !(c.use || []).some(d => d > lim); }); };
 const minSuggest = () => { const lim = ymd(addDays(new Date(), -30)); return PANTRY.filter(p => !p.recipe_id && (p.min_units === null || p.min_units === undefined || p.min_units === '')).map(p => { const n = ((CATALOG[norm(p.name)] || {}).use || []).filter(d => d >= lim).length; return { p, n, min: n >= 8 ? 2 : 1 }; }).filter(x => x.n >= 4); };
 function renderPTools() {
@@ -3310,18 +3317,22 @@ function renderPTools() {
   let zb = $('zoneBar'); if (!zb) { zb = document.createElement('div'); zb.id = 'zoneBar'; zb.className = 'chips'; zb.style.margin = '4px 0'; $('locBar').after(zb); }
   const zs = pLoc === 'all' ? [] : (ZONES[pLoc] || []); if (!zs.includes(pZone)) pZone = '';
   zb.innerHTML = zs.length ? [['', 'Todas'], ...zs.map(z => [z, z])].map(([v, l]) => `<button class="chip${pZone === v ? ' on' : ''}" data-zf="${esc(v)}" type="button">${v ? '📍 ' : ''}${esc(l)}</button>`).join('') : '';
-  const f = forgotten().length, d = dupeGroups().length, m = minSuggest().length;
-  box.innerHTML = '<button class="chip" data-pt="review" type="button">✅ Revisión rápida</button>' + (f ? `<button class="chip" data-pt="forgot" type="button">🕸️ Sin tocar (${f})</button>` : '') + (d ? `<button class="chip" data-pt="dupes" type="button">🔁 Repetidos (${d})</button>` : '') + (m ? `<button class="chip" data-pt="mins" type="button">💡 Mínimos (${m})</button>` : '');
+  const f = forgotten().length, d = dupeGroups().length, m = minSuggest().length, oc = oftenList().length;
+  box.innerHTML = '<button class="chip" data-pt="review" type="button">✅ Revisión rápida</button><button class="chip" data-pt="map" type="button">🗺️ Mapa</button>' + (f ? `<button class="chip" data-pt="forgot" type="button">🕸️ Sin tocar (${f})</button>` : '') + (d ? `<button class="chip" data-pt="dupes" type="button">🔁 Repetidos (${d})</button>` : '') + (m ? `<button class="chip" data-pt="mins" type="button">💡 Mínimos (${m})</button>` : '') + (oc ? `<button class="chip" data-pt="often" type="button">🔔 Te falta lo de siempre (${oc})</button>` : '');
 }
 const rvOrder = p => ['congelador', 'frigorifico', 'despensa'].indexOf(pLocOf(p));
 function rvStart() { rv = { list: PANTRY.filter(p => !p.recipe_id && Number(p.units ?? 1) > 0).sort((a, b) => rvOrder(a) - rvOrder(b) || (a.zone || '').localeCompare(b.zone || '') || cmpName(a, b)), i: 0 }; rvDraw(); }
+function rvBox() { let b = $('rvBox'); if (!b) { b = document.createElement('div'); b.id = 'rvBox'; b.style.cssText = 'position:fixed;inset:0;z-index:9000;background:var(--bg);color:var(--text);overflow:auto;display:none'; document.body.appendChild(b); } return b; }
 function rvDraw() {
-  if (!rv || rv.i >= rv.list.length) { $('pModal').classList.remove('show'); rv = null; renderPantry(); return toast('✅ Revisión terminada'); }
-  const p = rv.list[rv.i], z = (ZONES[pLocOf(p)] || []).includes(p.zone) ? ' · 📍 ' + p.zone : '', e = expInfo(p);
-  openP(`<div class="editbar"><div class="sheet-top"><h2>✅ Revisión ${rv.i + 1}/${rv.list.length}</h2><button class="btn secondary" data-rv="stop">Terminar</button></div></div><div class="notice"><b>${esc(cap(p.name))}</b><br>${locIcon(pLocOf(p))} ${esc((LOCS.find(l => l[0] === pLocOf(p)) || ['', ''])[1])}${esc(z)}<br>Quedan ${fmtUnits(Number(p.units ?? 1))}${p.quantity ? ' · ' + esc(p.quantity) : ''}${e ? '<br>' + esc(e.txt) : ''}</div><div class="chips" style="margin-top:10px"><button class="btn" data-rv="ok">👍 Sigue</button><button class="btn secondary" data-rv="low">📉 Queda poco</button><button class="btn secondary" data-rv="out">❌ Se acabó</button><button class="btn secondary" data-rv="skip">Saltar</button></div>`);
+  const b = rvBox();
+  if (!rv || rv.i >= rv.list.length) { b.style.display = 'none'; rv = null; renderPantry(); return toast('✅ Revisión terminada'); }
+  const p = rv.list[rv.i], L = pLocOf(p), lab = (LOCS.find(l => l[0] === L) || ['', ''])[1], z = (ZONES[L] || []).includes(p.zone) ? p.zone : '', e = expInfo(p), n = rv.list.length, bg = 'min-height:70px;font-size:1.25rem;font-weight:700;border-radius:16px;width:100%';
+  b.innerHTML = `<div style="max-width:560px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;gap:16px;padding:calc(16px + env(safe-area-inset-top,0px)) 18px calc(18px + env(safe-area-inset-bottom,0px))"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:1.15rem;font-weight:700">✅ Revisión ${rv.i + 1} de ${n}</span><button class="btn secondary" data-rv="stop" type="button" style="min-height:48px;font-size:1.05rem">Terminar</button></div><div style="height:8px;border-radius:8px;background:var(--surface2);overflow:hidden"><div style="height:100%;width:${Math.round(rv.i / n * 100)}%;background:var(--accent)"></div></div><div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:26px 20px;text-align:center"><div style="font-size:2.1rem;font-weight:800;line-height:1.2;overflow-wrap:anywhere">${esc(cap(p.name))}</div><div style="font-size:1.25rem;color:var(--muted)">${locIcon(L)} ${esc(lab)}${z ? ' · 📍 ' + esc(z) : ''}</div><div style="font-size:1.8rem;font-weight:700">Quedan ${fmtUnits(Number(p.units ?? 1))}</div>${p.quantity ? `<div style="font-size:1.2rem">${esc(p.quantity)}</div>` : ''}${e ? `<div style="font-size:1.15rem;color:var(--muted)">${esc(e.txt)}</div>` : ''}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><button class="btn" data-rv="ok" type="button" style="${bg};grid-column:span 2">👍 Sigue</button><button class="btn secondary" data-rv="low" type="button" style="${bg}">📉 Queda poco</button><button class="btn secondary" data-rv="out" type="button" style="${bg}">❌ Se acabó</button><button class="btn secondary" data-rv="back" type="button" style="${bg}">← Atrás</button><button class="btn secondary" data-rv="skip" type="button" style="${bg}">Saltar →</button></div></div>`;
+  b.style.display = 'block'; b.scrollTop = 0;
 }
 async function rvAct(a) {
-  if (a === 'stop') { rv = null; $('pModal').classList.remove('show'); return renderPantry(); }
+  if (a === 'stop') { rv = null; rvBox().style.display = 'none'; return renderPantry(); }
+  if (a === 'back') { rv.i = Math.max(0, rv.i - 1); return rvDraw(); }
   const p = rv.list[rv.i], prev = Number(p.units ?? 1);
   try {
     if (a === 'low') { const m = minOf(p), nu = m !== null ? Math.min(Number(p.units ?? 1), m) : Math.min(Number(p.units ?? 1), 0.5); p.units = nu; await db.setUnits(p.id, nu); noteUse(p, false, Math.max(0.25, prev - nu)); showUndo('Queda poco: ' + cap(p.name), async () => { p.units = prev; await db.setUnits(p.id, prev); }); addToShopList(cap(p.name), needQty(p)); toast('🛒 Apuntado en la compra: ' + cap(p.name)); }
@@ -3332,20 +3343,20 @@ async function rvAct(a) {
 }
 const pHead = (t, note) => `<div class="editbar"><div class="sheet-top"><h2>${t}</h2><button class="btn secondary" data-pa="close">Cerrar</button></div></div><div class="notice">${note}</div>`;
 function fgOpen() { const l = forgotten(); if (!l.length) { $('pModal').classList.remove('show'); return toast('Nada olvidado 🎉'); } openP(pHead('🕸️ Sin tocar +60 días', 'Si lo sigues teniendo, pulsa "Lo tengo"; si ya no está, "Quitar".') + l.map(p => `<div class="grow"><div class="grow1"><b style="flex:1">${esc(cap(p.name))} <small>desde ${esc(fdate(p.entry_date))}</small></b><button class="btn secondary" data-fg="keep|${p.id}" type="button">Lo tengo</button><button class="btn secondary" data-fg="del|${p.id}" type="button">Quitar</button></div></div>`).join('')); }
-function dpOpen() { const g = dupeGroups(); if (!g.length) { $('pModal').classList.remove('show'); return toast('Sin repetidos 👌'); } openP(pHead('🔁 Repetidos', 'Se suman las unidades y se queda la fecha de caducidad más cercana.') + g.map((a, i) => `<div class="grow"><div class="grow1"><b style="flex:1">${esc(cap(a[0].name))}<small> ${a.map(p => fmtNum(Number(p.units ?? 1)) + (p.quantity ? ' × ' + esc(p.quantity) : '')).join(' + ')}</small></b><button class="btn secondary" data-dp="${i}" type="button">Unir</button></div></div>`).join('')); }
+function dpOpen() { const g = dupeGroups(); if (!g.length) { $('pModal').classList.remove('show'); return toast('Sin repetidos 👌'); } openP(pHead('🔁 Repetidos', 'Unir suma las unidades y deja la fecha más cercana. «Lotes» los mantiene separados: se gasta primero el de caducidad más cercana.') + g.map((a, i) => `<div class="grow"><div class="grow1"><b style="flex:1">${esc(cap(a[0].name))}<small> ${a.map(p => fmtNum(Number(p.units ?? 1)) + (p.quantity ? ' × ' + esc(p.quantity) : '')).join(' + ')}</small></b><button class="btn secondary" data-dp="${i}" type="button">Unir</button><button class="btn secondary" data-dp2="${i}" type="button">Lotes</button></div></div>`).join('')); }
 async function dpMerge(i) { const g = dupeGroups()[i]; if (!g) return; const [keep, ...rest] = g; try { const units = g.reduce((t, p) => t + Number(p.units ?? 1), 0), ex = g.map(p => p.expiry_date).filter(Boolean).sort(); await db.setUnits(keep.id, units); await db.updatePantry(keep.id, { expiry_date: ex[0] || null }); for (const p of rest) await db.deletePantry(p.id); await loadPantry(); toast('🔁 Unidos: ' + cap(keep.name)); } catch (e) { toast('No se pudo unir: ' + e.message); } dpOpen(); }
 function mnOpen() { const l = minSuggest(); if (!l.length) { $('pModal').classList.remove('show'); return toast('Sin sugerencias por ahora'); } openP(pHead('💡 Mínimos sugeridos', 'Por lo que gastas: al bajar de ese mínimo se apunta solo en la compra.') + l.map(x => `<div class="grow"><div class="grow1"><b style="flex:1">${esc(cap(x.p.name))} <small>${x.n} usos en 30 días</small></b><button class="btn secondary" data-mn="${x.p.id}|${x.min}" type="button">Mín. ${x.min}</button></div></div>`).join('')); }
 document.addEventListener('click', async e => {
   const t = e.target.closest('[data-pt],[data-rv],[data-fg],[data-dp],[data-mn],[data-zf],[data-pzone]'); if (!t) return; const d = t.dataset;
   if (d.zf !== undefined) { pZone = d.zf; return renderPantry(); }
   if (d.pzone !== undefined && pEdit) { pEdit.zone = pEdit.zone === d.pzone ? '' : d.pzone; return drawZone(); }
-  if (d.pt) return ({ review: rvStart, forgot: fgOpen, dupes: dpOpen, mins: mnOpen })[d.pt]();
+  if (d.pt) return ({ review: rvStart, forgot: fgOpen, dupes: dpOpen, mins: mnOpen, map: mapOpen, often: ofOpen })[d.pt]();
   if (d.rv && rv) return rvAct(d.rv);
   if (d.dp !== undefined) return dpMerge(+d.dp);
   if (d.fg) { const [a, id] = d.fg.split('|'), p = PANTRY.find(x => x.id === id); if (!p) return; try { if (a === 'keep') noteUse(p, true); else { logWaste(p, 'del'); await db.deletePantry(id); await loadPantry(); } } catch (er) { toast('No se pudo: ' + er.message); } return fgOpen(); }
   if (d.mn) { const [id, m] = d.mn.split('|'), p = PANTRY.find(x => x.id === id); if (!p) return; try { await db.updatePantry(id, { min_units: +m }); p.min_units = +m; toast('💡 Mínimo puesto en ' + m); } catch (er) { toast('No se pudo: ' + er.message); } return mnOpen(); }
 });
-document.addEventListener('change', e => { if (e.target.id !== 'pName' || !pEdit || pEdit.id) return; const c = CATALOG[norm(e.target.value)]; if (!c || !c.loc) return; pEdit.loc = c.loc; pEdit.zone = c.zone || ''; if (c.qty && !$('pQty').value) $('pQty').value = c.qty; if (c.min && !$('pMin').value) $('pMin').value = c.min; drawPLoc(); toast('📒 Datos recordados de «' + (c.n || e.target.value) + '»'); });
+document.addEventListener('change', e => { if (e.target.id !== 'pName' || !pEdit || pEdit.id) return; const c = CATALOG[norm(e.target.value)]; if (!c || !c.loc) return; pEdit.loc = c.loc; pEdit.zone = c.zone || ''; if (c.qty && !$('pQty').value) $('pQty').value = c.qty; if (c.min && !$('pMin').value) $('pMin').value = c.min; if (c.brand && $('pBrand') && !$('pBrand').value) $('pBrand').value = c.brand; drawPLoc(); toast('📒 Datos recordados de «' + (c.n || e.target.value) + '»'); });
 const _lp = loadPantry; loadPantry = async function () { await _lp.apply(this, arguments); try { if (Array.isArray(MENU)) renderMenu(); } catch (e) {} };
 
 /* ---- reposición automática: objetivo, recurrentes, días que quedan, deshacer ---- */
@@ -3353,7 +3364,7 @@ const catOf = n => CATALOG[norm(n)] || {};
 const catFor = n => CATALOG[norm(n)] || Object.values(CATALOG).find(c => c.n && fuzzy(norm(c.n), norm(n))) || {};
 const tgtOf = p => { const t = Number(catOf(p.name).target); return t > 0 ? t : null; };
 const needQty = p => { const t = tgtOf(p); if (!t) return undefined; const q = Math.round((t - Number(p.units ?? 1)) * 4) / 4; return q > 0 ? q : undefined; };
-const pRow = p => ({ name: p.name, quantity: p.quantity || '', units: p.units ?? 1, min_units: p.min_units ?? null, location: pLocOf(p), zone: p.zone || null, entry_date: p.entry_date || null, expiry_date: p.expiry_date || null, ...(p.recipe_id ? { recipe_id: p.recipe_id } : {}) });
+const pRow = p => ({ name: p.name, quantity: p.quantity || '', units: p.units ?? 1, min_units: p.min_units ?? null, location: pLocOf(p), zone: p.zone || null, entry_date: p.entry_date || null, expiry_date: p.expiry_date || null, ...(p.recipe_id ? { recipe_id: p.recipe_id } : {}), ...(p.opened ? { opened: p.opened } : {}) });
 let undoT = null, undoFn = null, shopReady = false;
 function showUndo(label, fn) {
   let b = $('undoBar');
@@ -3379,6 +3390,82 @@ function applyRecurring(ws) {
 }
 const _lw = loadWeek; loadWeek = async function () { await _lw.apply(this, arguments); shopReady = true; try { applyRecurring(WS); } catch (e) {} };
 const _le = loadExtras; loadExtras = async function () { await _le.apply(this, arguments); try { applyRecurring(WS); } catch (e) {} };
+
+/* ---- menú: qué falta, resumen por día/semana, adelantar recetas ---- */
+function missFor(kind) {
+  const wk = ymd(mondayOf(new Date())), cur = (new Date().getDay() + 6) % 7, from = WS < wk ? 7 : WS === wk ? cur : 0, seen = new Map();
+  const add = r => missingLines(r).forEach(m => { if (!seen.has(m.key)) seen.set(m.key, { ...m, from: [r.name] }); else seen.get(m.key).from.push(r.name); });
+  if (kind.startsWith('r:')) { const r = RECIPES.find(x => x.id === kind.slice(2)); if (r) add(r); }
+  else (kind === 'w' ? [0, 1, 2, 3, 4, 5, 6].filter(i => i >= from) : [+kind.slice(2)]).forEach(i => MEALS.forEach(([k]) => slotItems(MENU[i][k]).forEach(id => { const r = !isNote(id) && RECIPES.find(x => x.id === id); if (r && !(MENU[i]._done || []).includes(k + ':' + id) && !(MENU[i]._tup || []).includes(k + ':' + id)) add(r); })));
+  return [...seen.values()];
+}
+function missDayBadge(i, today) { const wk = ymd(mondayOf(new Date())); if (!PANTRY.length || WS < wk || (WS === wk && i < today)) return ''; const n = missFor('d:' + i).length; return n ? `<span class="bd" data-miss="d:${i}" style="margin-left:8px">🛒 faltan ${n} ›</span>` : ''; }
+function renderMissBar() {
+  let b = $('missBar'); if (!b) { b = document.createElement('div'); b.id = 'missBar'; b.style.margin = '6px 0'; $('cookedCard').before(b); }
+  const n = PANTRY.length && Array.isArray(MENU) ? missFor('w').length : 0;
+  b.innerHTML = n ? `<button class="chip" data-miss="w" type="button">🛒 Faltan ${n} ingrediente${n > 1 ? 's' : ''} esta semana · ver</button>` : '';
+}
+function missOpen(kind) {
+  const l = missFor(kind), many = kind[0] !== 'r', title = kind === 'w' ? 'Falta esta semana' : kind[0] === 'd' ? 'Falta ' + (DAYS[+kind.slice(2)] || '').toLowerCase() : 'Qué falta en la receta';
+  openP(pHead('🛒 ' + title, 'Estos ingredientes ya están apuntados solos en la pestaña Compra (descontando lo que tienes en casa).') + (l.map(m => `<div class="grow"><div class="grow1"><b style="flex:1;font-weight:600">${esc(m.l)}<small>${m.note ? ' · ' + esc(m.note) : ''}${many ? ' · ' + esc(m.from.join(', ')) : ''}</small></b></div></div>`).join('') || '<div class="empty">Nada: todo está en casa ✅</div>') + '<div class="chips" style="margin-top:12px"><button class="btn" data-gotoshop="1" type="button" style="width:100%;min-height:56px;font-size:1.1rem">🛒 Ir a la Compra</button></div>');
+}
+function advBadge(ug, i, k, j, mon, today) {
+  if (!ug.length) return '';
+  const base = ' <span class="bd" title="Gasta lo que caduca pronto">⚠️ gasta ' + esc(ug[0]) + '</span>', p = PANTRY.find(x => x.expiry_date && fuzzy(norm(x.name), norm(ug[0]))); if (!p || today < 0) return base;
+  const hi = Math.min(6, Math.floor((parseYmd(p.expiry_date) - mon) / 864e5), i - 1); return hi >= today ? ` <span class="bd" data-adv="${i}|${k}|${j}|${hi}">⏰ caduca antes · adelantar ›</span>` : base;
+}
+function advOpen(i, k, j, hi) {
+  const lo = (new Date().getDay() + 6) % 7, r = RECIPES.find(x => x.id === slotItems(MENU[i][k])[j]); if (!r) return; const days = []; for (let d = lo; d <= hi; d++) days.push(d);
+  openP(pHead('⏰ Adelantar receta', `${esc(r.name)} lleva algo que caduca antes del ${DAYS[i].toLowerCase()}. Elige un día antes; se queda en la misma comida.`) + days.map(d => `<button class="btn secondary" data-advgo="${i}|${k}|${j}|${d}" type="button" style="width:100%;min-height:58px;font-size:1.15rem;margin:6px 0">Mover a ${DAYS[d]} ${addDays(parseYmd(WS), d).getDate()}</button>`).join(''));
+}
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-miss],[data-adv],[data-advgo],[data-gotoshop]'); if (!t) return; e.stopPropagation(); e.preventDefault(); const d = t.dataset;
+  if (d.miss) return missOpen(d.miss);
+  if (d.adv) { const [i, k, j, hi] = d.adv.split('|'); return advOpen(+i, k, +j, +hi); }
+  if (d.gotoshop) { $('pModal').classList.remove('show'); return showTab('shop'); }
+  if (d.advgo) { const [i, k, j, to] = d.advgo.split('|'), id = slotItems(MENU[+i][k])[+j]; if (!id) return; slotSet(+i, k, +j, null); slotSet(+to, k, -1, id); $('pModal').classList.remove('show'); await persistWeek(); renderMenu(); toast('⏰ Movida a ' + DAYS[+to]); }
+}, true);
+
+/* ---- despensa: abierto, congelar, lotes, mapa, de siempre ---- */
+const byExp = (a, b) => { const x = a.expiry_date || '9999', y = b.expiry_date || '9999'; return x < y ? -1 : x > y ? 1 : 0; };
+const matchP = key => PANTRY.filter(p => !p.recipe_id && Number(p.units ?? 1) > 0 && fuzzy(norm(p.name), key)).sort(byExp);
+const fifoFind = key => matchP(key)[0];
+function homeFor(key) { const m = matchP(key); if (!m.length) return undefined; const f = m[0], same = m.filter(x => x.quantity === f.quantity); return same.length > 1 ? { ...f, units: same.reduce((t, x) => t + Number(x.units ?? 1), 0) } : f; }
+const brandName = n => { const b = catFor(n).brand; return b ? n + ' · ' + b : n; };
+function lotMap() { const m = {}; rawGroups().forEach(g => { const s2 = [...g].sort(byExp); s2.forEach((p, i) => { m[p.id] = i === 0 && s2[0].expiry_date ? '🥇 gasta primero' : '📦 lote'; }); }); return m; }
+const OPEN_DAYS = [['tomate frito', 5], ['mayonesa', 30], ['ketchup', 60], ['mostaza', 60], ['mermelada', 30], ['aceituna', 5], ['pepinillo', 14], ['atun', 3], ['conserva', 3], ['lata', 3], ['leche', 4], ['nata', 3], ['yogur', 3], ['zumo', 4], ['caldo', 4], ['hummus', 5], ['pure', 3], ['tofu', 4], ['pasta fresca', 3], ['salsa', 7], ['jamon', 4], ['pavo', 4], ['embutido', 5], ['chorizo', 14], ['salchichon', 14], ['lomo', 7], ['queso rallado', 5], ['queso', 7], ['pan', 3], ['cereal', 60], ['galleta', 30]];
+const openDays = (name, loc) => { const n = norm(name), h = OPEN_DAYS.find(([k]) => n.includes(k)); return h ? h[1] : loc === 'despensa' ? 14 : 5; };
+function chipsExtra(p) {
+  if (p.recipe_id) return ''; const L = pLocOf(p), st = 'margin:6px 6px 0 0;padding:4px 10px;font-size:12px'; let h = '';
+  if (L === 'frigorifico') h += `<button class="chip" data-frz1="${p.id}" type="button" style="${st}">❄️ Congelar</button>`;
+  if (L !== 'congelador' && !p.opened) h += `<button class="chip" data-open1="${p.id}" type="button" style="${st}">📭 Abrir</button>`;
+  return h ? (L === 'congelador' ? '' : '<br>') + h : '';
+}
+async function openItem(id) {
+  const p = PANTRY.find(x => x.id === id); if (!p) return; const d = openDays(p.name, pLocOf(p)), cand = ymd(addDays(new Date(), d)), exp = p.expiry_date && p.expiry_date < cand ? p.expiry_date : cand, old = { opened: p.opened || null, expiry_date: p.expiry_date || null };
+  try {
+    try { await db.updatePantry(id, { opened: ymd(new Date()), expiry_date: exp }); } catch (e) { if (!/opened/i.test(e.message || '')) throw e; await db.updatePantry(id, { expiry_date: exp }); toast('Falta la columna opened en Supabase (mira el SQL): no se verá la marca de abierto.'); }
+    showUndo('Abierto: ' + cap(p.name) + ' · caduca en ' + fmtDays(Math.min(d, Math.max(0, daysTo(exp)))), async () => { try { await db.updatePantry(id, old); } catch (e) { await db.updatePantry(id, { expiry_date: old.expiry_date }); } await loadPantry(); });
+    await loadPantry();
+  } catch (e) { toast('No se pudo marcar como abierto: ' + e.message); }
+}
+function mapOpen() {
+  let b = $('mapBox'); if (!b) { b = document.createElement('div'); b.id = 'mapBox'; b.style.cssText = 'position:fixed;inset:0;z-index:9000;background:var(--bg);color:var(--text);overflow:auto'; document.body.appendChild(b); }
+  const card = (L, zv, title, a) => `<button type="button" data-mapz="${L}|${esc(zv)}" style="display:block;width:100%;text-align:left;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:16px;padding:14px;margin:8px 0;font:inherit"><div style="display:flex;justify-content:space-between;font-weight:700;font-size:1.1rem"><span>${esc(title)}</span><span>${a.length}</span></div><div style="margin-top:6px;color:var(--muted);line-height:1.5">${a.length ? a.slice(0, 10).map(p => (p.expiry_date && daysTo(p.expiry_date) <= 3 ? '⚠️' : '') + esc(cap(p.name))).join(' · ') + (a.length > 10 ? ' · +' + (a.length - 10) : '') : 'Vacío'}</div></button>`;
+  const sec = ['congelador', 'frigorifico', 'despensa'].map(L => { const lab = (LOCS.find(l => l[0] === L) || ['', L])[1], its = PANTRY.filter(p => pLocOf(p) === L && Number(p.units ?? 1) > 0), zs = ZONES[L] || [], rest = its.filter(p => !zs.includes(p.zone));
+    return `<h2 style="margin:18px 0 4px;font-size:1.3rem">${locIcon(L)} ${esc(lab)} <small style="color:var(--muted);font-weight:400">${its.length}</small></h2>` + zs.map(z => card(L, z, '📍 ' + z, its.filter(p => p.zone === z))).join('') + (rest.length || !zs.length ? card(L, '', zs.length ? (L === 'frigorifico' ? 'Resto del frigorífico' : 'Sin zona') : 'Todo', rest) : ''); }).join('');
+  b.innerHTML = `<div style="max-width:620px;margin:0 auto;padding:calc(14px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px))"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:1.3rem;font-weight:800">🗺️ Mapa de la despensa</span><button class="btn secondary" data-mapx="1" type="button" style="min-height:48px">Cerrar</button></div><div style="color:var(--muted);margin-top:4px">Toca una zona para ver solo lo que hay en ella. ⚠️ = caduca en 3 días o menos.</div>${sec}</div>`;
+  b.style.display = 'block'; b.scrollTop = 0;
+}
+const oftenList = () => { const lim = ymd(addDays(new Date(), -60)), w = shopWeek(ymd(mondayOf(new Date()))); return Object.entries(CATALOG).filter(([k, c]) => c.n && !c.rec && (c.use || []).filter(d => d >= lim).length >= 3 && !PANTRY.some(p => !p.recipe_id && Number(p.units ?? 1) > 0 && fuzzy(norm(p.name), k)) && !w.x.some(x => norm(x.t) === k && !x.d)).map(([k, c]) => ({ k, c })); };
+function ofOpen() { const l = oftenList(); if (!l.length) { $('pModal').classList.remove('show'); return toast('No te falta nada de lo de siempre 👌'); } openP(pHead('🔔 Te falta lo de siempre', 'Productos que usas a menudo y ahora no tienes en casa.') + l.map(x => `<div class="grow"><div class="grow1"><b style="flex:1">${esc(cap(x.c.n))}${x.c.brand ? '<small> ' + esc(x.c.brand) + '</small>' : ''}</b><button class="btn secondary" data-of="${esc(x.k)}" type="button">Apuntar</button></div></div>`).join('')); }
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-mapz],[data-of],[data-dp2],[data-mapx]'); if (!t) return; const d = t.dataset;
+  if (d.mapx !== undefined) { $('mapBox').style.display = 'none'; return; }
+  if (d.mapz) { const [L, z] = d.mapz.split('|'); $('mapBox').style.display = 'none'; pLoc = L; pZone = z || ''; return renderPantry(); }
+  if (d.of) { const x = oftenList().find(v => v.k === d.of); if (x) { addToShopList(cap(x.c.n), Number(x.c.target) || undefined); toast('🛒 Apuntado en la compra'); } return ofOpen(); }
+  if (d.dp2 !== undefined) { const g = dupeGroups()[+d.dp2]; if (g) { const k = norm(g[0].name), c = CATALOG[k] = CATALOG[k] || { n: g[0].name }; c.lots = true; saveCatalogSoon(); toast('📦 Quedan como lotes: se gasta primero el de caducidad más cercana'); renderPantry(); } return dpOpen(); }
+});
 </script>
 </body>
 </html>
