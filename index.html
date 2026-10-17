@@ -1045,7 +1045,7 @@ async function loadWeek() {
   try { const [m, sh] = await Promise.all([db.week(WS), db.shop().catch(() => null)]); if (tok !== weekTok) return; MENU = m; if (sh) SHOP = sh; overlayPending(); menuMsg(''); }
   catch (e) { if (tok !== weekTok) return; MENU = emptyMenu(); menuMsg('No se pudo cargar la semana: ' + e.message, true); }
   renderMenu();
-  if (wantScroll) { wantScroll = false; requestAnimationFrame(() => { const el = document.querySelector('#menuDays .day.today'); if (el && $('tab-menu').classList.contains('active')) el.scrollIntoView({ block: 'start' }); }); }
+  if (wantScroll) { wantScroll = false; requestAnimationFrame(() => { if ($('tab-menu').classList.contains('active')) window.scrollTo({ top: 0 }); }); }
 }
 function renderMenu() {
   const mon = parseYmd(WS), cur = ymd(mondayOf(new Date()));
@@ -1407,7 +1407,7 @@ $('menuDays').onclick = e => {
   if (b.dataset.lock) return toggleLock(d, m, slotItems(MENU[d][m])[i]);
   openPicker(d, m, i);
 };
-$('dayPills').onclick = e => { const b = e.target.closest('[data-pill]'); const el = b && document.getElementById('day-' + b.dataset.pill); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
+$('dayPills').onclick = e => { const b = e.target.closest('[data-pill]'); const el = b && document.getElementById('day-' + b.dataset.pill); if (el) scrollToDay(el); };
 $('weekPrev').onclick = () => goWeek(ymd(addDays(parseYmd(WS), -7)));
 $('weekNext').onclick = () => goWeek(ymd(addDays(parseYmd(WS), 7)));
 $('weekLabel').onclick = () => goWeek(ymd(mondayOf(new Date())));
@@ -3589,6 +3589,9 @@ document.addEventListener('click', async e => {
   if (d.su) { if (d.su === 'open') return superOpen(); toggleShop(d.su, WS); return superDraw(); }
   if (d.th) { const [a, x, y] = d.th.split('|'); if (a === 'open') return todayOpen(); fullBox('todayBox').style.display = 'none'; const di = (new Date().getDay() + 6) % 7; if (a === 'cook') return startCook(x); if (a === 'done') return markCooked(di, x, y); if (a === 'thaw') { for (const id of x.split(',')) await thawItem(id); } }
 });
+
+/* ir a un día sin que lo tape la cabecera fija */
+function scrollToDay(el) { const bots = ['.weeknav', '#dayPills'].map(q => { const n = document.querySelector(q); return n ? n.getBoundingClientRect().bottom : 0; }); window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - Math.max(...bots, 100) - 8), behavior: 'smooth' }); }
 </script>
 </body>
 </html>
