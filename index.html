@@ -448,7 +448,9 @@ const db = {
   },
   async savePantry(it) {
     const row = { name: it.name, quantity: it.quantity, units: it.units, min_units: it.min_units ?? null, location: it.location, entry_date: it.entry_date || null, expiry_date: it.expiry_date || null };
-    const { error } = it.id ? await sb.from('pantry').update(row).eq('id', it.id) : await sb.from('pantry').insert(row);
+    const run = r => it.id ? sb.from('pantry').update(r).eq('id', it.id) : sb.from('pantry').insert(r);
+    let { error } = await run({ ...row, zone: it.zone ?? null });
+    if (error && /zone/i.test(error.message || '')) { ({ error } = await run(row)); if (!error && it.zone) toast('Falta la columna zone en Supabase (mira el SQL): la zona no se ha guardado.'); }
     if (error) throw error;
   },
   async updateRecipe(id, patch) {
@@ -460,7 +462,7 @@ const db = {
     if (error) throw error;
   },
   async extras() {
-    for (const cols of ['fixed,store_order,basics,templates,seasons,shelf,waste', 'fixed,store_order,basics,templates,seasons,shelf', 'fixed,store_order,basics,templates,seasons', 'fixed,store_order,basics,templates', 'fixed,store_order,basics', 'fixed,store_order']) {
+    for (const cols of ['fixed,store_order,basics,templates,seasons,shelf,waste,catalog', 'fixed,store_order,basics,templates,seasons,shelf,waste', 'fixed,store_order,basics,templates,seasons,shelf', 'fixed,store_order,basics,templates,seasons', 'fixed,store_order,basics,templates', 'fixed,store_order,basics', 'fixed,store_order']) {
       const r = await sb.from('settings').select(cols).maybeSingle();
       if (!r.error) return r.data || {};
       if (cols === 'fixed,store_order') throw r.error;
@@ -1055,7 +1057,7 @@ function renderMenu() {
         const its = slotItems(day[k]);
         const rows = its.map((id, j) => { const note = isNote(id), r = !note && RECIPES.find(x => x.id === id);
           const ug = !note && r && !(day._done || []).includes(k + ':' + id) && !(day._tup || []).includes(k + ':' + id) ? pantryInfo(r).urgent : [];
-          const lk = (day._lock || []).includes(k + ':' + id), bd = ((day._x2 || []).includes(k + ':' + id) ? ' <span class="bd">×2</span>' : '') + ((day._tup || []).includes(k + ':' + id) ? ' <span class="bd">🍲 ración</span>' : '') + (ug.length ? ' <span class="bd" title="Gasta lo que caduca pronto">⚠️ gasta ' + esc(ug[0]) + '</span>' : '');
+          const lk = (day._lock || []).includes(k + ':' + id), bd = ((day._x2 || []).includes(k + ':' + id) ? ' <span class="bd">×2</span>' : '') + ((day._tup || []).includes(k + ':' + id) ? ' <span class="bd">🍲 ración</span>' : '') + (ug.length ? ' <span class="bd" title="Gasta lo que caduca pronto">⚠️ gasta ' + esc(ug[0]) + '</span>' : '') + stockBadge(r, day, k, id);
           return `<div class="mrow"><button class="mitem${note ? ' note' : ''}${(day._done || []).includes(k + ':' + id) ? ' done' : ''}" data-day="${i}" data-meal="${k}" data-idx="${j}" type="button">${note ? '📝 ' + esc(id.slice(1)) : r ? esc(r.name) + bd : 'Receta eliminada'}</button>${!note && r ? (lk ? `<button class="msw lk" data-lock="1" data-day="${i}" data-meal="${k}" data-idx="${j}" type="button" title="Fijado: toca para soltar">🔒</button>` : '') : ''}</div>`; }).join('');
         return `<div class="srow m-${k}${its.length ? ' has' : ''}"><div class="slab">${ic} ${label}</div><div class="sitems">${rows}<button class="madd" data-day="${i}" data-meal="${k}" data-idx="-1" type="button" aria-label="Añadir">${its.length ? '＋' : '＋ Añadir'}</button></div></div>`;
       }).join('') + '</div>';
@@ -1570,6 +1572,8 @@ $('shopLabel').onclick = () => $('weekLabel').click();
 const LOCS = [['congelador', 'Congelador', '❄️'], ['frigorifico', 'Frigorífico', '🧊'], ['despensa', 'Despensa', '🥫']];
 let PANTRY = [], pLoc = 'all', pSort = 'exp', pEdit = null;
 const pLocOf = p => p.location || 'despensa';
+let pZone = '', CATALOG = {}, rv = null, catT = null, catWarn = false;
+const ZONES = { congelador: ['Cajón 1', 'Cajón 2', 'Cajón 3'], despensa: ['Estante 1', 'Estante 2', 'Estante 3', 'Estante 4', 'Estante 5'], frigorifico: [] };
 const locIcon = k => (LOCS.find(l => l[0] === k) || ['', '', '🏠'])[2];
 const NOT_BASE = /^(caldo|salsa|sopa|crema|zumo|aceite|vinagre|pure|polvo|pasta|harina|jugo|esencia|extracto|mermelada|licor|vino|cerveza)\b/;
 const fuzzy = (a, b) => {
@@ -1592,34 +1596,34 @@ async function loadPantry() {
   renderPantry(); renderShop(); renderToday(); renderQuickSug();
 }
 function renderPantry() {
-  updateBell();
+  updateBell(); renderPTools();
   const counts = { all: PANTRY.length }; LOCS.forEach(([k]) => counts[k] = PANTRY.filter(p => pLocOf(p) === k).length);
   $('locBar').innerHTML = [['all', 'Todo', '🏠'], ...LOCS].map(([k, l, ic]) => `<button class="locbtn${pLoc === k ? ' on' : ''}" data-loc="${k}" type="button"><span>${ic}</span>${l}<small>${counts[k]}</small></button>`).join('');
   const ds = PANTRY.filter(p => p.expiry_date).map(p => daysTo(p.expiry_date)), bad = ds.filter(d => d < 0).length, soon = ds.filter(d => d >= 0 && d <= 3).length;
   $('pantryAlert').innerHTML = bad || soon ? `<button class="alertbar" id="pantryWarn" type="button">⚠️ ${bad ? bad + (bad > 1 ? ' caducados' : ' caducado') : ''}${bad && soon ? ' · ' : ''}${soon ? soon + (soon > 1 ? ' caducan' : ' caduca') + ' en 3 días' : ''}</button>` : '';
   const q = norm($('pantrySearch').value).split(/\s+/).filter(Boolean);
-  const list = PANTRY.filter(p => (pLoc === 'all' || pLocOf(p) === pLoc) && q.every(w => norm(p.name + ' ' + (p.quantity || '')).includes(w)));
+  const list = PANTRY.filter(p => (pLoc === 'all' || pLocOf(p) === pLoc) && (!pZone || p.zone === pZone) && q.every(w => norm(p.name + ' ' + (p.quantity || '')).includes(w)));
   const byName = (a, b) => cmpName(a, b);
   list.sort(pSort === 'az' ? byName : pSort === 'new' ? (a, b) => String(b.entry_date || '').localeCompare(String(a.entry_date || '')) || byName(a, b)
     : (a, b) => (a.expiry_date ? 0 : 1) - (b.expiry_date ? 0 : 1) || String(a.expiry_date).localeCompare(String(b.expiry_date)) || byName(a, b));
   $('pantrySort').textContent = { exp: '⏰ Por caducidad', az: '↕️ A–Z', new: '🆕 Recientes' }[pSort];
   $('pantryCount').textContent = `${list.length} producto${list.length === 1 ? '' : 's'}${list.some(isAutoExp) ? ' · ≈ = fecha estimada' : ''}`;
   $('pantryList').innerHTML = list.length ? list.map(p => { const e = expInfo(p), u = Number(p.units ?? 1); return `<div class="pcard${u <= 0 ? ' zero' : ''}" data-id="${p.id}"><span class="pico">${p.recipe_id ? '🍲' : locIcon(pLocOf(p))}</span>
-    <span><b>${esc(p.name)}</b><small>${esc(p.quantity ? p.quantity + ' · ' : '')}${u <= 0 ? 'Agotado' : p.entry_date ? 'desde ' + esc(fdate(p.entry_date)) : ''}${minOf(p) !== null ? ' · mín. ' + fmtNum(minOf(p)) : ''}</small>${e ? `<em class="exp ${e.cls}">${esc((isAutoExp(p) ? '≈ ' : '') + e.txt)}</em>` : ''}${pLocOf(p) === 'congelador' ? `<br><button class="chip" data-thaw1="${p.id}" type="button" style="margin-top:6px;padding:4px 10px;font-size:12px">🧊 Descongelar</button>` : ''}</span>
+    <span><b>${esc(p.name)}</b><small>${(ZONES[pLocOf(p)] || []).includes(p.zone) ? '📍 ' + esc(p.zone) + ' · ' : ''}${esc(p.quantity ? p.quantity + ' · ' : '')}${u <= 0 ? 'Agotado' : p.entry_date ? 'desde ' + esc(fdate(p.entry_date)) : ''}${minOf(p) !== null ? ' · mín. ' + fmtNum(minOf(p)) : ''}</small>${e ? `<em class="exp ${e.cls}">${esc((isAutoExp(p) ? '≈ ' : '') + e.txt)}</em>` : ''}${pLocOf(p) === 'congelador' ? `<br><button class="chip" data-thaw1="${p.id}" type="button" style="margin-top:6px;padding:4px 10px;font-size:12px">🧊 Descongelar</button>` : ''}</span>
     <span class="pctl"><button class="stp" data-adj="-1" type="button" aria-label="Restar una unidad">−</button><span class="units${minOf(p) !== null && u <= minOf(p) ? ' low' : ''}">${fmtUnits(u)}</span><button class="stp" data-adj="1" type="button" aria-label="Sumar una unidad">＋</button></span></div>`; }).join('')
     : `<div class="empty">${PANTRY.length ? 'No hay productos con esos filtros.' : 'No hay nada apuntado todavía.<br>Pulsa ＋ Añadir, o marca lo que compras en Compra y pásalo aquí con "Guardar comprados en casa".'}</div>`;
 }
 const openP = html => { $('pBody').innerHTML = html; $('pModal').classList.add('show'); };
-function drawPLoc() { $('pLocChips').innerHTML = LOCS.map(([k, l, ic]) => `<button type="button" class="chip${pEdit.loc === k ? ' on' : ''}" data-ploc="${k}">${ic} ${l}</button>`).join(''); }
+function drawPLoc() { $('pLocChips').innerHTML = LOCS.map(([k, l, ic]) => `<button type="button" class="chip${pEdit.loc === k ? ' on' : ''}" data-ploc="${k}">${ic} ${l}</button>`).join(''); drawZone(); }
 function editPantry(id) {
   const p = PANTRY.find(x => x.id === id) || { name: '', quantity: '', location: pLoc === 'all' ? 'despensa' : pLoc, entry_date: ymd(new Date()), expiry_date: '' };
-  pEdit = { id: p.id || null, loc: pLocOf(p), auto: !p.expiry_date, noexp: false };
+  pEdit = { id: p.id || null, loc: pLocOf(p), zone: p.zone || '', auto: !p.expiry_date, noexp: false };
   openP(`<div class="editbar"><div class="sheet-top"><h2>${id ? 'Editar' : 'Añadir a casa'}</h2><div class="btns"><button class="btn secondary" data-pa="close">Cancelar</button><button class="btn" id="btnPSave" data-pa="save">Guardar</button></div></div><div class="notice" id="pMsg"></div></div>
-    <div class="field"><label>Qué es</label><input id="pName" value="${esc(p.name)}" placeholder="Ej.: Pollo, leche, arroz…"></div>
+    <div class="field"><label>Qué es</label><datalist id="pCat">${catalogNames().map(n => `<option value="${esc(n)}">`).join('')}</datalist><input id="pName" list="pCat" value="${esc(p.name)}" placeholder="Ej.: Pollo, leche, arroz…"></div>
     <div class="field"><label>Unidades en stock (las que resta el −1)</label><input id="pUnits" type="text" inputmode="decimal" value="${esc(fmtUnits(p.units ?? 1))}" placeholder="Ej.: 1, 1/2, 3/4, 1,5"></div>
     <div class="field"><label>Avísame al bajar de (stock mínimo, opcional)</label><input id="pMin" type="text" inputmode="decimal" value="${esc(p.min_units === null || p.min_units === undefined ? '' : fmtUnits(p.min_units))}" placeholder="Ej.: 2"></div>
     <div class="field"><label>Formato (opcional)</label><input id="pQty" value="${esc(p.quantity)}" placeholder="Ej.: 500 g, 1 L, bandeja"></div>
-    <div class="field"><label>Dónde está</label><div class="chips" id="pLocChips"></div>${id && pLocOf(p) === 'congelador' ? `<button class="btn secondary" data-pa="thaw" data-id="${id}" type="button" style="width:100%;margin-top:8px">🧊 Descongelar (pasa al frigorífico)</button>` : ''}</div>
+    <div class="field"><label>Dónde está</label><div class="chips" id="pLocChips"></div><div class="chips" id="pZoneChips" style="margin-top:6px"></div>${id && pLocOf(p) === 'congelador' ? `<button class="btn secondary" data-pa="thaw" data-id="${id}" type="button" style="width:100%;margin-top:8px">🧊 Descongelar (pasa al frigorífico)</button>` : ''}</div>
     <div class="field"><label>Fecha de entrada</label><input id="pEntry" type="date" value="${esc(p.entry_date || '')}"></div>
     <div class="field"><label>Caducidad</label><input id="pExp" type="date" value="${esc(p.expiry_date || '')}">
       <div class="chips" style="margin-top:6px"><button type="button" class="chip" data-pa="expauto">✨ Automática</button><button type="button" class="chip" data-pa="exp" data-days="3">+3 días</button><button type="button" class="chip" data-pa="exp" data-days="7">+1 semana</button><button type="button" class="chip" data-pa="exp" data-days="30">+1 mes</button><button type="button" class="chip" data-pa="exp" data-days="90">+3 meses</button><button type="button" class="chip" data-pa="exp" data-days="0">Sin fecha</button></div><div class="notice" id="pExpNote"></div></div>
@@ -1631,7 +1635,7 @@ async function savePantryItem() {
   if (!name) { msg.className = 'notice err'; return (msg.textContent = 'Escribe qué es.'); }
   btn.disabled = true; msg.className = 'notice'; msg.textContent = 'Guardando…';
   try {
-    await db.savePantry({ id: pEdit.id, name, quantity: $('pQty').value.trim(), units: Math.max(0, parseUnits($('pUnits').value) ?? 0), min_units: $('pMin').value.trim() === '' ? null : Math.max(0, parseUnits($('pMin').value) ?? 0), location: pEdit.loc, entry_date: $('pEntry').value, expiry_date: $('pExp').value || ((pEdit.id || pEdit.noexp) ? '' : autoExp(name, pEdit.loc)) });
+    learnItem(name, pEdit, $('pQty').value.trim(), $('pMin').value.trim()); await db.savePantry({ id: pEdit.id, name, quantity: $('pQty').value.trim(), units: Math.max(0, parseUnits($('pUnits').value) ?? 0), min_units: $('pMin').value.trim() === '' ? null : Math.max(0, parseUnits($('pMin').value) ?? 0), location: pEdit.loc, zone: (ZONES[pEdit.loc] || []).includes(pEdit.zone) ? pEdit.zone : null, entry_date: $('pEntry').value, expiry_date: $('pExp').value || ((pEdit.id || pEdit.noexp) ? '' : autoExp(name, pEdit.loc)) });
     $('pModal').classList.remove('show'); await loadPantry();
   } catch (e) { btn.disabled = false; msg.className = 'notice err'; msg.textContent = 'No se pudo guardar: ' + e.message; }
 }
@@ -1669,7 +1673,7 @@ async function adjUnits(id, delta) {
   if (delta < 0 && cur <= 0) return;
   const nu = Math.max(0, Math.round((cur + delta * (Number.isInteger(cur) ? 1 : 0.25)) * 100) / 100); p.units = nu; renderPantry();
   const u = document.querySelector(`.pcard[data-id="${id}"] .units`); if (u && delta < 0) u.classList.add('flash');
-  try { await db.setUnits(id, nu); if (nu === 0 && delta < 0) logWaste(p, 'ok'); }
+  try { await db.setUnits(id, nu); if (nu === 0 && delta < 0) logWaste(p, 'ok'); if (delta < 0) noteUse(p); }
   catch (e) { p.units = cur; renderPantry(); return alert('No se pudo guardar el cambio: ' + e.message); }
   if (delta < 0) await restockAfter([p]);
 }
@@ -2111,7 +2115,7 @@ $('ticketFile').onchange = e => { const f = e.target.files[0]; e.target.value = 
 /* ---- Mejoras: comidas fijas, cocinado, modo cocina, pegar receta, restaurar, instalar, orden del súper ---- */
 async function loadExtras() {
   if (OFFLINE) return;
-  try { const x = await db.extras(); FIXED = Array.isArray(x.fixed) ? x.fixed : []; STORE_ORDER = Array.isArray(x.store_order) ? x.store_order : null; if (Array.isArray(x.basics)) BASICS = x.basics; if (Array.isArray(x.templates)) TEMPLATES = x.templates; if (x.seasons && typeof x.seasons === 'object') { SEASONS = { ...defaultSeasons(), ...x.seasons }; seasonCache = {}; seasonVer++; } if (x.shelf && typeof x.shelf === 'object') SHELF_OVR = x.shelf; if (Array.isArray(x.waste)) WASTE = x.waste; } catch (e) {}
+  try { const x = await db.extras(); FIXED = Array.isArray(x.fixed) ? x.fixed : []; STORE_ORDER = Array.isArray(x.store_order) ? x.store_order : null; if (Array.isArray(x.basics)) BASICS = x.basics; if (Array.isArray(x.templates)) TEMPLATES = x.templates; if (x.seasons && typeof x.seasons === 'object') { SEASONS = { ...defaultSeasons(), ...x.seasons }; seasonCache = {}; seasonVer++; } if (x.shelf && typeof x.shelf === 'object') SHELF_OVR = x.shelf; if (Array.isArray(x.waste)) WASTE = x.waste; if (x.catalog && typeof x.catalog === 'object' && !Array.isArray(x.catalog)) CATALOG = x.catalog; } catch (e) {}
   renderShop();
 }
 function applyFixed(menu) {
@@ -2186,15 +2190,15 @@ function markCooked(day, meal, id) {
   const r = RECIPES.find(x => x.id === id); if (!r) return;
   const its = []; lines(r.ingredients).forEach(l => addIng(its, l, r.name));
   const seen = new Set(), hits = [];
-  its.forEach(i => { if (isBasic(i.key)) return; const p = PANTRY.find(p => !p.recipe_id && fuzzy(norm(p.name), i.key) && Number(p.units ?? 1) > 0); if (p && !seen.has(p.id)) { seen.add(p.id); hits.push(p); } });
+  its.forEach(i => { if (isBasic(i.key)) return; const p = PANTRY.find(p => !p.recipe_id && fuzzy(norm(p.name), i.key) && Number(p.units ?? 1) > 0); if (p && !seen.has(p.id)) { seen.add(p.id); p._need = i.u; hits.push(p); } });
   cookCtx = { day, meal, id, hits };
   if (!hits.length) { toggleDone(day, meal, id); toast('✅ Marcada como cocinada'); return afterCooked(day, meal, id); }
-  openP(`<div class="editbar"><div class="sheet-top"><h2>✅ ${esc(r.name)}</h2><div class="btns"><button class="btn secondary" data-pa="close">Cancelar</button><button class="btn" data-pa="cookdone">Confirmar</button></div></div><div class="notice">Se descuenta 1 unidad de lo que dejes marcado.</div></div>` +
-    hits.map((p, i) => `<div class="grow" data-c="${i}"><div class="grow1"><input type="checkbox" data-f="on" checked><b style="flex:1">${esc(cap(p.name))}</b><span class="notice" style="margin:0">quedan ${fmtNum(Number(p.units ?? 1))}</span></div></div>`).join(''));
+  openP(`<div class="editbar"><div class="sheet-top"><h2>✅ ${esc(r.name)}</h2><div class="btns"><button class="btn secondary" data-pa="close">Cancelar</button><button class="btn" data-pa="cookdone">Confirmar</button></div></div><div class="notice">Se descuenta la cantidad de la receta (o 1 unidad si no se puede calcular) de lo que dejes marcado.</div></div>` +
+    hits.map((p, i) => `<div class="grow" data-c="${i}"><div class="grow1"><input type="checkbox" data-f="on" checked><b style="flex:1">${esc(cap(p.name))}</b><span class="notice" style="margin:0">−${fmtNum(usedUnits(p))} · quedan ${fmtNum(Number(p.units ?? 1))}</span></div></div>`).join(''));
 }
 async function cookDone() {
   const sel = []; document.querySelectorAll('#pBody [data-c]').forEach(row => { if (row.querySelector('[data-f=on]').checked) sel.push(cookCtx.hits[+row.dataset.c]); });
-  try { for (const p of sel) { p.units = Math.max(0, Number(p.units ?? 1) - 1); await db.setUnits(p.id, p.units); } }
+  try { for (const p of sel) { p.units = Math.max(0, Math.round((Number(p.units ?? 1) - usedUnits(p)) * 100) / 100); await db.setUnits(p.id, p.units); noteUse(p); } }
   catch (e) { return toast('No se pudo descontar: ' + e.message); }
   $('pModal').classList.remove('show'); toggleDone(cookCtx.day, cookCtx.meal, cookCtx.id); renderPantry(); await restockAfter(sel); afterCooked(cookCtx.day, cookCtx.meal, cookCtx.id);
 }
@@ -2387,7 +2391,7 @@ function refreshLive(table) {
 async function liveSettings() {
   try {
     const [sh, ex, g, c] = await Promise.all([db.shop(), db.extras(), db.goals(), db.categories()]);
-    SHOP = sh; overlayPending(); if (Array.isArray(ex.fixed)) FIXED = ex.fixed; if (Array.isArray(ex.store_order)) STORE_ORDER = ex.store_order; if (Array.isArray(ex.basics)) BASICS = ex.basics; if (Array.isArray(ex.templates)) TEMPLATES = ex.templates; if (ex.seasons && typeof ex.seasons === 'object') { SEASONS = { ...defaultSeasons(), ...ex.seasons }; seasonCache = {}; seasonVer++; } if (ex.shelf && typeof ex.shelf === 'object') SHELF_OVR = ex.shelf; if (Array.isArray(ex.waste)) WASTE = ex.waste; if (g) GOALS = g; CATS = c;
+    SHOP = sh; overlayPending(); if (Array.isArray(ex.fixed)) FIXED = ex.fixed; if (Array.isArray(ex.store_order)) STORE_ORDER = ex.store_order; if (Array.isArray(ex.basics)) BASICS = ex.basics; if (Array.isArray(ex.templates)) TEMPLATES = ex.templates; if (ex.seasons && typeof ex.seasons === 'object') { SEASONS = { ...defaultSeasons(), ...ex.seasons }; seasonCache = {}; seasonVer++; } if (ex.shelf && typeof ex.shelf === 'object') SHELF_OVR = ex.shelf; if (Array.isArray(ex.waste)) WASTE = ex.waste; if (ex.catalog && typeof ex.catalog === 'object' && !Array.isArray(ex.catalog)) CATALOG = ex.catalog; if (g) GOALS = g; CATS = c;
   } catch (e) { return; }
   renderShop(); renderStats(); renderRecipes();
 }
@@ -3271,6 +3275,67 @@ function handleLaunch() {
 }
 $('shopBoth').onclick = () => { shopBoth = !shopBoth; NXT = null; $('shopBoth').classList.toggle('on', shopBoth); renderShop(); };
 $('haveFilter').onclick = () => { haveSort = !haveSort; renderRecipes(); };
+
+/* ---- despensa: zonas, catálogo, mínimos, revisión, olvidados, repetidos ---- */
+const catalogNames = () => [...new Set([...Object.values(CATALOG).map(c => c.n).filter(Boolean), ...PANTRY.map(p => p.name)])].slice(0, 300);
+function saveCatalogSoon() { clearTimeout(catT); catT = setTimeout(() => db.saveExtras({ catalog: CATALOG }).catch(() => { if (!catWarn) { catWarn = true; toast('Falta la columna catalog en Supabase (mira el SQL).'); } }), 1500); }
+function noteUse(p, seenOnly) { const c = CATALOG[norm(p.name)] = CATALOG[norm(p.name)] || { n: p.name }, t = ymd(new Date()); if (seenOnly) c.seen = t; else c.use = [...(c.use || []), t].slice(-12); saveCatalogSoon(); }
+function learnItem(name, pe, qty, min) { const c = CATALOG[norm(name)] = CATALOG[norm(name)] || {}; c.n = name; c.loc = pe.loc; c.zone = pe.zone || ''; c.qty = qty; c.min = min; saveCatalogSoon(); }
+function drawZone() { const el = $('pZoneChips'); if (!el || !pEdit) return; const zs = ZONES[pEdit.loc] || []; if (!zs.includes(pEdit.zone)) pEdit.zone = ''; el.innerHTML = zs.map(z => `<button type="button" class="chip${pEdit.zone === z ? ' on' : ''}" data-pzone="${esc(z)}">📍 ${esc(z)}</button>`).join(''); }
+function pantryQty(p) { const m = p.quantity ? /^\s*(\d+\/\d+|\d+(?:[.,]\d+)?|[½¼¾])\s*([a-zA-ZáéíóúñÑ]+)?\.?\s*$/.exec(String(p.quantity)) : null; if (!m) return null; let n = parseQty(m[1]), ur = m[2] ? norm(m[2]) : '', unit = ''; if (ur) { if (UNITS[ur]) { unit = UNITS[ur][0]; n *= UNITS[ur][1]; } else unit = UNIT_SING[ur] || ur; } return { k: unit, n }; }
+function usedUnits(p) { const ks = Object.keys(p._need || {}), q = pantryQty(p); if (ks.length === 1 && q && q.k === ks[0] && q.n > 0) return Math.max(0.05, Math.min(Number(p.units ?? 1), Math.round(p._need[ks[0]] / q.n * 100) / 100)); return 1; }
+function stockBadge(r, day, k, id) {
+  if (!r || !PANTRY.length || (day._done || []).includes(k + ':' + id) || (day._tup || []).includes(k + ':' + id)) return '';
+  const its = []; lines(r.ingredients).forEach(l => addIng(its, l, r.name)); const real = its.filter(i => !isBasic(i.key)); if (!real.length) return '';
+  const miss = real.filter(i => { const p = PANTRY.find(p => Number(p.units ?? 1) > 0 && !p.recipe_id && fuzzy(norm(p.name), i.key)); if (!p) return true; const c = haveCover(p, i.u); return !!(c && !c.ok); }).length;
+  return miss ? ` <span class="bd">🛒 faltan ${miss}</span>` : ' <span class="bd">✅ en casa</span>';
+}
+const sing = n => norm(n).split(' ').map(w => w.length > 3 ? w.replace(/s$/, '') : w).join(' ');
+const dupeGroups = () => { const g = {}; PANTRY.filter(p => !p.recipe_id).forEach(p => { const k = sing(p.name) + '|' + pLocOf(p); (g[k] = g[k] || []).push(p); }); return Object.values(g).filter(a => a.length > 1); };
+const forgotten = () => { const lim = ymd(addDays(new Date(), -60)); return PANTRY.filter(p => { const c = CATALOG[norm(p.name)] || {}; return !p.recipe_id && Number(p.units ?? 1) > 0 && p.entry_date && p.entry_date <= lim && !(c.seen && c.seen > lim) && !(c.use || []).some(d => d > lim); }); };
+const minSuggest = () => { const lim = ymd(addDays(new Date(), -30)); return PANTRY.filter(p => !p.recipe_id && (p.min_units === null || p.min_units === undefined || p.min_units === '')).map(p => { const n = ((CATALOG[norm(p.name)] || {}).use || []).filter(d => d >= lim).length; return { p, n, min: n >= 8 ? 2 : 1 }; }).filter(x => x.n >= 4); };
+function renderPTools() {
+  let box = $('pantryTools'); if (!box) { box = document.createElement('div'); box.id = 'pantryTools'; box.className = 'chips'; box.style.margin = '6px 0'; $('pantryAlert').after(box); }
+  let zb = $('zoneBar'); if (!zb) { zb = document.createElement('div'); zb.id = 'zoneBar'; zb.className = 'chips'; zb.style.margin = '4px 0'; $('locBar').after(zb); }
+  const zs = pLoc === 'all' ? [] : (ZONES[pLoc] || []); if (!zs.includes(pZone)) pZone = '';
+  zb.innerHTML = zs.length ? [['', 'Todas'], ...zs.map(z => [z, z])].map(([v, l]) => `<button class="chip${pZone === v ? ' on' : ''}" data-zf="${esc(v)}" type="button">${v ? '📍 ' : ''}${esc(l)}</button>`).join('') : '';
+  const f = forgotten().length, d = dupeGroups().length, m = minSuggest().length;
+  box.innerHTML = '<button class="chip" data-pt="review" type="button">✅ Revisión rápida</button>' + (f ? `<button class="chip" data-pt="forgot" type="button">🕸️ Sin tocar (${f})</button>` : '') + (d ? `<button class="chip" data-pt="dupes" type="button">🔁 Repetidos (${d})</button>` : '') + (m ? `<button class="chip" data-pt="mins" type="button">💡 Mínimos (${m})</button>` : '');
+}
+const rvOrder = p => ['congelador', 'frigorifico', 'despensa'].indexOf(pLocOf(p));
+function rvStart() { rv = { list: PANTRY.filter(p => !p.recipe_id && Number(p.units ?? 1) > 0).sort((a, b) => rvOrder(a) - rvOrder(b) || (a.zone || '').localeCompare(b.zone || '') || cmpName(a, b)), i: 0 }; rvDraw(); }
+function rvDraw() {
+  if (!rv || rv.i >= rv.list.length) { $('pModal').classList.remove('show'); rv = null; renderPantry(); return toast('✅ Revisión terminada'); }
+  const p = rv.list[rv.i], z = (ZONES[pLocOf(p)] || []).includes(p.zone) ? ' · 📍 ' + p.zone : '', e = expInfo(p);
+  openP(`<div class="editbar"><div class="sheet-top"><h2>✅ Revisión ${rv.i + 1}/${rv.list.length}</h2><button class="btn secondary" data-rv="stop">Terminar</button></div></div><div class="notice"><b>${esc(cap(p.name))}</b><br>${locIcon(pLocOf(p))} ${esc((LOCS.find(l => l[0] === pLocOf(p)) || ['', ''])[1])}${esc(z)}<br>Quedan ${fmtUnits(Number(p.units ?? 1))}${p.quantity ? ' · ' + esc(p.quantity) : ''}${e ? '<br>' + esc(e.txt) : ''}</div><div class="chips" style="margin-top:10px"><button class="btn" data-rv="ok">👍 Sigue</button><button class="btn secondary" data-rv="low">📉 Queda poco</button><button class="btn secondary" data-rv="out">❌ Se acabó</button><button class="btn secondary" data-rv="skip">Saltar</button></div>`);
+}
+async function rvAct(a) {
+  if (a === 'stop') { rv = null; $('pModal').classList.remove('show'); return renderPantry(); }
+  const p = rv.list[rv.i];
+  try {
+    if (a === 'low') { const m = minOf(p), nu = m !== null ? Math.min(Number(p.units ?? 1), m) : Math.min(Number(p.units ?? 1), 0.5); p.units = nu; await db.setUnits(p.id, nu); noteUse(p); addToShopList(cap(p.name)); toast('🛒 Apuntado en la compra: ' + cap(p.name)); }
+    if (a === 'out') { p.units = 0; await db.setUnits(p.id, 0); noteUse(p); logWaste(p, 'ok'); addToShopList(cap(p.name)); toast('🛒 Apuntado en la compra: ' + cap(p.name)); }
+    if (a === 'ok') noteUse(p, true);
+  } catch (e) { toast('No se pudo guardar: ' + e.message); }
+  rv.i++; rvDraw();
+}
+const pHead = (t, note) => `<div class="editbar"><div class="sheet-top"><h2>${t}</h2><button class="btn secondary" data-pa="close">Cerrar</button></div></div><div class="notice">${note}</div>`;
+function fgOpen() { const l = forgotten(); if (!l.length) { $('pModal').classList.remove('show'); return toast('Nada olvidado 🎉'); } openP(pHead('🕸️ Sin tocar +60 días', 'Si lo sigues teniendo, pulsa "Lo tengo"; si ya no está, "Quitar".') + l.map(p => `<div class="grow"><div class="grow1"><b style="flex:1">${esc(cap(p.name))} <small>desde ${esc(fdate(p.entry_date))}</small></b><button class="btn secondary" data-fg="keep|${p.id}" type="button">Lo tengo</button><button class="btn secondary" data-fg="del|${p.id}" type="button">Quitar</button></div></div>`).join('')); }
+function dpOpen() { const g = dupeGroups(); if (!g.length) { $('pModal').classList.remove('show'); return toast('Sin repetidos 👌'); } openP(pHead('🔁 Repetidos', 'Se suman las unidades y se queda la fecha de caducidad más cercana.') + g.map((a, i) => `<div class="grow"><div class="grow1"><b style="flex:1">${esc(cap(a[0].name))}<small> ${a.map(p => fmtNum(Number(p.units ?? 1)) + (p.quantity ? ' × ' + esc(p.quantity) : '')).join(' + ')}</small></b><button class="btn secondary" data-dp="${i}" type="button">Unir</button></div></div>`).join('')); }
+async function dpMerge(i) { const g = dupeGroups()[i]; if (!g) return; const [keep, ...rest] = g; try { const units = g.reduce((t, p) => t + Number(p.units ?? 1), 0), ex = g.map(p => p.expiry_date).filter(Boolean).sort(); await db.setUnits(keep.id, units); await db.updatePantry(keep.id, { expiry_date: ex[0] || null }); for (const p of rest) await db.deletePantry(p.id); await loadPantry(); toast('🔁 Unidos: ' + cap(keep.name)); } catch (e) { toast('No se pudo unir: ' + e.message); } dpOpen(); }
+function mnOpen() { const l = minSuggest(); if (!l.length) { $('pModal').classList.remove('show'); return toast('Sin sugerencias por ahora'); } openP(pHead('💡 Mínimos sugeridos', 'Por lo que gastas: al bajar de ese mínimo se apunta solo en la compra.') + l.map(x => `<div class="grow"><div class="grow1"><b style="flex:1">${esc(cap(x.p.name))} <small>${x.n} usos en 30 días</small></b><button class="btn secondary" data-mn="${x.p.id}|${x.min}" type="button">Mín. ${x.min}</button></div></div>`).join('')); }
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-pt],[data-rv],[data-fg],[data-dp],[data-mn],[data-zf],[data-pzone]'); if (!t) return; const d = t.dataset;
+  if (d.zf !== undefined) { pZone = d.zf; return renderPantry(); }
+  if (d.pzone !== undefined && pEdit) { pEdit.zone = pEdit.zone === d.pzone ? '' : d.pzone; return drawZone(); }
+  if (d.pt) return ({ review: rvStart, forgot: fgOpen, dupes: dpOpen, mins: mnOpen })[d.pt]();
+  if (d.rv && rv) return rvAct(d.rv);
+  if (d.dp !== undefined) return dpMerge(+d.dp);
+  if (d.fg) { const [a, id] = d.fg.split('|'), p = PANTRY.find(x => x.id === id); if (!p) return; try { if (a === 'keep') noteUse(p, true); else { logWaste(p, 'del'); await db.deletePantry(id); await loadPantry(); } } catch (er) { toast('No se pudo: ' + er.message); } return fgOpen(); }
+  if (d.mn) { const [id, m] = d.mn.split('|'), p = PANTRY.find(x => x.id === id); if (!p) return; try { await db.updatePantry(id, { min_units: +m }); p.min_units = +m; toast('💡 Mínimo puesto en ' + m); } catch (er) { toast('No se pudo: ' + er.message); } return mnOpen(); }
+});
+document.addEventListener('change', e => { if (e.target.id !== 'pName' || !pEdit || pEdit.id) return; const c = CATALOG[norm(e.target.value)]; if (!c || !c.loc) return; pEdit.loc = c.loc; pEdit.zone = c.zone || ''; if (c.qty && !$('pQty').value) $('pQty').value = c.qty; if (c.min && !$('pMin').value) $('pMin').value = c.min; drawPLoc(); toast('📒 Datos recordados de «' + (c.n || e.target.value) + '»'); });
+const _lp = loadPantry; loadPantry = async function () { await _lp.apply(this, arguments); try { if (Array.isArray(MENU)) renderMenu(); } catch (e) {} };
 </script>
 </body>
 </html>
