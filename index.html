@@ -277,6 +277,7 @@ header{background:#07192d}
         <div class="weeknav"><button class="btn secondary" id="weekPrev" type="button" aria-label="Semana anterior">◀</button><button class="weeklabel" id="weekLabel" type="button"></button><button class="btn secondary" id="weekNext" type="button" aria-label="Semana siguiente">▶</button></div>
         <div class="daypills" id="dayPills"></div>
       </div>
+      <div class="today hidden" id="sundayCard"></div>
       <div class="today hidden" id="todayCard"></div>
       <div class="aibar"><button class="btn" id="mAI" type="button">✨ Crear menú</button><button class="btn secondary" id="mNext" type="button">📅 Semana siguiente</button></div>
       <button class="btn secondary" id="mToday" type="button" style="width:100%;margin-top:8px">🍳 ¿Qué cocino hoy?</button>
@@ -1046,12 +1047,13 @@ function renderMenu() {
       MEALS.map(([k, label, ic]) => {
         const its = slotItems(day[k]);
         const rows = its.map((id, j) => { const note = isNote(id), r = !note && RECIPES.find(x => x.id === id);
-          const lk = (day._lock || []).includes(k + ':' + id), bd = ((day._x2 || []).includes(k + ':' + id) ? ' <span class="bd">×2</span>' : '') + ((day._tup || []).includes(k + ':' + id) ? ' <span class="bd">🍲 ración</span>' : '');
+          const ug = !note && r && !(day._done || []).includes(k + ':' + id) && !(day._tup || []).includes(k + ':' + id) ? pantryInfo(r).urgent : [];
+          const lk = (day._lock || []).includes(k + ':' + id), bd = ((day._x2 || []).includes(k + ':' + id) ? ' <span class="bd">×2</span>' : '') + ((day._tup || []).includes(k + ':' + id) ? ' <span class="bd">🍲 ración</span>' : '') + (ug.length ? ' <span class="bd" title="Gasta lo que caduca pronto">⚠️ gasta ' + esc(ug[0]) + '</span>' : '');
           return `<div class="mrow"><button class="mitem${note ? ' note' : ''}${(day._done || []).includes(k + ':' + id) ? ' done' : ''}" data-day="${i}" data-meal="${k}" data-idx="${j}" type="button">${note ? '📝 ' + esc(id.slice(1)) : r ? esc(r.name) + bd : 'Receta eliminada'}</button>${!note && r ? (lk ? `<button class="msw lk" data-lock="1" data-day="${i}" data-meal="${k}" data-idx="${j}" type="button" title="Fijado: toca para soltar">🔒</button>` : '') : ''}</div>`; }).join('');
         return `<div class="srow m-${k}${its.length ? ' has' : ''}"><div class="slab">${ic} ${label}</div><div class="sitems">${rows}<button class="madd" data-day="${i}" data-meal="${k}" data-idx="-1" type="button" aria-label="Añadir">${its.length ? '＋' : '＋ Añadir'}</button></div></div>`;
       }).join('') + '</div>';
   }).join('');
-  renderShop(); renderStats(); renderToday();
+  renderShop(); renderStats(); renderToday(); renderSunday();
 }
 async function persistWeek() {
   const ws = WS, m = JSON.parse(JSON.stringify(MENU));
@@ -1464,18 +1466,30 @@ const shopOrder = () => { const o = Array.isArray(STORE_ORDER) ? STORE_ORDER.fil
 const classify = name => { const n = norm(name); const g = TEST_ORDER.find(i => GROUPS[i].re.test(n)); return g === undefined ? 6 : g; };
 
 const shopMsg = (t, err) => { const m = $('shopMsg'); m.textContent = t; m.className = 'notice' + (err ? ' err' : ''); };
-const shopWeek = (ws = WS) => { const w = SHOP[ws] = SHOP[ws] || {}; w.c = w.c || []; w.x = w.x || []; return w; };
+const shopWeek = (ws = WS) => { const w = SHOP[ws] = SHOP[ws] || {}; w.c = w.c || []; w.x = w.x || []; w.n = w.n || []; return w; };
 function saveShop(ws = WS) {
   const data = JSON.parse(JSON.stringify(shopWeek(ws)));
   if (OFFLINE || navigator.onLine === false) { addPending(ws, data); return shopMsg('📶 Sin conexión: se guardará al volver.'); }
   shopChain = shopChain.then(() => db.saveShop(ws, data)).then(() => { const q = getPending(); if (q[ws]) { delete q[ws]; setPending(q); } shopMsg(''); })
     .catch(e => { if (isNetErr(e)) { addPending(ws, data); shopMsg('📶 Sin conexión: se guardará al volver.'); } else shopMsg('No se pudo guardar: ' + e.message, true); });
 }
+function haveCover(p, u) {
+  const ks = Object.keys(u); if (ks.length !== 1) return null; const k = ks[0], need = u[k], un = Number(p.units ?? 1); let have = null;
+  const m = p.quantity ? /^\s*(\d+\/\d+|\d+(?:[.,]\d+)?|[½¼¾])\s*([a-zA-ZáéíóúñÑ]+)?\.?\s*$/.exec(String(p.quantity)) : null;
+  if (m) { let n = parseQty(m[1]), ur = m[2] ? norm(m[2]) : '', unit = ''; if (ur) { if (UNITS[ur]) { unit = UNITS[ur][0]; n *= UNITS[ur][1]; } else unit = UNIT_SING[ur] || ur; } if (unit === k) have = n * un; }
+  else if (!p.quantity && k === '') have = un;
+  if (have == null || isNaN(have)) return null;
+  return { ok: have >= need - 1e-9, miss: need - have, have, k };
+}
 function shopItems() {
-  const w = shopWeek(), ck = new Set(w.c);
-  const items = buildShopList().map(it => ({ key: it.key, name: it.name, qty: fmtQty(it.u), src: [...it.recipes].join(' · '), done: ck.has(it.key), extra: false,
-    units: (() => { const ks = Object.keys(it.u); return ks.length === 1 && ks[0] === '' ? Math.max(1, Math.round(it.u[''])) : 1; })(),
-    home: PANTRY.find(p => !p.recipe_id && fuzzy(norm(p.name), it.key) && Number(p.units ?? 1) > 0) }));
+  const w = shopWeek(), ck = new Set(w.c), nb = new Set(w.n);
+  const items = buildShopList().map(it => {
+    let home = PANTRY.find(p => !p.recipe_id && fuzzy(norm(p.name), it.key) && Number(p.units ?? 1) > 0), qty = fmtQty(it.u), src = [...it.recipes].join(' · ');
+    if (home && nb.has(it.key)) { home = undefined; src += ' · comprar igualmente'; }
+    else if (home) { const c = haveCover(home, it.u); if (c && !c.ok) { qty = fmtQty({ [c.k]: c.miss }); src = 'Tienes ' + fmtQty({ [c.k]: c.have }) + ', faltan · ' + src; home = undefined; } }
+    return { key: it.key, name: it.name, qty, src, done: ck.has(it.key), extra: false,
+      units: (() => { const ks = Object.keys(it.u); return ks.length === 1 && ks[0] === '' ? Math.max(1, Math.round(it.u[''])) : 1; })(), home };
+  });
   w.x.forEach(x => items.push({ key: 'x:' + x.i, name: x.t, qty: '', src: 'Añadido por mí', done: !!x.d, extra: true }));
   return items;
 }
@@ -1486,13 +1500,13 @@ function renderShop() {
   $('shopProg').innerHTML = total ? `<div class="notice">${done} de ${total} comprados</div><div class="progress"><i style="width:${Math.round(done / total * 100)}%"></i></div>` : '';
   if (!items.length) return ($('shopList').innerHTML = '<div class="empty">Todavía no hay nada.<br>Añade recetas al menú de esta semana y sus ingredientes aparecerán aquí solos.</div>');
   const byName = (a, b) => cmpName(a, b);
-  const row = i => `<div class="sitem${i.done ? ' done' : ''}" data-key="${esc(i.key)}"><span class="box">${i.done ? '☑' : '☐'}</span><span><b>${esc(cap(i.name))}</b><small>${esc(i.src)}</small></span><span class="sqty">${esc(i.qty)}</span>${i.extra ? `<button class="btn secondary xdel" data-del="${esc(i.key)}" type="button" aria-label="Quitar">✕</button>` : '<span></span>'}</div>`;
+  const row = i => `<div class="sitem${i.done ? ' done' : ''}" data-key="${esc(i.key)}"><span class="box">${i.done ? '☑' : '☐'}</span><span><b>${esc(cap(i.name))}</b><small>${esc(i.src)}</small></span><span class="sqty">${esc(i.qty)}</span>${i.extra ? `<button class="btn secondary xdel" data-del="${esc(i.key)}" type="button" aria-label="Quitar">✕</button>` : i.homeRow ? `<button class="btn secondary xdel" data-buy="${esc(i.key)}" type="button" title="Comprar igualmente">🛒</button>` : '<span></span>'}</div>`;
   const todo = items.filter(i => !i.done && !i.home).sort(byName), dn = items.filter(i => i.done).sort(byName), inHome = items.filter(i => !i.done && i.home).sort(byName);
   let html = '';
   if (shopGrouped) shopOrder().forEach(gi => { const g = GROUPS[gi], li = todo.filter(i => classify(i.name) === gi); if (li.length) html += `<h3 class="sgroup">${g.icon} ${g.name} (${li.length})</h3>` + li.map(row).join(''); });
   else html = todo.map(row).join('');
   if (!todo.length) html = '<div class="empty">¡Todo comprado! 🎉</div>';
-  if (inHome.length) html += `<h3 class="sgroup">🏠 Ya tienes en casa · revisa (${inHome.length})</h3>` + inHome.map(i => row({ ...i, src: 'En casa: ' + (i.home.quantity || 'sí') + ' · ' + (LOCS.find(l => l[0] === pLocOf(i.home)) || ['', '', ''])[1] })).join('');
+  if (inHome.length) html += `<h3 class="sgroup">🏠 Ya tienes en casa · revisa (${inHome.length})</h3>` + inHome.map(i => row({ ...i, homeRow: true, src: 'En casa: ' + (i.home.quantity || 'sí') + ' · ' + (LOCS.find(l => l[0] === pLocOf(i.home)) || ['', '', ''])[1] })).join('');
   if (dn.length) html += `<h3 class="sgroup">✔ Comprado (${dn.length})</h3>` + dn.map(row).join('');
   $('shopList').innerHTML = html;
 }
@@ -1520,6 +1534,7 @@ async function shareShop() {
 $('shopList').onclick = e => {
   const d = e.target.closest('[data-del]');
   if (d) { const w = shopWeek(); w.x = w.x.filter(v => 'x:' + v.i !== d.dataset.del); renderShop(); return saveShop(); }
+  const bu = e.target.closest('[data-buy]'); if (bu) { const w = shopWeek(); if (!w.n.includes(bu.dataset.buy)) w.n.push(bu.dataset.buy); renderShop(); return saveShop(); }
   const r = e.target.closest('.sitem'); if (r) toggleShop(r.dataset.key);
 };
 const HOME_LOC = ['frigorifico', 'frigorifico', 'frigorifico', 'despensa', 'despensa', 'congelador', 'despensa'];
@@ -2208,7 +2223,7 @@ function tick() {
 }
 function renderCook() {
   const { r, steps, i } = ck, last = i === steps.length - 1; ck.times = stepTimes(steps[i]);
-  $('cookView').innerHTML = `<div class="ckbar"><button class="btn secondary" data-ck="close">✕</button><b>${esc(r.name)}</b><button class="btn secondary" data-ck="ing">🥕</button></div>
+  $('cookView').innerHTML = `<div class="ckbar"><button class="btn secondary" data-ck="close">✕</button><b>${esc(r.name)}</b><button class="btn secondary" data-ck="ing">🥕</button><button class="btn secondary" data-ck="miss" title="Me falta algo">🛒</button></div>
     <div class="ckprog"><i style="width:${Math.round((i + 1) / steps.length * 100)}%"></i></div><div class="cknum">PASO ${i + 1} DE ${steps.length}</div>
     <div class="cktext">${esc(steps[i])}</div><div class="cktimers" id="ckTimers">${timersHtml()}</div>
     <div class="ckctl"><button class="btn secondary" data-ck="prev"${i ? '' : ' disabled'}>◀ Anterior</button><button class="btn" data-ck="next">${last ? '✅ Terminar' : 'Siguiente ▶'}</button></div>`;
@@ -2230,6 +2245,7 @@ $('cookView').addEventListener('click', e => {
   if (a === 'prev' && ck.i > 0) { ck.i--; renderCook(); }
   if (a === 'next') { if (ck.i < ck.steps.length - 1) { ck.i++; renderCook(); } else closeCook(true); }
   if (a === 'ing') openP(`<div class="editbar"><div class="sheet-top"><h2>🥕 Ingredientes</h2><button class="btn secondary" data-pa="close">Cerrar</button></div></div>` + (lines(ck.r.ingredients).map(x => `<div class="ing">${esc(x)}</div>`).join('') || '<div class="notice">Sin ingredientes.</div>'));
+  if (a === 'miss') { const ls = lines(ck.r.ingredients); cartCtx = { lines: ls }; openP(`<div class="editbar"><div class="sheet-top"><h2>🛒 ¿Qué te falta?</h2><div class="btns"><button class="btn secondary" data-pa="close">Cancelar</button><button class="btn" data-pa="cartadd">Apuntar</button></div></div><div class="notice">Marca lo que te falta y lo apunto en la compra.</div></div>` + (ls.map((l, i) => `<div class="grow" data-l="${i}"><div class="grow1"><input type="checkbox" data-f="on"><b style="flex:1;font-weight:600">${esc(l)}</b></div></div>`).join('') || '<div class="notice">Sin ingredientes.</div>')); }
   if (a === 'tstart') { try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume && audioCtx.resume(); } catch (er) {}
     ckTimers.push({ id: Date.now().toString(36) + ckTimers.length, label: b.dataset.label, end: Date.now() + (+b.dataset.sec) * 1000, fin: false }); if (!ckTick) ckTick = setInterval(tick, 1000); tick(); }
   if (a === 'tdel') { ckTimers = ckTimers.filter(t => t.id !== b.dataset.id); tick(); }
@@ -3165,6 +3181,28 @@ $('nav').onclick = e => { const b = e.target.closest('button'); if (b) showTab(b
 sb.auth.onAuthStateChange((_evt, session) => onSession(session));
 sb.auth.getSession().then(({ data }) => onSession(data && data.session)).catch(() => onSession(null));
 updateBanner();
+
+/* resumen del domingo */
+async function renderSunday() {
+  const box = $('sundayCard'); if (!box || !db.user) return;
+  const now = new Date(), key = 'pandi-sun-' + ymd(mondayOf(now)); let hid = false;
+  try { hid = !!localStorage.getItem(key); } catch (e) {}
+  if (now.getDay() !== 0 || hid) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+  try {
+    const [cur, nxt] = await Promise.all([weekFor(ymd(mondayOf(now))), weekFor(nextWs())]);
+    let plan = 0, done = 0, x2 = 0;
+    (cur || []).forEach(d => { MEALS.forEach(([k]) => slotItems((d || {})[k]).forEach(id => { if (!isNote(id)) plan++; })); done += ((d || {})._done || []).length; x2 += ((d || {})._x2 || []).length; });
+    const dishes = PANTRY.filter(p => p.recipe_id && Number(p.units ?? 1) > 0).length, soon = PANTRY.filter(p => p.expiry_date && Number(p.units ?? 1) > 0 && daysTo(p.expiry_date) <= 3).length, has = menuHas(nxt || []);
+    box.innerHTML = `<div class="th">📝 Resumen de la semana</div><div>🍳 Cocinado: ${done} de ${plan} platos${x2 ? ' · 🍲 ' + x2 + ' con ración doble' : ''}<br>🥡 Platos ya cocinados guardados: ${dishes}<br>${soon ? '⚠️ ' + soon + ' producto' + (soon > 1 ? 's' : '') + ' de la despensa caduca' + (soon > 1 ? 'n' : '') + ' en 3 días' : '✅ Nada caduca en los próximos 3 días'}<br>📅 Semana siguiente: ${has ? 'ya tiene menú' : 'sin menú todavía'}</div><div class="thaw"><button class="btn" data-sun="next" type="button">${has ? '🎲 Rellenar huecos' : '✨ Preparar semana siguiente'}</button><button class="btn secondary" data-sun="shop" type="button">🛒 Compra</button><button class="btn secondary" data-sun="hide" type="button">Ocultar</button></div>`;
+    box.classList.remove('hidden');
+  } catch (e) { box.classList.add('hidden'); }
+}
+$('sundayCard').onclick = async e => {
+  const b = e.target.closest('[data-sun]'); if (!b) return; const a = b.dataset.sun;
+  if (a === 'hide') { try { localStorage.setItem('pandi-sun-' + ymd(mondayOf(new Date())), '1'); } catch (er) {} return renderSunday(); }
+  if (a === 'next') { await quickNext(); return renderSunday(); }
+  if (a === 'shop') { goWeek(nextWs()); showTab('shop'); }
+};
 </script>
 </body>
 </html>
