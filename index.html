@@ -300,7 +300,7 @@ header{background:#07192d}
       <h2>🛒 Compra</h2>
       <div class="weeknav"><button class="btn secondary" id="shopPrev" type="button" aria-label="Semana anterior">◀</button><button class="weeklabel" id="shopLabel" type="button"></button><button class="btn secondary" id="shopNext" type="button" aria-label="Semana siguiente">▶</button></div>
       <div class="noterow"><input id="shopAdd" maxlength="60" placeholder="Añadir a la lista (ej. papel de cocina)"><button class="btn" id="shopAddBtn" type="button">＋</button></div>
-      <div class="chips" style="margin:6px 0"><button class="chip" id="shopBoth" type="button">📅 + Semana siguiente</button><button class="chip" data-su="open" type="button">🛍️ Modo súper</button><button class="chip" id="shopShare" type="button">📤 Compartir lista</button><button class="chip" id="shopStock" type="button">🏠 Guardar comprados en casa</button><button class="chip" id="shopOrder" type="button">↕️ Orden del súper</button><button class="chip" id="shopUncheck" type="button">↩️ Desmarcar todo</button><button class="chip" id="shopGroup" type="button"></button></div>
+      <div class="chips" style="margin:6px 0"><button class="chip" id="shopBoth" type="button">📅 + Semana siguiente</button><button class="chip" data-low="1" type="button">📉 Apuntar lo bajo mínimo</button><button class="chip" data-su="open" type="button">🛍️ Modo súper</button><button class="chip" id="shopShare" type="button">📤 Compartir lista</button><button class="chip" id="shopStock" type="button">🏠 Guardar comprados en casa</button><button class="chip" id="shopOrder" type="button">↕️ Orden del súper</button><button class="chip" id="shopUncheck" type="button">↩️ Desmarcar todo</button><button class="chip" id="shopGroup" type="button"></button></div>
       <div class="notice" id="shopMsg"></div>
       <div id="shopProg"></div>
       <div id="shopList"></div>
@@ -1561,11 +1561,11 @@ async function stockBought() {
   try {
     for (const i of ext) {
       const x = w.x.find(v => 'x:' + v.i === i.key); if (!x) continue; const q = Number(x.q) || 1, ps = PANTRY.find(p => !p.recipe_id && (norm(p.name) === norm(x.t) || fuzzy(norm(p.name), norm(x.t))));
-      if (ps) { ps.units = Math.round((Number(ps.units ?? 1) + q) * 100) / 100; await db.setUnits(ps.id, ps.units); x.s = true; bumped++; }
+      if (ps) { ps.units = Math.round((Number(ps.units ?? 1) + q) * 100) / 100; await db.setUnits(ps.id, ps.units); x.s = true; bumped++; noteBuy(ps.name); }
       else if (catFor(x.t).loc) { news.push(rowFor(x.t, '', q)); x.s = true; }
     }
     if (!news.length && !bumped) return shopMsg('No hay comprados nuevos que guardar (o ya están en casa).');
-    if (news.length) await db.addPantry(news);
+    if (news.length) await db.addPantry(news); news.forEach(r => noteBuy(r.name));
     saveShop(); await loadPantry(); shopMsg(`Guardados en casa: ${news.length} nuevo${news.length === 1 ? '' : 's'}${bumped ? ` y ${bumped} repuesto${bumped === 1 ? '' : 's'}` : ''}. Los que ya conocía quedan en su sitio y zona.`);
   } catch (e) { shopMsg('No se pudo guardar en casa: ' + e.message, true); }
 }
@@ -1615,13 +1615,13 @@ function renderPantry() {
   const q = norm($('pantrySearch').value).split(/\s+/).filter(Boolean);
   const list = PANTRY.filter(p => (pLoc === 'all' || pLocOf(p) === pLoc) && (!pZone || p.zone === pZone) && (pType < 0 || classify(p.name) === pType) && q.every(w => norm(p.name + ' ' + (p.quantity || '')).includes(w)));
   const byName = (a, b) => cmpName(a, b);
-  list.sort(pSort === 'az' ? byName : pSort === 'new' ? (a, b) => String(b.entry_date || '').localeCompare(String(a.entry_date || '')) || byName(a, b)
+  list.sort(pSort === 'az' ? byName : pSort === 'zone' ? (a, b) => zoneRank(a) - zoneRank(b) || byName(a, b) : pSort === 'low' ? (a, b) => lowRatio(a) - lowRatio(b) || byName(a, b) : pSort === 'new' ? (a, b) => String(b.entry_date || '').localeCompare(String(a.entry_date || '')) || byName(a, b)
     : (a, b) => (a.expiry_date ? 0 : 1) - (b.expiry_date ? 0 : 1) || String(a.expiry_date).localeCompare(String(b.expiry_date)) || byName(a, b));
-  $('pantrySort').textContent = { exp: '⏰ Por caducidad', az: '↕️ A–Z', new: '🆕 Recientes' }[pSort];
+  $('pantrySort').textContent = { exp: '⏰ Por caducidad', az: '↕️ A–Z', new: '🆕 Recientes', zone: '📍 Por zona', low: '📉 Poco stock' }[pSort];
   $('pantryCount').textContent = `${list.length} producto${list.length === 1 ? '' : 's'}${list.some(isAutoExp) ? ' · ≈ = fecha estimada' : ''}`;
   const lotInfo = lotMap();
   $('pantryList').innerHTML = list.length ? list.map(p => { const e = expInfo(p), u = Number(p.units ?? 1); return `<div class="pcard${u <= 0 ? ' zero' : ''}" data-id="${p.id}"><span class="pico">${p.recipe_id ? '🍲' : locIcon(pLocOf(p))}</span>
-    <span><b>${esc(p.name)}</b><small>${p.opened ? '📭 abierto · ' : ''}${lotInfo[p.id] ? lotInfo[p.id] + ' · ' : ''}${daysLeft(p) !== null && daysLeft(p) <= 14 ? '⏳ ≈' + daysLeft(p) + ' d · ' : ''}${(ZONES[pLocOf(p)] || []).includes(p.zone) ? '📍 ' + esc(p.zone) + ' · ' : ''}${esc(p.quantity ? p.quantity + ' · ' : '')}${u <= 0 ? 'Agotado' : p.entry_date ? 'desde ' + esc(fdate(p.entry_date)) : ''}${minOf(p) !== null ? ' · mín. ' + fmtNum(minOf(p)) : ''}</small>${e ? `<em class="exp ${e.cls}">${esc((isAutoExp(p) ? '≈ ' : '') + e.txt)}</em>` : ''}${pLocOf(p) === 'congelador' ? `<br><button class="chip" data-thaw1="${p.id}" type="button" style="margin-top:6px;padding:4px 10px;font-size:12px">🧊 Descongelar</button>` : ''}${chipsExtra(p)}</span>
+    <span><b>${esc(p.name)}</b><small>${catOf(p.name).note ? '📝 ' + esc(catOf(p.name).note.slice(0, 40)) + ' · ' : ''}${p.opened ? '📭 abierto · ' : ''}${lotInfo[p.id] ? lotInfo[p.id] + ' · ' : ''}${daysLeft(p) !== null && daysLeft(p) <= 14 ? '⏳ ≈' + daysLeft(p) + ' d · ' : ''}${(ZONES[pLocOf(p)] || []).includes(p.zone) ? '📍 ' + esc(p.zone) + ' · ' : ''}${esc(p.quantity ? p.quantity + ' · ' : '')}${u <= 0 ? 'Agotado' : p.entry_date ? 'desde ' + esc(fdate(p.entry_date)) : ''}${minOf(p) !== null ? ' · mín. ' + fmtNum(minOf(p)) : ''}</small>${e ? `<em class="exp ${e.cls}">${esc((isAutoExp(p) ? '≈ ' : '') + e.txt)}</em>` : ''}${pLocOf(p) === 'congelador' ? `<br><button class="chip" data-thaw1="${p.id}" type="button" style="margin-top:6px;padding:4px 10px;font-size:12px">🧊 Descongelar</button>` : ''}${chipsExtra(p)}</span>
     <span class="pctl"><button class="stp" data-adj="-1" type="button" aria-label="Restar una unidad">−</button><span class="units${minOf(p) !== null && u <= minOf(p) ? ' low' : ''}">${fmtUnits(u)}</span><button class="stp" data-adj="1" type="button" aria-label="Sumar una unidad">＋</button></span></div>`; }).join('')
     : `<div class="empty">${PANTRY.length ? 'No hay productos con esos filtros.' : 'No hay nada apuntado todavía.<br>Pulsa ＋ Añadir, o marca lo que compras en Compra y pásalo aquí con "Guardar comprados en casa".'}</div>`;
 }
@@ -1635,8 +1635,9 @@ function editPantry(id) {
     <div class="field"><label>Unidades en stock (las que resta el −1)</label><input id="pUnits" type="text" inputmode="decimal" value="${esc(fmtUnits(p.units ?? 1))}" placeholder="Ej.: 1, 1/2, 3/4, 1,5"></div>
     <div class="field"><label>Avísame al bajar de (stock mínimo, opcional)</label><input id="pMin" type="text" inputmode="decimal" value="${esc(p.min_units === null || p.min_units === undefined ? '' : fmtUnits(p.min_units))}" placeholder="Ej.: 2"></div>
     <div class="field"><label>Stock objetivo: cuántas quiero tener al reponer (opcional)</label><input id="pTgt" type="text" inputmode="decimal" value="${esc(catOf(p.name).target ? fmtUnits(catOf(p.name).target) : '')}" placeholder="Ej.: 6"></div>
-    <div class="field"><label>Compra recurrente</label><select id="pRec"><option value="0">No</option><option value="1"${catOf(p.name).rec === 1 ? ' selected' : ''}>🔁 Cada semana</option><option value="2"${catOf(p.name).rec === 2 ? ' selected' : ''}>🔁 Cada 2 semanas</option></select></div>
+    <div class="field"><label>Compra recurrente${buyGapTxt(p.name)}</label><select id="pRec"><option value="0">No</option><option value="1"${catOf(p.name).rec === 1 ? ' selected' : ''}>🔁 Cada semana</option><option value="2"${catOf(p.name).rec === 2 ? ' selected' : ''}>🔁 Cada 2 semanas</option></select></div>
     <div class="field"><label>Marca / formato preferido (sale en la compra)</label><input id="pBrand" type="text" value="${esc(catOf(p.name).brand || '')}" placeholder="Ej.: Hacendado 1 l"></div>
+    <div class="field"><label>Nota del producto (opcional)</label><input id="pNote" type="text" value="${esc(catOf(p.name).note || '')}" placeholder="Ej.: sin gluten, abrir antes que el otro"></div>
     <div class="field"><label>Formato (opcional)</label><input id="pQty" value="${esc(p.quantity)}" placeholder="Ej.: 500 g, 1 L, bandeja"></div>
     <div class="field"><label>Dónde está</label><div class="chips" id="pLocChips"></div><div class="chips" id="pZoneChips" style="margin-top:6px"></div>${id && pLocOf(p) === 'congelador' ? `<button class="btn secondary" data-pa="thaw" data-id="${id}" type="button" style="width:100%;margin-top:8px">🧊 Descongelar (pasa al frigorífico)</button>` : ''}</div>
     <div class="field"><label>Fecha de entrada</label><input id="pEntry" type="date" value="${esc(p.entry_date || '')}"></div>
@@ -1650,7 +1651,7 @@ async function savePantryItem() {
   if (!name) { msg.className = 'notice err'; return (msg.textContent = 'Escribe qué es.'); }
   btn.disabled = true; msg.className = 'notice'; msg.textContent = 'Guardando…';
   try {
-    learnItem(name, pEdit, $('pQty').value.trim(), $('pMin').value.trim(), parseUnits($('pTgt').value) || '', +$('pRec').value || 0, $('pBrand').value.trim()); await db.savePantry({ id: pEdit.id, name, quantity: $('pQty').value.trim(), units: Math.max(0, parseUnits($('pUnits').value) ?? 0), min_units: $('pMin').value.trim() === '' ? null : Math.max(0, parseUnits($('pMin').value) ?? 0), location: pEdit.loc, zone: (ZONES[pEdit.loc] || []).includes(pEdit.zone) ? pEdit.zone : null, entry_date: $('pEntry').value, expiry_date: $('pExp').value || ((pEdit.id || pEdit.noexp) ? '' : autoExp(name, pEdit.loc)) });
+    learnItem(name, pEdit, $('pQty').value.trim(), $('pMin').value.trim(), parseUnits($('pTgt').value) || '', +$('pRec').value || 0, $('pBrand').value.trim(), $('pNote').value.trim()); await db.savePantry({ id: pEdit.id, name, quantity: $('pQty').value.trim(), units: Math.max(0, parseUnits($('pUnits').value) ?? 0), min_units: $('pMin').value.trim() === '' ? null : Math.max(0, parseUnits($('pMin').value) ?? 0), location: pEdit.loc, zone: (ZONES[pEdit.loc] || []).includes(pEdit.zone) ? pEdit.zone : null, entry_date: $('pEntry').value, expiry_date: $('pExp').value || ((pEdit.id || pEdit.noexp) ? '' : autoExp(name, pEdit.loc)) });
     $('pModal').classList.remove('show'); await loadPantry();
   } catch (e) { btn.disabled = false; msg.className = 'notice err'; msg.textContent = 'No se pudo guardar: ' + e.message; }
 }
@@ -1708,7 +1709,7 @@ function addToShopList(name, q) {
   saveShop(ws); renderShop();
 }
 $('pantrySearch').oninput = renderPantry;
-$('pantrySort').onclick = () => { pSort = { exp: 'az', az: 'new', new: 'exp' }[pSort]; renderPantry(); };
+$('pantrySort').onclick = () => { pSort = { exp: 'az', az: 'new', new: 'zone', zone: 'low', low: 'exp' }[pSort]; renderPantry(); };
 $('pantryCook').onclick = cookIdeas;
 $('btnNewPantry').onclick = () => editPantry(null);
 $('pBody').addEventListener('click', e => {
@@ -3297,7 +3298,7 @@ $('haveFilter').onclick = () => { haveSort = !haveSort; renderRecipes(); };
 const catalogNames = () => [...new Set([...Object.values(CATALOG).map(c => c.n).filter(Boolean), ...PANTRY.map(p => p.name)])].slice(0, 300);
 function saveCatalogSoon() { clearTimeout(catT); catT = setTimeout(() => db.saveExtras({ catalog: CATALOG }).catch(() => { if (!catWarn) { catWarn = true; toast('Falta la columna catalog en Supabase (mira el SQL).'); } }), 1500); }
 function noteUse(p, seenOnly, amt) { const c = CATALOG[norm(p.name)] = CATALOG[norm(p.name)] || { n: p.name }, t = ymd(new Date()); if (seenOnly) c.seen = t; else { c.use = c.use || []; c.ua = c.ua || []; while (c.ua.length < c.use.length) c.ua.unshift(1); c.use = [...c.use, t].slice(-12); c.ua = [...c.ua, amt > 0 ? Math.round(amt * 100) / 100 : 1].slice(-12); } saveCatalogSoon(); }
-function learnItem(name, pe, qty, min, tgt, rec, brand) { const c = CATALOG[norm(name)] = CATALOG[norm(name)] || {}; c.n = name; c.loc = pe.loc; c.zone = pe.zone || ''; c.qty = qty; c.min = min; c.target = tgt || ''; c.brand = brand || ''; if (rec && c.rec !== rec) c.recPhase = weekPar(ymd(mondayOf(new Date()))); c.rec = rec || 0; saveCatalogSoon(); }
+function learnItem(name, pe, qty, min, tgt, rec, brand, note) { const c = CATALOG[norm(name)] = CATALOG[norm(name)] || {}; c.n = name; c.loc = pe.loc; c.zone = pe.zone || ''; c.qty = qty; c.min = min; c.target = tgt || ''; c.brand = brand || ''; c.note = note || ''; if (rec && c.rec !== rec) c.recPhase = weekPar(ymd(mondayOf(new Date()))); c.rec = rec || 0; saveCatalogSoon(); }
 function drawZone() { const el = $('pZoneChips'); if (!el || !pEdit) return; const zs = ZONES[pEdit.loc] || []; if (!zs.includes(pEdit.zone)) pEdit.zone = ''; el.innerHTML = zs.map(z => `<button type="button" class="chip${pEdit.zone === z ? ' on' : ''}" data-pzone="${esc(z)}">📍 ${esc(z)}</button>`).join(''); }
 function pantryQty(p) { const m = p.quantity ? /^\s*(\d+\/\d+|\d+(?:[.,]\d+)?|[½¼¾])\s*([a-zA-ZáéíóúñÑ]+)?\.?\s*$/.exec(String(p.quantity)) : null; if (!m) return null; let n = parseQty(m[1]), ur = m[2] ? norm(m[2]) : '', unit = ''; if (ur) { if (UNITS[ur]) { unit = UNITS[ur][0]; n *= UNITS[ur][1]; } else unit = UNIT_SING[ur] || ur; } return { k: unit, n }; }
 function usedUnits(p) { const ks = Object.keys(p._need || {}), q = pantryQty(p); if (ks.length === 1 && q && q.k === ks[0] && q.n > 0) return Math.max(0.05, Math.min(Number(p.units ?? 1), Math.round(p._need[ks[0]] / q.n * 100) / 100)); return 1; }
@@ -3325,8 +3326,8 @@ function renderPTools() {
   const base = PANTRY.filter(p => pLoc === 'all' || pLocOf(p) === pLoc), tc = GROUPS.map((g, i) => ({ g, i, n: base.filter(p => classify(p.name) === i).length })).filter(x => x.n);
   if (!tc.some(x => x.i === pType)) pType = -1;
   tb.innerHTML = tc.length > 1 ? [{ g: { icon: '🏷️', name: 'Todos' }, i: -1, n: base.length }, ...tc].map(x => `<button class="chip${pType === x.i ? ' on' : ''}" data-tf="${x.i}" type="button">${x.g.icon} ${esc(x.g.name)} ${x.n}</button>`).join('') : '';
-  const f = forgotten().length, d = dupeGroups().length, m = minSuggest().length, oc = oftenList().length, nd = noDate().length;
-  box.innerHTML = '<button class="chip" data-pt="review" type="button">✅ Revisión rápida</button><button class="chip" data-pt="map" type="button">🗺️ Mapa</button>' + (f ? `<button class="chip" data-pt="forgot" type="button">🕸️ Sin tocar (${f})</button>` : '') + (d ? `<button class="chip" data-pt="dupes" type="button">🔁 Repetidos (${d})</button>` : '') + (m ? `<button class="chip" data-pt="mins" type="button">💡 Mínimos (${m})</button>` : '') + (oc ? `<button class="chip" data-pt="often" type="button">🔔 Te falta lo de siempre (${oc})</button>` : '') + (nd ? `<button class="chip" data-pt="dates" type="button">📅 Sin fecha (${nd})</button>` : '');
+  const f = forgotten().length, d = dupeGroups().length, m = minSuggest().length, oc = oftenList().length, nd = noDate().length, rc = recSuggest().length;
+  box.innerHTML = '<button class="chip" data-pt="review" type="button">✅ Revisión rápida</button><button class="chip" data-pt="map" type="button">🗺️ Mapa</button>' + (f ? `<button class="chip" data-pt="forgot" type="button">🕸️ Sin tocar (${f})</button>` : '') + (d ? `<button class="chip" data-pt="dupes" type="button">🔁 Repetidos (${d})</button>` : '') + (m ? `<button class="chip" data-pt="mins" type="button">💡 Mínimos (${m})</button>` : '') + (oc ? `<button class="chip" data-pt="often" type="button">🔔 Te falta lo de siempre (${oc})</button>` : '') + (nd ? `<button class="chip" data-pt="dates" type="button">📅 Sin fecha (${nd})</button>` : '') + (rc ? `<button class="chip" data-pt="recs" type="button">🔁 Hacer recurrentes (${rc})</button>` : '');
 }
 const rvOrder = p => ['congelador', 'frigorifico', 'despensa'].indexOf(pLocOf(p));
 function rvStart() { rv = { list: PANTRY.filter(p => !p.recipe_id && Number(p.units ?? 1) > 0).sort((a, b) => rvOrder(a) - rvOrder(b) || (a.zone || '').localeCompare(b.zone || '') || cmpName(a, b)), i: 0 }; rvDraw(); }
@@ -3358,7 +3359,7 @@ document.addEventListener('click', async e => {
   const t = e.target.closest('[data-pt],[data-rv],[data-fg],[data-dp],[data-mn],[data-zf],[data-pzone]'); if (!t) return; const d = t.dataset;
   if (d.zf !== undefined) { pZone = d.zf; return renderPantry(); }
   if (d.pzone !== undefined && pEdit) { pEdit.zone = pEdit.zone === d.pzone ? '' : d.pzone; return drawZone(); }
-  if (d.pt) return ({ review: rvStart, forgot: fgOpen, dupes: dpOpen, mins: mnOpen, map: mapOpen, often: ofOpen, dates: ddOpen })[d.pt]();
+  if (d.pt) return ({ review: rvStart, forgot: fgOpen, dupes: dpOpen, mins: mnOpen, map: mapOpen, often: ofOpen, dates: ddOpen, recs: rcOpen })[d.pt]();
   if (d.rv && rv) return rvAct(d.rv);
   if (d.dp !== undefined) return dpMerge(+d.dp);
   if (d.fg) { const [a, id] = d.fg.split('|'), p = PANTRY.find(x => x.id === id); if (!p) return; try { if (a === 'keep') noteUse(p, true); else { logWaste(p, 'del'); await db.deletePantry(id); await loadPantry(); } } catch (er) { toast('No se pudo: ' + er.message); } return fgOpen(); }
@@ -3447,6 +3448,7 @@ function chipsExtra(p) {
   if (p.recipe_id) return ''; const L = pLocOf(p), st = 'margin:6px 6px 0 0;padding:4px 10px;font-size:12px'; let h = '';
   if (L === 'frigorifico') h += `<button class="chip" data-frz1="${p.id}" type="button" style="${st}">❄️ Congelar</button>`;
   if (L !== 'congelador' && !p.opened) h += `<button class="chip" data-open1="${p.id}" type="button" style="${st}">📭 Abrir</button>`;
+  if (Number(p.units ?? 1) <= 1) h += `<button class="chip" data-lvl="${p.id}" type="button" style="${st}">📊 Nivel</button>`;
   return h ? (L === 'congelador' ? '' : '<br>') + h : '';
 }
 async function openItem(id) {
@@ -3561,8 +3563,8 @@ function renderMorning() {
   const now = new Date(), key = 'pandi-mo-' + ymd(now); let off = false; try { off = !!localStorage.getItem(key); } catch (e) {}
   if (off || now.getHours() >= 13 || !PANTRY.length) { b.classList.add('hidden'); return; }
   const di = (now.getDay() + 6) % 7, exp = PANTRY.filter(p => p.expiry_date && Number(p.units ?? 1) > 0 && daysTo(p.expiry_date) <= 1), low = PANTRY.filter(p => !p.recipe_id && minOf(p) !== null && Number(p.units ?? 1) <= minOf(p)), fz = WS === ymd(mondayOf(now)) ? frozenFor(MENU[di], true) : [], nm = l => esc(l.slice(0, 5).map(p => cap(p.name)).join(', ') + (l.length > 5 ? ' +' + (l.length - 5) : ''));
-  if (!exp.length && !low.length && !fz.length) { b.classList.add('hidden'); return; }
-  b.innerHTML = '<div class="th">☀️ Para empezar el día</div><div>' + (exp.length ? `⚠️ Caduca hoy o mañana: ${nm(exp)}<br>` : '') + (fz.length ? `🧊 Saca del congelador: ${nm(fz)}<br>` : '') + (low.length ? `📉 Bajo mínimo: ${nm(low)}` : '') + '</div><div class="thaw"><button class="btn secondary" data-mo="pantry" type="button">Ver despensa</button><button class="btn secondary" data-mo="hide" type="button">Ocultar hoy</button></div>';
+  const idea = WS === ymd(mondayOf(now)) ? wasteIdea() : null; if (!exp.length && !low.length && !fz.length && !idea) { b.classList.add('hidden'); return; }
+  b.innerHTML = '<div class="th">☀️ Para empezar el día</div><div>' + (exp.length ? `⚠️ Caduca hoy o mañana: ${nm(exp)}<br>` : '') + (fz.length ? `🧊 Saca del congelador: ${nm(fz)}<br>` : '') + (low.length ? `📉 Bajo mínimo: ${nm(low)}<br>` : '') + (idea ? `🍳 Idea: ${esc(idea.r.name)} (gasta ${esc(idea.f.urgent.slice(0, 2).join(' y '))})` : '') + '</div><div class="thaw">' + (idea ? `<button class="btn" data-mo="idea|${idea.r.id}" type="button">Ponerla en el menú</button>` : '') + '<button class="btn secondary" data-mo="pantry" type="button">Ver despensa</button><button class="btn secondary" data-mo="hide" type="button">Ocultar hoy</button></div>';
   b.classList.remove('hidden');
 }
 const bkMsg = () => { let l = ''; try { l = localStorage.getItem('pandi-bk') || ''; } catch (e) {} return !l || l < ymd(addDays(new Date(), -7)) ? '<br>💾 Hace más de una semana de tu última copia de seguridad' : ''; };
@@ -3584,6 +3586,7 @@ document.addEventListener('click', async e => {
   const t = e.target.closest('[data-th],[data-su],[data-fx],[data-mo],[data-lo]'); if (!t) return; const d = t.dataset;
   if (d.fx) { fullBox(d.fx === 'today' ? 'todayBox' : 'superBox').style.display = 'none'; relWake(); return; }
   if (d.lo) { const [a, x, y, z] = d.lo.split('|'); if (a === 'yes') { leftovers(+x, y, z); if (lfCtx) lfCtx.after = () => askRating(z); } else { closePModal(); askRating(x); } return; }
+  if ((d.mo || '').startsWith('idea|')) { const id = d.mo.slice(5), di = (new Date().getDay() + 6) % 7, k = new Date().getHours() < 12 ? 'comida' : 'cena'; if (WS !== ymd(mondayOf(new Date()))) return; slotSet(di, k, -1, id); await persistWeek(); renderMenu(); return toast('🍳 Añadida a la ' + k + ' de hoy'); }
   if (d.mo === 'hide') { try { localStorage.setItem('pandi-mo-' + ymd(new Date()), '1'); } catch (er) {} return $('morningCard').classList.add('hidden'); }
   if (d.mo === 'pantry') { showTab('pantry'); pLoc = 'all'; pSort = 'exp'; return renderPantry(); }
   if (d.su) { if (d.su === 'open') return superOpen(); toggleShop(d.su, WS); return superDraw(); }
@@ -3592,6 +3595,25 @@ document.addEventListener('click', async e => {
 
 /* ir a un día sin que lo tape la cabecera fija */
 function scrollToDay(el) { const bots = ['.weeknav', '#dayPills'].map(q => { const n = document.querySelector(q); return n ? n.getBoundingClientRect().bottom : 0; }); window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - Math.max(...bots, 100) - 8), behavior: 'smooth' }); }
+
+/* ---- orden, nivel, compras, bajo mínimo, idea anti-desperdicio ---- */
+const zoneRank = p => rvOrder(p) * 100 + (((ZONES[pLocOf(p)] || []).indexOf(p.zone) + 1) || 99);
+const lowRatio = p => { const u = Number(p.units ?? 1), m = minOf(p) ?? tgtOf(p); return u <= 0 ? -1 : m ? u / m : 100 + u; };
+function noteBuy(name) { const c = CATALOG[norm(name)] = CATALOG[norm(name)] || { n: name }, t = ymd(new Date()); c.buy = [...new Set([...(c.buy || []), t])].slice(-12); saveCatalogSoon(); }
+const buyGap = c => { const b = (c && c.buy) || []; return b.length < 3 ? null : Math.round((parseYmd(b[b.length - 1]) - parseYmd(b[0])) / 864e5 / (b.length - 1)); };
+const buyGapTxt = n => { const g = buyGap(catOf(n)); return g ? ` · lo compras cada ~${g} días` : ''; };
+const recSuggest = () => Object.entries(CATALOG).map(([k, c]) => ({ k, c, g: buyGap(c) })).filter(x => x.c.n && !x.c.rec && x.g && ((x.g >= 5 && x.g <= 9) || (x.g >= 12 && x.g <= 16))).map(x => ({ ...x, rec: x.g <= 9 ? 1 : 2 }));
+function rcOpen() { const l = recSuggest(); if (!l.length) { $('pModal').classList.remove('show'); return toast('Sin sugerencias por ahora'); } openP(pHead('🔁 Hacer recurrentes', 'Por cada cuánto los compras. Si aceptas, entran solos en la lista de esa semana.') + l.map(x => `<div class="grow"><div class="grow1"><b style="flex:1">${esc(cap(x.c.n))} <small>cada ~${x.g} días</small></b><button class="btn secondary" data-rc="${esc(x.k)}|${x.rec}" type="button">${x.rec === 1 ? 'Cada semana' : 'Cada 2 semanas'}</button></div></div>`).join('')); }
+function wasteIdea() { const di = (new Date().getDay() + 6) % 7, today = new Set(MEALS.flatMap(([k]) => slotItems((MENU[di] || {})[k]))); return RECIPES.filter(r => !today.has(r.id)).map(r => ({ r, f: pantryInfo(r) })).filter(x => x.f.urgent.length).sort((a, b) => b.f.urgent.length - a.f.urgent.length || b.f.cov - a.f.cov)[0] || null; }
+function lvlOpen(id) { const p = PANTRY.find(x => x.id === id); if (!p) return; const b = 'width:100%;min-height:64px;font-size:1.2rem;font-weight:700;margin:6px 0'; openP(pHead('📊 ' + cap(p.name), 'Cuánto queda ahora, a ojo.') + [['🟢 Lleno', 1], ['🟡 Medio', 0.5], ['🟠 Poco', 0.25], ['🔴 Acabado', 0]].map(([t, v]) => `<button class="btn secondary" data-lvlset="${p.id}|${v}" type="button" style="${b}">${t}</button>`).join('')); }
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-lvl],[data-lvlset],[data-rc],[data-low]'); if (!t) return; const d = t.dataset;
+  if (d.lvl) return lvlOpen(d.lvl);
+  if (d.lvlset) { const [id, v] = d.lvlset.split('|'), p = PANTRY.find(x => x.id === id), nu = +v; if (!p) return; const prev = Number(p.units ?? 1); $('pModal').classList.remove('show');
+    try { p.units = nu; await db.setUnits(id, nu); if (nu < prev) { noteUse(p, false, prev - nu); if (nu === 0) logWaste(p, 'ok'); } showUndo(cap(p.name) + ' → ' + (nu === 1 ? 'lleno' : nu === 0.5 ? 'medio' : nu === 0.25 ? 'poco' : 'acabado'), async () => { p.units = prev; await db.setUnits(id, prev); renderPantry(); }); renderPantry(); if (nu < prev) await restockAfter([p]); } catch (er) { toast('No se pudo: ' + er.message); } return; }
+  if (d.rc) { const [k, r] = d.rc.split('|'), c = CATALOG[k]; if (c) { c.rec = +r; c.recPhase = weekPar(ymd(mondayOf(new Date()))); saveCatalogSoon(); toast('🔁 Ahora es recurrente'); } return rcOpen(); }
+  if (d.low) { let n = 0; PANTRY.filter(p => !p.recipe_id).forEach(p => { const m = minOf(p) ?? (tgtOf(p) ? 0 : null); if (m !== null && Number(p.units ?? 1) <= m) { const w = shopWeek(ymd(mondayOf(new Date()))); if (!w.x.some(x => norm(x.t) === norm(p.name) && !x.d)) { addToShopList(cap(p.name), needQty(p)); n++; } } }); renderShop(); toast(n ? `🛒 Apuntados ${n} producto${n === 1 ? '' : 's'} bajo mínimo` : 'Nada bajo mínimo que no esté ya apuntado'); }
+});
 </script>
 </body>
 </html>
