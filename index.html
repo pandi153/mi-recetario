@@ -504,7 +504,8 @@ const db = {
     if (error) throw error;
   },
   async addPantry(rows) {
-    const { data, error } = await sb.from('pantry').insert(rows).select();
+    let { data, error } = await sb.from('pantry').insert(rows).select();
+    if (error && /zone/i.test(error.message || '')) ({ data, error } = await sb.from('pantry').insert(rows.map(({ zone, ...x }) => x)).select());
     if (error) throw error;
     return data || [];
   },
@@ -1476,7 +1477,7 @@ const classify = name => { const n = norm(name); const g = TEST_ORDER.find(i => 
 
 const shopMsg = (t, err) => { const m = $('shopMsg'); m.textContent = t; m.className = 'notice' + (err ? ' err' : ''); };
 let shopBoth = false, NXT = null, WASTE = [];
-const shopWeek = (ws = WS) => { const w = SHOP[ws] = SHOP[ws] || {}; w.c = w.c || []; w.x = w.x || []; w.n = w.n || []; return w; };
+const shopWeek = (ws = WS) => { const w = SHOP[ws] = SHOP[ws] || {}; w.c = w.c || []; w.x = w.x || []; w.n = w.n || []; w.r = w.r || []; return w; };
 function saveShop(ws = WS) {
   const data = JSON.parse(JSON.stringify(shopWeek(ws)));
   if (OFFLINE || navigator.onLine === false) { addPending(ws, data); return shopMsg('📶 Sin conexión: se guardará al volver.'); }
@@ -1500,7 +1501,7 @@ function shopItems(menu, ws) {
     return { key: it.key, name: it.name, qty, src, done: ck.has(it.key), extra: false,
       units: (() => { const ks = Object.keys(it.u); return ks.length === 1 && ks[0] === '' ? Math.max(1, Math.round(it.u[''])) : 1; })(), home };
   });
-  w.x.forEach(x => items.push({ key: 'x:' + x.i, name: x.t, qty: '', src: 'Añadido por mí', done: !!x.d, extra: true }));
+  w.x.forEach(x => items.push({ key: 'x:' + x.i, name: x.t, qty: x.q ? '× ' + fmtUnits(x.q) : '', q: x.q, s: x.s, src: x.r ? 'Compra recurrente 🔁' : 'Añadido por mí', done: !!x.d, extra: true }));
   return items;
 }
 function renderShop() {
@@ -1551,11 +1552,19 @@ $('shopList').onclick = e => {
 };
 const HOME_LOC = ['frigorifico', 'frigorifico', 'frigorifico', 'despensa', 'despensa', 'congelador', 'despensa'];
 async function stockBought() {
-  const list = shopItems().filter(i => i.done && !i.extra && !PANTRY.some(p => !p.recipe_id && fuzzy(norm(p.name), i.key)));
-  if (!list.length) return shopMsg('No hay comprados nuevos que guardar (o ya están en casa).');
+  const w = shopWeek(), all = shopItems(), today = ymd(new Date());
+  const rowFor = (name, qty, units) => { const c = catFor(name), loc = c.loc || HOME_LOC[classify(name)]; return { name: cap(name), quantity: c.qty || qty, units, location: loc, zone: (ZONES[loc] || []).includes(c.zone) ? c.zone : null, min_units: c.min ? parseUnits(c.min) : null, entry_date: today, expiry_date: autoExp(name, loc) || null }; };
+  const news = all.filter(i => i.done && !i.extra && !PANTRY.some(p => !p.recipe_id && fuzzy(norm(p.name), i.key))).map(i => rowFor(i.name, i.units > 1 && /^\d+([.,]\d+)?$/.test(i.qty) ? '' : i.qty, i.units));
+  const ext = all.filter(i => i.done && i.extra && !i.s); let bumped = 0;
   try {
-    await db.addPantry(list.map(i => ({ name: cap(i.name), quantity: i.units > 1 && /^\d+([.,]\d+)?$/.test(i.qty) ? '' : i.qty, units: i.units, location: HOME_LOC[classify(i.name)], entry_date: ymd(new Date()), expiry_date: autoExp(i.name, HOME_LOC[classify(i.name)]) || null })));
-    await loadPantry(); shopMsg(`Guardados ${list.length} en casa. En Despensa puedes ponerles la caducidad.`);
+    for (const i of ext) {
+      const x = w.x.find(v => 'x:' + v.i === i.key); if (!x) continue; const q = Number(x.q) || 1, ps = PANTRY.find(p => !p.recipe_id && (norm(p.name) === norm(i.name) || fuzzy(norm(p.name), norm(i.name))));
+      if (ps) { ps.units = Math.round((Number(ps.units ?? 1) + q) * 100) / 100; await db.setUnits(ps.id, ps.units); x.s = true; bumped++; }
+      else if (catFor(i.name).loc) { news.push(rowFor(i.name, '', q)); x.s = true; }
+    }
+    if (!news.length && !bumped) return shopMsg('No hay comprados nuevos que guardar (o ya están en casa).');
+    if (news.length) await db.addPantry(news);
+    saveShop(); await loadPantry(); shopMsg(`Guardados en casa: ${news.length} nuevo${news.length === 1 ? '' : 's'}${bumped ? ` y ${bumped} repuesto${bumped === 1 ? '' : 's'}` : ''}. Los que ya conocía quedan en su sitio y zona.`);
   } catch (e) { shopMsg('No se pudo guardar en casa: ' + e.message, true); }
 }
 $('shopStock').onclick = stockBought;
@@ -1573,7 +1582,7 @@ const LOCS = [['congelador', 'Congelador', '❄️'], ['frigorifico', 'Frigoríf
 let PANTRY = [], pLoc = 'all', pSort = 'exp', pEdit = null;
 const pLocOf = p => p.location || 'despensa';
 let pZone = '', CATALOG = {}, rv = null, catT = null, catWarn = false;
-const ZONES = { congelador: ['Cajón 1', 'Cajón 2', 'Cajón 3'], despensa: ['Estante 1', 'Estante 2', 'Estante 3', 'Estante 4', 'Estante 5'], frigorifico: [] };
+const ZONES = { congelador: ['Cajón 1', 'Cajón 2', 'Cajón 3'], despensa: ['Estante 1', 'Estante 2', 'Estante 3', 'Estante 4', 'Estante 5'], frigorifico: ['Cajón quesos y embutidos'] };
 const locIcon = k => (LOCS.find(l => l[0] === k) || ['', '', '🏠'])[2];
 const NOT_BASE = /^(caldo|salsa|sopa|crema|zumo|aceite|vinagre|pure|polvo|pasta|harina|jugo|esencia|extracto|mermelada|licor|vino|cerveza)\b/;
 const fuzzy = (a, b) => {
@@ -1609,7 +1618,7 @@ function renderPantry() {
   $('pantrySort').textContent = { exp: '⏰ Por caducidad', az: '↕️ A–Z', new: '🆕 Recientes' }[pSort];
   $('pantryCount').textContent = `${list.length} producto${list.length === 1 ? '' : 's'}${list.some(isAutoExp) ? ' · ≈ = fecha estimada' : ''}`;
   $('pantryList').innerHTML = list.length ? list.map(p => { const e = expInfo(p), u = Number(p.units ?? 1); return `<div class="pcard${u <= 0 ? ' zero' : ''}" data-id="${p.id}"><span class="pico">${p.recipe_id ? '🍲' : locIcon(pLocOf(p))}</span>
-    <span><b>${esc(p.name)}</b><small>${(ZONES[pLocOf(p)] || []).includes(p.zone) ? '📍 ' + esc(p.zone) + ' · ' : ''}${esc(p.quantity ? p.quantity + ' · ' : '')}${u <= 0 ? 'Agotado' : p.entry_date ? 'desde ' + esc(fdate(p.entry_date)) : ''}${minOf(p) !== null ? ' · mín. ' + fmtNum(minOf(p)) : ''}</small>${e ? `<em class="exp ${e.cls}">${esc((isAutoExp(p) ? '≈ ' : '') + e.txt)}</em>` : ''}${pLocOf(p) === 'congelador' ? `<br><button class="chip" data-thaw1="${p.id}" type="button" style="margin-top:6px;padding:4px 10px;font-size:12px">🧊 Descongelar</button>` : ''}</span>
+    <span><b>${esc(p.name)}</b><small>${daysLeft(p) !== null && daysLeft(p) <= 14 ? '⏳ ≈' + daysLeft(p) + ' d · ' : ''}${(ZONES[pLocOf(p)] || []).includes(p.zone) ? '📍 ' + esc(p.zone) + ' · ' : ''}${esc(p.quantity ? p.quantity + ' · ' : '')}${u <= 0 ? 'Agotado' : p.entry_date ? 'desde ' + esc(fdate(p.entry_date)) : ''}${minOf(p) !== null ? ' · mín. ' + fmtNum(minOf(p)) : ''}</small>${e ? `<em class="exp ${e.cls}">${esc((isAutoExp(p) ? '≈ ' : '') + e.txt)}</em>` : ''}${pLocOf(p) === 'congelador' ? `<br><button class="chip" data-thaw1="${p.id}" type="button" style="margin-top:6px;padding:4px 10px;font-size:12px">🧊 Descongelar</button>` : ''}</span>
     <span class="pctl"><button class="stp" data-adj="-1" type="button" aria-label="Restar una unidad">−</button><span class="units${minOf(p) !== null && u <= minOf(p) ? ' low' : ''}">${fmtUnits(u)}</span><button class="stp" data-adj="1" type="button" aria-label="Sumar una unidad">＋</button></span></div>`; }).join('')
     : `<div class="empty">${PANTRY.length ? 'No hay productos con esos filtros.' : 'No hay nada apuntado todavía.<br>Pulsa ＋ Añadir, o marca lo que compras en Compra y pásalo aquí con "Guardar comprados en casa".'}</div>`;
 }
@@ -1622,6 +1631,8 @@ function editPantry(id) {
     <div class="field"><label>Qué es</label><datalist id="pCat">${catalogNames().map(n => `<option value="${esc(n)}">`).join('')}</datalist><input id="pName" list="pCat" value="${esc(p.name)}" placeholder="Ej.: Pollo, leche, arroz…"></div>
     <div class="field"><label>Unidades en stock (las que resta el −1)</label><input id="pUnits" type="text" inputmode="decimal" value="${esc(fmtUnits(p.units ?? 1))}" placeholder="Ej.: 1, 1/2, 3/4, 1,5"></div>
     <div class="field"><label>Avísame al bajar de (stock mínimo, opcional)</label><input id="pMin" type="text" inputmode="decimal" value="${esc(p.min_units === null || p.min_units === undefined ? '' : fmtUnits(p.min_units))}" placeholder="Ej.: 2"></div>
+    <div class="field"><label>Stock objetivo: cuántas quiero tener al reponer (opcional)</label><input id="pTgt" type="text" inputmode="decimal" value="${esc(catOf(p.name).target ? fmtUnits(catOf(p.name).target) : '')}" placeholder="Ej.: 6"></div>
+    <div class="field"><label>Compra recurrente</label><select id="pRec"><option value="0">No</option><option value="1"${catOf(p.name).rec === 1 ? ' selected' : ''}>🔁 Cada semana</option><option value="2"${catOf(p.name).rec === 2 ? ' selected' : ''}>🔁 Cada 2 semanas</option></select></div>
     <div class="field"><label>Formato (opcional)</label><input id="pQty" value="${esc(p.quantity)}" placeholder="Ej.: 500 g, 1 L, bandeja"></div>
     <div class="field"><label>Dónde está</label><div class="chips" id="pLocChips"></div><div class="chips" id="pZoneChips" style="margin-top:6px"></div>${id && pLocOf(p) === 'congelador' ? `<button class="btn secondary" data-pa="thaw" data-id="${id}" type="button" style="width:100%;margin-top:8px">🧊 Descongelar (pasa al frigorífico)</button>` : ''}</div>
     <div class="field"><label>Fecha de entrada</label><input id="pEntry" type="date" value="${esc(p.entry_date || '')}"></div>
@@ -1635,13 +1646,13 @@ async function savePantryItem() {
   if (!name) { msg.className = 'notice err'; return (msg.textContent = 'Escribe qué es.'); }
   btn.disabled = true; msg.className = 'notice'; msg.textContent = 'Guardando…';
   try {
-    learnItem(name, pEdit, $('pQty').value.trim(), $('pMin').value.trim()); await db.savePantry({ id: pEdit.id, name, quantity: $('pQty').value.trim(), units: Math.max(0, parseUnits($('pUnits').value) ?? 0), min_units: $('pMin').value.trim() === '' ? null : Math.max(0, parseUnits($('pMin').value) ?? 0), location: pEdit.loc, zone: (ZONES[pEdit.loc] || []).includes(pEdit.zone) ? pEdit.zone : null, entry_date: $('pEntry').value, expiry_date: $('pExp').value || ((pEdit.id || pEdit.noexp) ? '' : autoExp(name, pEdit.loc)) });
+    learnItem(name, pEdit, $('pQty').value.trim(), $('pMin').value.trim(), parseUnits($('pTgt').value) || '', +$('pRec').value || 0); await db.savePantry({ id: pEdit.id, name, quantity: $('pQty').value.trim(), units: Math.max(0, parseUnits($('pUnits').value) ?? 0), min_units: $('pMin').value.trim() === '' ? null : Math.max(0, parseUnits($('pMin').value) ?? 0), location: pEdit.loc, zone: (ZONES[pEdit.loc] || []).includes(pEdit.zone) ? pEdit.zone : null, entry_date: $('pEntry').value, expiry_date: $('pExp').value || ((pEdit.id || pEdit.noexp) ? '' : autoExp(name, pEdit.loc)) });
     $('pModal').classList.remove('show'); await loadPantry();
   } catch (e) { btn.disabled = false; msg.className = 'notice err'; msg.textContent = 'No se pudo guardar: ' + e.message; }
 }
 async function delPantryItem() {
   const p = PANTRY.find(x => x.id === pEdit.id); if (!p || !confirm(`¿Eliminar "${p.name}" de casa?`)) return;
-  try { logWaste(p, 'del'); await db.deletePantry(p.id); $('pModal').classList.remove('show'); await loadPantry(); }
+  try { logWaste(p, 'del'); const bk = pRow(p); await db.deletePantry(p.id); showUndo('Eliminado: ' + cap(p.name), async () => { await db.addPantry([bk]); await loadPantry(); }); $('pModal').classList.remove('show'); await loadPantry(); }
   catch (e) { const m = $('pMsg'); m.className = 'notice err'; m.textContent = 'No se pudo eliminar: ' + e.message; }
 }
 function cookIdeas() {
@@ -1673,23 +1684,23 @@ async function adjUnits(id, delta) {
   if (delta < 0 && cur <= 0) return;
   const nu = Math.max(0, Math.round((cur + delta * (Number.isInteger(cur) ? 1 : 0.25)) * 100) / 100); p.units = nu; renderPantry();
   const u = document.querySelector(`.pcard[data-id="${id}"] .units`); if (u && delta < 0) u.classList.add('flash');
-  try { await db.setUnits(id, nu); if (nu === 0 && delta < 0) logWaste(p, 'ok'); if (delta < 0) noteUse(p); }
+  try { await db.setUnits(id, nu); if (nu === 0 && delta < 0) logWaste(p, 'ok'); if (delta < 0) noteUse(p, false, cur - nu); }
   catch (e) { p.units = cur; renderPantry(); return alert('No se pudo guardar el cambio: ' + e.message); }
-  if (delta < 0) await restockAfter([p]);
+  showUndo((delta < 0 ? '− ' : '＋ ') + cap(p.name), async () => { p.units = cur; await db.setUnits(p.id, cur); renderPantry(); }); if (delta < 0) await restockAfter([p]);
 }
 const minOf = p => (p.min_units === null || p.min_units === undefined || p.min_units === '') ? null : Number(p.min_units);
 async function restockAfter(ps) {
   const auto = [], gone = [], dishes = [];
-  ps.forEach(p => { const u = Number(p.units ?? 1), m = minOf(p); if (p.recipe_id) { if (u <= 0) dishes.push(p); return; } if (m !== null && u <= m) { addToShopList(cap(p.name)); auto.push(cap(p.name)); } else if (u <= 0) gone.push(p); });
+  ps.forEach(p => { const u = Number(p.units ?? 1), m = minOf(p) ?? (tgtOf(p) ? 0 : null); if (p.recipe_id) { if (u <= 0) dishes.push(p); return; } if (m !== null && u <= m) { addToShopList(cap(p.name), needQty(p)); auto.push(cap(p.name)); } else if (u <= 0) gone.push(p); });
   if (auto.length) toast('🛒 Apuntado en la compra: ' + auto.join(', '));
   if (dishes.length) { try { for (const d of dishes) await db.deletePantry(d.id); toast('🍲 Se acabaron las raciones de ' + dishes.map(d => d.name.replace(' (cocinado)', '')).join(', ')); await loadPantry(); } catch (e) {} }
   if (gone.length && confirm(`Se ha acabado: ${gone.map(g => g.name).join(', ')}. ¿Quitarlo de casa y apuntarlo en la lista de la compra?`)) {
     try { for (const g of gone) { await db.deletePantry(g.id); addToShopList(cap(g.name)); } await loadPantry(); } catch (e) { alert('No se pudo quitar: ' + e.message); }
   }
 }
-function addToShopList(name) {
+function addToShopList(name, q) {
   const ws = ymd(mondayOf(new Date())), w = shopWeek(ws);
-  if (!w.x.some(x => norm(x.t) === norm(name) && !x.d)) w.x.push({ i: Date.now().toString(36), t: name, d: false });
+  if (!w.x.some(x => norm(x.t) === norm(name) && !x.d)) w.x.push({ i: Date.now().toString(36), t: name, d: false, ...(q ? { q } : {}) });
   saveShop(ws); renderShop();
 }
 $('pantrySearch').oninput = renderPantry;
@@ -2198,7 +2209,7 @@ function markCooked(day, meal, id) {
 }
 async function cookDone() {
   const sel = []; document.querySelectorAll('#pBody [data-c]').forEach(row => { if (row.querySelector('[data-f=on]').checked) sel.push(cookCtx.hits[+row.dataset.c]); });
-  try { for (const p of sel) { p.units = Math.max(0, Math.round((Number(p.units ?? 1) - usedUnits(p)) * 100) / 100); await db.setUnits(p.id, p.units); noteUse(p); } }
+  try { for (const p of sel) { const du = usedUnits(p); p.units = Math.max(0, Math.round((Number(p.units ?? 1) - du) * 100) / 100); await db.setUnits(p.id, p.units); noteUse(p, false, du); } }
   catch (e) { return toast('No se pudo descontar: ' + e.message); }
   $('pModal').classList.remove('show'); toggleDone(cookCtx.day, cookCtx.meal, cookCtx.id); renderPantry(); await restockAfter(sel); afterCooked(cookCtx.day, cookCtx.meal, cookCtx.id);
 }
@@ -2900,7 +2911,7 @@ function drawBell() {
     (l.length ? grp('⛔ Caducados', p => daysTo(p.expiry_date) < 0) + grp('⚠️ Caducan hoy', p => daysTo(p.expiry_date) === 0) + grp('⏭️ Mañana', p => daysTo(p.expiry_date) === 1) + grp('🗓️ En 2–3 días', p => daysTo(p.expiry_date) >= 2) + '<button class="btn" data-pa="bellideas" style="width:100%;margin-top:10px">🍳 Ideas para gastarlo</button>' : '<div class="empty" style="margin-top:12px">No caduca nada en los próximos 3 días. 👏</div>'));
 }
 async function bellFreeze(id) { try { const q = PANTRY.find(x => x.id === id), days = q && q.recipe_id ? 90 : shelfDays(q ? q.name : '', 'congelador'); if (!days && !confirm(`«${q ? q.name : ''}» no se suele congelar. ¿Congelarlo igualmente (sin fecha de caducidad)?`)) return; await db.updatePantry(id, { location: 'congelador', expiry_date: days ? ymd(addDays(new Date(), days)) : null, entry_date: ymd(new Date()) }); await loadPantry(); toast(days ? '🧊 Congelado: caduca en ' + fmtDays(days) : '🧊 Congelado sin fecha'); drawBell(); } catch (e) { toast('No se pudo congelar: ' + e.message); } }
-async function bellDrop(id) { const p = PANTRY.find(x => x.id === id); if (!p || !confirm(`¿Tirar "${p.name}"?`)) return; try { logWaste(p, 'bin'); await db.deletePantry(id); await loadPantry(); drawBell(); } catch (e) { toast('No se pudo quitar: ' + e.message); } }
+async function bellDrop(id) { const p = PANTRY.find(x => x.id === id); if (!p || !confirm(`¿Tirar "${p.name}"?`)) return; try { logWaste(p, 'bin'); const bk = pRow(p); await db.deletePantry(id); showUndo('Tirado: ' + cap(p.name), async () => { await db.addPantry([bk]); await loadPantry(); drawBell(); }); await loadPantry(); drawBell(); } catch (e) { toast('No se pudo quitar: ' + e.message); } }
 $('bellBtn').onclick = drawBell;
 
 /* añadir una receta al menú semanal */
@@ -3279,8 +3290,8 @@ $('haveFilter').onclick = () => { haveSort = !haveSort; renderRecipes(); };
 /* ---- despensa: zonas, catálogo, mínimos, revisión, olvidados, repetidos ---- */
 const catalogNames = () => [...new Set([...Object.values(CATALOG).map(c => c.n).filter(Boolean), ...PANTRY.map(p => p.name)])].slice(0, 300);
 function saveCatalogSoon() { clearTimeout(catT); catT = setTimeout(() => db.saveExtras({ catalog: CATALOG }).catch(() => { if (!catWarn) { catWarn = true; toast('Falta la columna catalog en Supabase (mira el SQL).'); } }), 1500); }
-function noteUse(p, seenOnly) { const c = CATALOG[norm(p.name)] = CATALOG[norm(p.name)] || { n: p.name }, t = ymd(new Date()); if (seenOnly) c.seen = t; else c.use = [...(c.use || []), t].slice(-12); saveCatalogSoon(); }
-function learnItem(name, pe, qty, min) { const c = CATALOG[norm(name)] = CATALOG[norm(name)] || {}; c.n = name; c.loc = pe.loc; c.zone = pe.zone || ''; c.qty = qty; c.min = min; saveCatalogSoon(); }
+function noteUse(p, seenOnly, amt) { const c = CATALOG[norm(p.name)] = CATALOG[norm(p.name)] || { n: p.name }, t = ymd(new Date()); if (seenOnly) c.seen = t; else { c.use = c.use || []; c.ua = c.ua || []; while (c.ua.length < c.use.length) c.ua.unshift(1); c.use = [...c.use, t].slice(-12); c.ua = [...c.ua, amt > 0 ? Math.round(amt * 100) / 100 : 1].slice(-12); } saveCatalogSoon(); }
+function learnItem(name, pe, qty, min, tgt, rec) { const c = CATALOG[norm(name)] = CATALOG[norm(name)] || {}; c.n = name; c.loc = pe.loc; c.zone = pe.zone || ''; c.qty = qty; c.min = min; c.target = tgt || ''; if (rec && c.rec !== rec) c.recPhase = weekPar(ymd(mondayOf(new Date()))); c.rec = rec || 0; saveCatalogSoon(); }
 function drawZone() { const el = $('pZoneChips'); if (!el || !pEdit) return; const zs = ZONES[pEdit.loc] || []; if (!zs.includes(pEdit.zone)) pEdit.zone = ''; el.innerHTML = zs.map(z => `<button type="button" class="chip${pEdit.zone === z ? ' on' : ''}" data-pzone="${esc(z)}">📍 ${esc(z)}</button>`).join(''); }
 function pantryQty(p) { const m = p.quantity ? /^\s*(\d+\/\d+|\d+(?:[.,]\d+)?|[½¼¾])\s*([a-zA-ZáéíóúñÑ]+)?\.?\s*$/.exec(String(p.quantity)) : null; if (!m) return null; let n = parseQty(m[1]), ur = m[2] ? norm(m[2]) : '', unit = ''; if (ur) { if (UNITS[ur]) { unit = UNITS[ur][0]; n *= UNITS[ur][1]; } else unit = UNIT_SING[ur] || ur; } return { k: unit, n }; }
 function usedUnits(p) { const ks = Object.keys(p._need || {}), q = pantryQty(p); if (ks.length === 1 && q && q.k === ks[0] && q.n > 0) return Math.max(0.05, Math.min(Number(p.units ?? 1), Math.round(p._need[ks[0]] / q.n * 100) / 100)); return 1; }
@@ -3311,10 +3322,10 @@ function rvDraw() {
 }
 async function rvAct(a) {
   if (a === 'stop') { rv = null; $('pModal').classList.remove('show'); return renderPantry(); }
-  const p = rv.list[rv.i];
+  const p = rv.list[rv.i], prev = Number(p.units ?? 1);
   try {
-    if (a === 'low') { const m = minOf(p), nu = m !== null ? Math.min(Number(p.units ?? 1), m) : Math.min(Number(p.units ?? 1), 0.5); p.units = nu; await db.setUnits(p.id, nu); noteUse(p); addToShopList(cap(p.name)); toast('🛒 Apuntado en la compra: ' + cap(p.name)); }
-    if (a === 'out') { p.units = 0; await db.setUnits(p.id, 0); noteUse(p); logWaste(p, 'ok'); addToShopList(cap(p.name)); toast('🛒 Apuntado en la compra: ' + cap(p.name)); }
+    if (a === 'low') { const m = minOf(p), nu = m !== null ? Math.min(Number(p.units ?? 1), m) : Math.min(Number(p.units ?? 1), 0.5); p.units = nu; await db.setUnits(p.id, nu); noteUse(p, false, Math.max(0.25, prev - nu)); showUndo('Queda poco: ' + cap(p.name), async () => { p.units = prev; await db.setUnits(p.id, prev); }); addToShopList(cap(p.name), needQty(p)); toast('🛒 Apuntado en la compra: ' + cap(p.name)); }
+    if (a === 'out') { p.units = 0; await db.setUnits(p.id, 0); noteUse(p, false, prev); logWaste(p, 'ok'); showUndo('Se acabó: ' + cap(p.name), async () => { p.units = prev; await db.setUnits(p.id, prev); }); addToShopList(cap(p.name), needQty(p)); toast('🛒 Apuntado en la compra: ' + cap(p.name)); }
     if (a === 'ok') noteUse(p, true);
   } catch (e) { toast('No se pudo guardar: ' + e.message); }
   rv.i++; rvDraw();
@@ -3336,6 +3347,38 @@ document.addEventListener('click', async e => {
 });
 document.addEventListener('change', e => { if (e.target.id !== 'pName' || !pEdit || pEdit.id) return; const c = CATALOG[norm(e.target.value)]; if (!c || !c.loc) return; pEdit.loc = c.loc; pEdit.zone = c.zone || ''; if (c.qty && !$('pQty').value) $('pQty').value = c.qty; if (c.min && !$('pMin').value) $('pMin').value = c.min; drawPLoc(); toast('📒 Datos recordados de «' + (c.n || e.target.value) + '»'); });
 const _lp = loadPantry; loadPantry = async function () { await _lp.apply(this, arguments); try { if (Array.isArray(MENU)) renderMenu(); } catch (e) {} };
+
+/* ---- reposición automática: objetivo, recurrentes, días que quedan, deshacer ---- */
+const catOf = n => CATALOG[norm(n)] || {};
+const catFor = n => CATALOG[norm(n)] || Object.values(CATALOG).find(c => c.n && fuzzy(norm(c.n), norm(n))) || {};
+const tgtOf = p => { const t = Number(catOf(p.name).target); return t > 0 ? t : null; };
+const needQty = p => { const t = tgtOf(p); if (!t) return undefined; const q = Math.round((t - Number(p.units ?? 1)) * 4) / 4; return q > 0 ? q : undefined; };
+const pRow = p => ({ name: p.name, quantity: p.quantity || '', units: p.units ?? 1, min_units: p.min_units ?? null, location: pLocOf(p), zone: p.zone || null, entry_date: p.entry_date || null, expiry_date: p.expiry_date || null, ...(p.recipe_id ? { recipe_id: p.recipe_id } : {}) });
+let undoT = null, undoFn = null, shopReady = false;
+function showUndo(label, fn) {
+  let b = $('undoBar');
+  if (!b) { b = document.createElement('div'); b.id = 'undoBar'; b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:9999;display:none;gap:10px;align-items:center;justify-content:space-between;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,.35)'; document.body.appendChild(b);
+    b.onclick = async e => { if (!e.target.closest('button')) return; const f = undoFn; undoFn = null; b.style.display = 'none'; if (f) { try { await f(); toast('↩️ Deshecho'); } catch (er) { toast('No se pudo deshacer: ' + er.message); } } }; }
+  undoFn = fn; b.innerHTML = `<span>${esc(label)}</span><button class="btn secondary" type="button">↩️ Deshacer</button>`; b.style.display = 'flex'; clearTimeout(undoT); undoT = setTimeout(() => { b.style.display = 'none'; undoFn = null; }, 8000);
+}
+function daysLeft(p) {
+  const c = catOf(p.name), lim = ymd(addDays(new Date(), -30)), u = Number(p.units ?? 1); if (p.recipe_id || u <= 0 || !(c.use || []).length) return null;
+  const off = (c.use || []).length - (c.ua || []).length, ev = c.use.map((d, i) => ({ d, a: (c.ua || [])[i - off] || 1 })).filter(x => x.d >= lim); if (ev.length < 3) return null;
+  const span = Math.max(7, -daysTo(ev[0].d)), rate = ev.reduce((t, x) => t + x.a, 0) / span; return rate > 0 ? Math.round(u / rate) : null;
+}
+const weekPar = ws => Math.floor(parseYmd(ws).getTime() / (7 * 864e5)) % 2;
+function applyRecurring(ws) {
+  if (!shopReady || OFFLINE || ws < ymd(mondayOf(new Date()))) return; const w = shopWeek(ws); let n = 0;
+  Object.entries(CATALOG).forEach(([key, c]) => {
+    if (!c.rec || !c.n || w.r.includes(key) || (c.rec === 2 && weekPar(ws) !== c.recPhase)) return;
+    w.r.push(key); const ps = PANTRY.find(p => !p.recipe_id && norm(p.name) === key), t = Number(c.target) || 0;
+    if (ps && t && Number(ps.units ?? 1) >= t) return; if (w.x.some(x => norm(x.t) === key && !x.d)) return;
+    const q = ps && t ? Math.max(0.25, Math.round((t - Number(ps.units ?? 1)) * 4) / 4) : (t || undefined); w.x.push({ i: Date.now().toString(36) + n++, t: cap(c.n), d: false, r: true, ...(q ? { q } : {}) });
+  });
+  if (n || w.r.length) { saveShop(ws); renderShop(); }
+}
+const _lw = loadWeek; loadWeek = async function () { await _lw.apply(this, arguments); shopReady = true; try { applyRecurring(WS); } catch (e) {} };
+const _le = loadExtras; loadExtras = async function () { await _le.apply(this, arguments); try { applyRecurring(WS); } catch (e) {} };
 </script>
 </body>
 </html>
