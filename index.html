@@ -1427,8 +1427,8 @@ const UNITS = { kg: ['g', 1000], kilo: ['g', 1000], kilos: ['g', 1000], g: ['g',
   l: ['ml', 1000], lt: ['ml', 1000], litro: ['ml', 1000], litros: ['ml', 1000], ml: ['ml', 1], cl: ['ml', 10], dl: ['ml', 100] };
 const UNIT_SING = { cucharadas: 'cucharada', cda: 'cucharada', cdas: 'cucharada', cucharaditas: 'cucharadita', cdta: 'cucharadita', cdtas: 'cucharadita', cdita: 'cucharadita', cditas: 'cucharadita',
   tazas: 'taza', vasos: 'vaso', latas: 'lata', dientes: 'diente', lonchas: 'loncha', rebanadas: 'rebanada', pizcas: 'pizca', punados: 'punado', ramas: 'rama', ramitas: 'rama', rama: 'rama',
-  hojas: 'hoja', botes: 'bote', paquetes: 'paquete', sobres: 'sobre', uds: 'ud', unidades: 'ud', unidad: 'ud' };
-const ING_RE = /^(?:(\d+\/\d+|\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?|[½¼¾])\s*(?:(kg|kilos?|gramos?|grs?|g|litros?|lt|l|ml|cl|dl|cucharaditas?|cucharadas?|cdtas?|cditas?|cdas?|tazas?|vasos?|latas?|dientes?|lonchas?|rebanadas?|pizcas?|pu[nñ]ados?|ramas?|ramitas?|hojas?|botes?|paquetes?|sobres?|uds?|unidades?)(?![a-záéíóúñ])\.?\s*)?)?(?:(?:de|del)\s+)?(.+)$/i;
+  hojas: 'hoja', botes: 'bote', bolsas: 'bolsa', bolsitas: 'bolsita', bandejas: 'bandeja', tarros: 'tarro', briks: 'brik', cajas: 'caja', tarrinas: 'tarrina', botellas: 'botella', paquetes: 'paquete', sobres: 'sobre', uds: 'ud', unidades: 'ud', unidad: 'ud' };
+const ING_RE = /^(?:(\d+\/\d+|\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?|[½¼¾])\s*(?:(kg|kilos?|gramos?|grs?|g|litros?|lt|l|ml|cl|dl|cucharaditas?|cucharadas?|cdtas?|cditas?|cdas?|tazas?|vasos?|latas?|dientes?|lonchas?|rebanadas?|pizcas?|pu[nñ]ados?|ramas?|ramitas?|hojas?|botes?|bolsas?|bolsitas?|bandejas?|tarros?|briks?|cajas?|tarrinas?|botellas?|paquetes?|sobres?|uds?|unidades?)(?![a-záéíóúñ])\.?\s*)?)?(?:(?:de|del)\s+)?(.+)$/i;
 const same = (a, b) => a === b || a + 's' === b || b + 's' === a || a + 'es' === b || b + 'es' === a;
 const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
 function parseQty(q) {
@@ -1494,6 +1494,7 @@ function haveCover(p, u) {
   const m = p.quantity ? /^\s*(\d+\/\d+|\d+(?:[.,]\d+)?|[½¼¾])\s*([a-zA-ZáéíóúñÑ]+)?\.?\s*$/.exec(String(p.quantity)) : null;
   if (m) { let n = parseQty(m[1]), ur = m[2] ? norm(m[2]) : '', unit = ''; if (ur) { if (UNITS[ur]) { unit = UNITS[ur][0]; n *= UNITS[ur][1]; } else unit = UNIT_SING[ur] || ur; } if (unit === k) have = n * un; }
   else if (!p.quantity && k === '') have = un;
+  else if (p.quantity) { const w = norm(String(p.quantity)).trim(), u1 = UNIT_SING[w] || w.replace(/s$/, ''); if (u1 === k) have = un; }
   if (have == null || isNaN(have)) return null;
   return { ok: have >= need - 1e-9, miss: need - have, have, k };
 }
@@ -1594,7 +1595,8 @@ const fuzzy = (a, b) => {
   if (same(a, b)) return true; const fa = a.split(' ')[0], fb = b.split(' ')[0];
   if (same(fa, fb) && (a === fa || b === fb)) return true;
   if (a.length > b.length) return false; const sh = a, lo = b;
-  return sh.length >= 4 && !sh.includes(' ') && !NOT_BASE.test(lo) && lo.split(' ').some(w => same(w, sh));
+  if (sh.includes(' ')) { if (NOT_BASE.test(lo)) return false; const lw = lo.split(' '); return sh.split(' ').every(w => w.length < 3 || lw.some(x => same(x, w))); }
+  return sh.length >= 4 && !NOT_BASE.test(lo) && lo.split(' ').some(w => same(w, sh));
 };
 const fdate = d => parseYmd(d).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' });
 const daysTo = d => { const t = new Date(); return Math.round((parseYmd(d) - new Date(t.getFullYear(), t.getMonth(), t.getDate())) / 86400000); };
