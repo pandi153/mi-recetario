@@ -389,7 +389,7 @@ const DEFAULT_GOALS = [
 const emptyMenu = () => DAYS.map(() => ({}));
 const slotItems = v => Array.isArray(v) ? v : (v ? [v] : []);
 const isNote = x => String(x).startsWith('~');
-const normMenu = m => { const a = Array.isArray(m) ? m : []; return DAYS.map((_, i) => { const d = (a[i] && typeof a[i] === 'object') ? a[i] : {}, o = {}; MEALS.forEach(([k]) => { const it = slotItems(d[k]).filter(Boolean); if (it.length) o[k] = it; }); ['_done', '_lock', '_x2', '_tup'].forEach(mk => { if (Array.isArray(d[mk]) && d[mk].length) o[mk] = d[mk].filter(x => typeof x === 'string'); }); return o; }); };
+const normMenu = m => { const a = Array.isArray(m) ? m : []; return DAYS.map((_, i) => { const d = (a[i] && typeof a[i] === 'object') ? a[i] : {}, o = {}; MEALS.forEach(([k]) => { const it = slotItems(d[k]).filter(Boolean); if (it.length) o[k] = it; }); ['_done', '_lock', '_x2', '_tup', '_sub'].forEach(mk => { if (Array.isArray(d[mk]) && d[mk].length) o[mk] = d[mk].filter(x => typeof x === 'string'); }); return o; }); };
 const menuHas = menu => menu.some(d => MEALS.some(([k]) => slotItems(d[k]).length));
 
 /* ============ 2. CAPA DE DATOS (todo online) ============
@@ -1063,7 +1063,7 @@ function renderMenu() {
         const its = slotItems(day[k]);
         const rows = its.map((id, j) => { const note = isNote(id), r = !note && RECIPES.find(x => x.id === id);
           const ug = !note && r && !(day._done || []).includes(k + ':' + id) && !(day._tup || []).includes(k + ':' + id) ? pantryInfo(r).urgent : [];
-          const lk = (day._lock || []).includes(k + ':' + id), bd = ((day._x2 || []).includes(k + ':' + id) ? ' <span class="bd">×2</span>' : '') + p4Badge(i, k, id) + advBadge(ug, i, k, j, mon, today) + stockBadge(r, day, k, id);
+          const lk = (day._lock || []).includes(k + ':' + id), bd = ((day._x2 || []).includes(k + ':' + id) ? ' <span class="bd">×2</span>' : '') + p4Badge(i, k, id) + advBadge(ug, i, k, j, mon, today) + stockBadge(r, day, k, id, i);
           return `<div class="mrow"><button class="mitem${note ? ' note' : ''}${(day._done || []).includes(k + ':' + id) ? ' done' : ''}" data-day="${i}" data-meal="${k}" data-idx="${j}" type="button">${note ? '📝 ' + esc(id.slice(1)) : r ? esc(r.name) + bd : 'Receta eliminada'}</button>${!note && r ? (lk ? `<button class="msw lk" data-lock="1" data-day="${i}" data-meal="${k}" data-idx="${j}" type="button" title="Fijado: toca para soltar">🔒</button>` : '') : ''}</div>`; }).join('');
         return `<div class="srow m-${k}${its.length ? ' has' : ''}"><div class="slab">${ic} ${label}</div><div class="sitems">${rows}<button class="madd" data-day="${i}" data-meal="${k}" data-idx="-1" type="button" aria-label="Añadir">${its.length ? '＋' : '＋ Añadir'}</button></div></div>`;
       }).join('') + '</div>';
@@ -1096,7 +1096,7 @@ function openPicker(day, meal, idx) {
     <input id="pickSearch" type="search" placeholder="Buscar receta…" autocomplete="off">
     <button class="btn secondary" data-pact="newrec" type="button" style="width:100%;margin-top:8px">＋ Crear una receta nueva</button>
     ${cur ? `<div class="row">${!curNote && RECIPES.some(r => r.id === cur) ? '<button class="btn secondary" data-pact="view">Ver receta</button>' : ''}<button class="btn danger" data-pact="remove">Quitar</button></div>` : ''}</div>
-    ${cur && !curNote && RECIPES.some(r => r.id === cur) ? `<div class="row" style="margin:10px 0 0"><button class="btn secondary" data-pact="cooked">${(MENU[day]._done || []).includes(meal + ':' + cur) ? '↩️ Quitar ✓' : '✅ Cocinado'}</button><button class="btn" data-pact="cook">👩‍🍳 Cocinar</button></div><button class="btn secondary" data-pact="leftovers" type="button" style="width:100%;margin-top:8px">🔁 Sobras para otra comida</button><div class="row" style="margin:8px 0 0"><button class="btn secondary" data-pact="lock">${(MENU[day]._lock || []).includes(meal + ':' + cur) ? '🔓 Soltar' : '🔒 Fijar'}</button><button class="btn secondary" data-pact="x2">${(MENU[pick.day]._x2 || []).includes(pick.meal + ':' + cur) ? '✅ Para 4 · quitar ×2' : '🍲 Para 4 (2 comidas)'}</button></div>${dishOf(cur).length ? `<button class="btn secondary" data-pact="tup" style="width:100%;margin-top:8px">${(MENU[day]._tup || []).includes(meal + ':' + cur) ? '🍲 Usando una ración que tengo ✓' : '🍲 Usar una ración que ya tengo (' + fmtNum(dishOf(cur).reduce((a, q) => a + Number(q.units ?? 1), 0)) + ')'}</button>` : ''}` : ''}
+    ${cur && !curNote && RECIPES.some(r => r.id === cur) ? `<div class="row" style="margin:10px 0 0"><button class="btn secondary" data-pact="cooked">${(MENU[day]._done || []).includes(meal + ':' + cur) ? '↩️ Quitar ✓' : '✅ Cocinado'}</button><button class="btn" data-pact="cook">👩‍🍳 Cocinar</button></div><button class="btn secondary" data-pact="leftovers" type="button" style="width:100%;margin-top:8px">🔁 Sobras para otra comida</button><div class="row" style="margin:8px 0 0"><button class="btn secondary" data-pact="lock">${(MENU[day]._lock || []).includes(meal + ':' + cur) ? '🔓 Soltar' : '🔒 Fijar'}</button><button class="btn secondary" data-pact="x2">${(MENU[pick.day]._x2 || []).includes(pick.meal + ':' + cur) ? '✅ Para 4 · quitar ×2' : '🍲 Para 4 (2 comidas)'}</button><button class="btn secondary" data-subopen="1">🔄 Cambiar un ingrediente</button></div>${dishOf(cur).length ? `<button class="btn secondary" data-pact="tup" style="width:100%;margin-top:8px">${(MENU[day]._tup || []).includes(meal + ':' + cur) ? '🍲 Usando una ración que tengo ✓' : '🍲 Usar una ración que ya tengo (' + fmtNum(dishOf(cur).reduce((a, q) => a + Number(q.units ?? 1), 0)) + ')'}</button>` : ''}` : ''}
     <div class="noterow"><input id="pickNote" maxlength="60" placeholder="Nota: comer fuera, sobras…" value="${curNote ? esc(cur.slice(1)) : ''}"><button class="btn" data-pact="note" type="button">Poner</button></div>
     <div class="chips" style="margin-bottom:6px"><button class="chip" data-pact="quick" data-text="Comer fuera" type="button">🍴 Comer fuera</button><button class="chip" data-pact="quick" data-text="Sobras" type="button">🥡 Sobras</button><button class="chip" data-pact="quick" data-text="Ayuno" type="button">⏭️ Saltar</button></div>
     <div id="pickList"></div>`;
@@ -1397,7 +1397,7 @@ async function copyPrevWeek() {
     const prev = await db.week(ymd(addDays(parseYmd(WS), -7)));
     if (!menuHas(prev)) return menuMsg('La semana anterior está vacía.');
     if (menuHas(MENU) && !confirm('Esta semana ya tiene recetas. ¿Sustituirlas por las de la semana anterior?')) return;
-    pushUndo(WS, MENU, 'Copiar semana'); MENU = prev; MENU.forEach(d => { ['_done', '_lock', '_x2', '_tup'].forEach(mk => delete d[mk]); }); renderMenu(); persistWeek(); menuMsg('Semana anterior copiada.');
+    pushUndo(WS, MENU, 'Copiar semana'); MENU = prev; MENU.forEach(d => { ['_done', '_lock', '_x2', '_tup', '_sub'].forEach(mk => delete d[mk]); }); renderMenu(); persistWeek(); menuMsg('Semana anterior copiada.');
   } catch (e) { menuMsg('No se pudo copiar: ' + e.message, true); }
 }
 function clearWeek() {
@@ -1451,7 +1451,7 @@ function addIng(items, line, rname, mult = 1) {
 function buildShopList(menu) {
   const items = [];
   (menu || MENU).forEach(day => MEALS.forEach(([k]) => {
-    slotItems(day[k]).forEach(id => { if (isNote(id) || (day._tup || []).includes(k + ':' + id)) return; const mult = (day._x2 || []).includes(k + ':' + id) ? 2 : 1, r = RECIPES.find(x => x.id === id); if (r) lines(r.ingredients).forEach(l => addIng(items, l, r.name, mult)); });
+    slotItems(day[k]).forEach(id => { if (isNote(id) || (day._tup || []).includes(k + ':' + id)) return; const mult = (day._x2 || []).includes(k + ':' + id) ? 2 : 1, r = RECIPES.find(x => x.id === id); if (r) ingLines(r, day, k).forEach(l => addIng(items, l, r.name, mult)); });
   }));
   return items.filter(it => !isBasic(it.key));
 }
@@ -2083,7 +2083,7 @@ async function renderToday() {
   const [mt, mm] = await Promise.all([weekFor(ymd(mondayOf(now))), weekFor(ymd(mondayOf(tmr)))]);
   const line = d => MEALS.map(([k, l, ic]) => { const nm = slotItems((d || {})[k]).map(v => isNote(v) ? v.slice(1) : (RECIPES.find(r => r.id === v) || {}).name).filter(Boolean); return nm.length ? `${ic} ${l}: ${esc(nm.join(' + '))}` : ''; }).filter(Boolean);
   const hoy = line(mt[di]), man = line(mm[ti]);
-  const frozFor = (day, skipDone) => { const out = [], sn = new Set(); MEALS.forEach(([k]) => slotItems((day || {})[k]).forEach(id => { if (isNote(id) || (skipDone && (day._done || []).includes(k + ':' + id))) return; const r = RECIPES.find(x => x.id === id); if (r) { const its = []; lines(r.ingredients).forEach(l => addIng(its, l, r.name)); its.forEach(i => { const p = PANTRY.find(p => pLocOf(p) === 'congelador' && Number(p.units ?? 1) > 0 && !p.recipe_id && fuzzy(norm(p.name), i.key)); if (p && !sn.has(p.id) && !PANTRY.some(x => pLocOf(x) !== 'congelador' && !x.recipe_id && Number(x.units ?? 1) > 0 && fuzzy(norm(x.name), i.key))) { sn.add(p.id); out.push(p); } }); } const dd = PANTRY.find(p => p.recipe_id === id && pLocOf(p) === 'congelador' && Number(p.units ?? 1) > 0); if (dd && !sn.has(dd.id) && !PANTRY.some(x => x.recipe_id === id && pLocOf(x) !== 'congelador' && Number(x.units ?? 1) > 0)) { sn.add(dd.id); out.push(dd); } })); return out; };
+  const frozFor = (day, skipDone) => { const out = [], sn = new Set(); MEALS.forEach(([k]) => slotItems((day || {})[k]).forEach(id => { if (isNote(id) || (skipDone && (day._done || []).includes(k + ':' + id))) return; const r = RECIPES.find(x => x.id === id); if (r) { const its = []; ingLines(r, day, k).forEach(l => addIng(its, l, r.name)); its.forEach(i => { const p = PANTRY.find(p => pLocOf(p) === 'congelador' && Number(p.units ?? 1) > 0 && !p.recipe_id && fuzzy(norm(p.name), i.key)); if (p && !sn.has(p.id) && !PANTRY.some(x => pLocOf(x) !== 'congelador' && !x.recipe_id && Number(x.units ?? 1) > 0 && fuzzy(norm(x.name), i.key))) { sn.add(p.id); out.push(p); } }); } const dd = PANTRY.find(p => p.recipe_id === id && pLocOf(p) === 'congelador' && Number(p.units ?? 1) > 0); if (dd && !sn.has(dd.id) && !PANTRY.some(x => x.recipe_id === id && pLocOf(x) !== 'congelador' && Number(x.units ?? 1) > 0)) { sn.add(dd.id); out.push(dd); } })); return out; };
   const froz = frozFor(mm[ti], false), frozHoy = frozFor(mt[di], true).filter(p => !froz.some(x => x.id === p.id));
   if (!hoy.length && !man.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
   const dn = d => d.toLocaleDateString('es', { weekday: 'long', day: 'numeric' });
@@ -2208,7 +2208,7 @@ function markCooked(day, meal, id) {
   if ((MENU[day]._done || []).includes(meal + ':' + id)) { toggleDone(day, meal, id); return toast('Quitada la marca de cocinado'); }
   if ((MENU[day]._tup || []).includes(meal + ':' + id)) { toggleDone(day, meal, id); useDishPortion(id).then(() => askRating(id)); return; }
   const r = RECIPES.find(x => x.id === id); if (!r) return;
-  const its = []; lines(r.ingredients).forEach(l => addIng(its, l, r.name));
+  const its = []; ingLines(r, MENU[day], meal).forEach(l => addIng(its, l, r.name));
   const seen = new Set(), hits = [];
   its.forEach(i => { if (isBasic(i.key)) return; const p = fifoFind(i.key); if (p && !seen.has(p.id)) { seen.add(p.id); p._need = i.u; hits.push(p); } });
   cookCtx = { day, meal, id, hits };
@@ -2417,7 +2417,7 @@ async function liveSettings() {
 }
 
 /* ---- Plantillas de semana ---- */
-const cleanMenu = m => normMenu(JSON.parse(JSON.stringify(m))).map(d => { const o = { ...d }; ['_done', '_lock', '_x2', '_tup'].forEach(mk => delete o[mk]); return o; });
+const cleanMenu = m => normMenu(JSON.parse(JSON.stringify(m))).map(d => { const o = { ...d }; ['_done', '_lock', '_x2', '_tup', '_sub'].forEach(mk => delete o[mk]); return o; });
 function drawTemplates() {
   openP(`<div class="editbar"><div class="sheet-top"><h2>📑 Plantillas de semana</h2><button class="btn secondary" data-pa="close">Cerrar</button></div><div class="notice" id="pMsg">Guarda una semana que te gustó y aplícala cuando quieras.</div></div>` +
     (TEMPLATES.length ? TEMPLATES.map((t, i) => `<div class="catrow"><span>${esc(t.name)}<br><small>${t.menu.reduce((n, d) => n + MEALS.filter(([k]) => slotItems(d[k]).length).length, 0)} comidas</small></span><button class="btn" data-pa="tplapply" data-i="${i}">Aplicar</button><button class="btn secondary" data-pa="tpldel" data-i="${i}">🗑️</button></div>`).join('')
@@ -3311,15 +3311,16 @@ function learnItem(name, pe, qty, min, tgt, rec, brand, note) { const c = CATALO
 function drawZone() { const el = $('pZoneChips'); if (!el || !pEdit) return; const zs = ZONES[pEdit.loc] || []; if (!zs.includes(pEdit.zone)) pEdit.zone = ''; el.innerHTML = zs.map(z => `<button type="button" class="chip${pEdit.zone === z ? ' on' : ''}" data-pzone="${esc(z)}">📍 ${esc(z)}</button>`).join(''); }
 function pantryQty(p) { const m = p.quantity ? /^\s*(\d+\/\d+|\d+(?:[.,]\d+)?|[½¼¾])\s*([a-zA-ZáéíóúñÑ]+)?\.?\s*$/.exec(String(p.quantity)) : null; if (!m) return null; let n = parseQty(m[1]), ur = m[2] ? norm(m[2]) : '', unit = ''; if (ur) { if (UNITS[ur]) { unit = UNITS[ur][0]; n *= UNITS[ur][1]; } else unit = UNIT_SING[ur] || ur; } return { k: unit, n }; }
 function usedUnits(p) { const ks = Object.keys(p._need || {}), q = pantryQty(p); if (ks.length === 1 && q && q.k === ks[0] && q.n > 0) return Math.max(0.05, Math.min(Number(p.units ?? 1), Math.round(p._need[ks[0]] / q.n * 100) / 100)); return 1; }
-function missingLines(r) {
-  const out = []; lines(r.ingredients).forEach(l => { const its = []; addIng(its, l, r.name); const i = its[0]; if (!i || isBasic(i.key)) return;
+function missingLines(r, day, k) {
+  const out = []; ingLines(r, day, k).forEach(l => { const its = []; addIng(its, l, r.name); const i = its[0]; if (!i || isBasic(i.key)) return;
     const p = homeFor(i.key); if (!p) return out.push({ l, key: i.key, note: '' });
     const c = haveCover(p, i.u); if (c && !c.ok) out.push({ l, key: i.key, note: 'tienes ' + fmtQty({ [c.k]: c.have }) }); });
   return out;
 }
-function stockBadge(r, day, k, id) {
+function stockBadge(r, day, k, id, di) {
   if (!r || !PANTRY.length || (day._done || []).includes(k + ':' + id) || (day._tup || []).includes(k + ':' + id)) return '';
-  const miss = missingLines(r).length; return miss ? ` <span class="bd" data-miss="r:${r.id}">🛒 faltan ${miss} ›</span>` : ' <span class="bd">✅ en casa</span>';
+  const sb = (day._sub || []).filter(x => x.startsWith(k + ':' + id + '|')).map(x => x.split('|')[2]), pre = sb.length ? ` <span class="bd">🔄 ${esc(sb.join(', ').toLowerCase().slice(0, 30))}</span>` : '';
+  const ml = missingLines(r, day, k), miss = ml.length, wa = ml.filter(m => altsFor(m.key).length).length; return pre + (miss ? ` <span class="bd" data-miss="r:${r.id}|${di}|${k}">🛒 faltan ${miss}${wa ? ' · 💡' + wa : ''} ›</span>` : ' <span class="bd">✅ en casa</span>');
 }
 const sing = n => norm(n).split(' ').map(w => w.length > 3 ? w.replace(/s$/, '') : w).join(' ');
 const rawGroups = () => { const g = {}; PANTRY.filter(p => !p.recipe_id).forEach(p => { const k = sing(p.name) + '|' + pLocOf(p); (g[k] = g[k] || []).push(p); }); return Object.values(g).filter(a => a.length > 1); };
@@ -3412,9 +3413,9 @@ const _le = loadExtras; loadExtras = async function () { await _le.apply(this, a
 /* ---- menú: qué falta, resumen por día/semana, adelantar recetas ---- */
 function missFor(kind) {
   const wk = ymd(mondayOf(new Date())), cur = (new Date().getDay() + 6) % 7, from = WS < wk ? 7 : WS === wk ? cur : 0, seen = new Map();
-  const add = r => missingLines(r).forEach(m => { if (!seen.has(m.key)) seen.set(m.key, { ...m, from: [r.name], sub: subFor(m.key) }); else seen.get(m.key).from.push(r.name); });
-  if (kind.startsWith('r:')) { const r = RECIPES.find(x => x.id === kind.slice(2)); if (r) add(r); }
-  else (kind === 'w' ? [0, 1, 2, 3, 4, 5, 6].filter(i => i >= from) : [+kind.slice(2)]).forEach(i => MEALS.forEach(([k]) => slotItems(MENU[i][k]).forEach(id => { const r = !isNote(id) && RECIPES.find(x => x.id === id); if (r && !(MENU[i]._done || []).includes(k + ':' + id) && !(MENU[i]._tup || []).includes(k + ':' + id)) add(r); })));
+  const add = (r, dd, kk) => missingLines(r, dd, kk).forEach(m => { if (!seen.has(m.key)) seen.set(m.key, { ...m, from: [r.name], sub: subFor(m.key), alts: altsFor(m.key), slot: dd ? { di: MENU.indexOf(dd), k: kk, id: r.id } : null }); else seen.get(m.key).from.push(r.name); });
+  if (kind.startsWith('r:')) { const [rid, rdi, rk] = kind.slice(2).split('|'), r = RECIPES.find(x => x.id === rid); if (r) add(r, rdi !== undefined ? MENU[+rdi] : null, rk); }
+  else (kind === 'w' ? [0, 1, 2, 3, 4, 5, 6].filter(i => i >= from) : [+kind.slice(2)]).forEach(i => MEALS.forEach(([k]) => slotItems(MENU[i][k]).forEach(id => { const r = !isNote(id) && RECIPES.find(x => x.id === id); if (r && !(MENU[i]._done || []).includes(k + ':' + id) && !(MENU[i]._tup || []).includes(k + ':' + id)) add(r, MENU[i], k); })));
   return [...seen.values()];
 }
 function missDayBadge(i, today) { const wk = ymd(mondayOf(new Date())); if (!PANTRY.length || WS < wk || (WS === wk && i < today)) return ''; const n = missFor('d:' + i).length; return n ? `<span class="bd" data-miss="d:${i}" style="margin-left:8px">🛒 faltan ${n} ›</span>` : ''; }
@@ -3425,7 +3426,7 @@ function renderMissBar() {
 }
 function missOpen(kind) {
   const l = missFor(kind), many = kind[0] !== 'r', title = kind === 'w' ? 'Falta esta semana' : kind[0] === 'd' ? 'Falta ' + (DAYS[+kind.slice(2)] || '').toLowerCase() : 'Qué falta en la receta';
-  openP(pHead('🛒 ' + title, 'Estos ingredientes ya están apuntados solos en la pestaña Compra (descontando lo que tienes en casa).') + (l.map(m => `<div class="grow"><div class="grow1"><b style="flex:1;font-weight:600">${esc(m.l)}<small>${m.note ? ' · ' + esc(m.note) : ''}${many ? ' · ' + esc(m.from.join(', ')) : ''}</small>${m.sub ? `<br><small>💡 Puedes usar ${esc(cap(m.sub.alt))} (tienes ${esc(cap(m.sub.p.name))})</small>` : ''}</b></div></div>`).join('') || '<div class="empty">Nada: todo está en casa ✅</div>') + '<div class="chips" style="margin-top:12px"><button class="btn" data-gotoshop="1" type="button" style="width:100%;min-height:56px;font-size:1.1rem">🛒 Ir a la Compra</button></div>');
+  openP(pHead('🛒 ' + title, 'Estos ingredientes ya están apuntados solos en la pestaña Compra (descontando lo que tienes en casa).') + (l.map(m => `<div class="grow"><div class="grow1"><b style="flex:1;font-weight:600">${esc(m.l)}<small>${m.note ? ' · ' + esc(m.note) : ''}${many ? ' · ' + esc(m.from.join(', ')) : ''}</small>${m.sub ? `<br><small>💡 Puedes usar ${esc(cap(m.sub.alt))} (tienes ${esc(cap(m.sub.p.name))})</small>` : ''}${subChips(m)}</b></div></div>`).join('') || '<div class="empty">Nada: todo está en casa ✅</div>') + '<div class="chips" style="margin-top:12px"><button class="btn" data-gotoshop="1" type="button" style="width:100%;min-height:56px;font-size:1.1rem">🛒 Ir a la Compra</button></div>');
 }
 function advBadge(ug, i, k, j, mon, today) {
   if (!ug.length) return '';
@@ -3540,7 +3541,7 @@ const byName = (a, b) => cmpName(a, b);
 const hoyChip = () => WS === ymd(mondayOf(new Date())) ? '<button class="chip" data-th="open" type="button">📍 Hoy</button> ' : '';
 const fullBox = id => { let b = $(id); if (!b) { b = document.createElement('div'); b.id = id; b.style.cssText = 'position:fixed;inset:0;z-index:9000;background:var(--bg);color:var(--text);overflow:auto;display:none'; document.body.appendChild(b); } return b; };
 const fullWrap = (title, body, key) => `<div style="max-width:620px;margin:0 auto;padding:calc(14px + env(safe-area-inset-top,0px)) 16px calc(28px + env(safe-area-inset-bottom,0px))"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="font-size:1.35rem;font-weight:800">${title}</span><button class="btn secondary" data-fx="${key}" type="button" style="min-height:48px">Cerrar</button></div>${body}</div>`;
-function frozenFor(day, skipDone) { const out = [], sn = new Set(); MEALS.forEach(([k]) => slotItems((day || {})[k]).forEach(id => { if (isNote(id) || (skipDone && (day._done || []).includes(k + ':' + id))) return; const r = RECIPES.find(x => x.id === id); if (r) { const its = []; lines(r.ingredients).forEach(l => addIng(its, l, r.name)); its.forEach(i => { const p = PANTRY.find(p => pLocOf(p) === 'congelador' && Number(p.units ?? 1) > 0 && !p.recipe_id && fuzzy(norm(p.name), i.key)); if (p && !sn.has(p.id) && !PANTRY.some(x => pLocOf(x) !== 'congelador' && !x.recipe_id && Number(x.units ?? 1) > 0 && fuzzy(norm(x.name), i.key))) { sn.add(p.id); out.push(p); } }); } const dd = PANTRY.find(p => p.recipe_id === id && pLocOf(p) === 'congelador' && Number(p.units ?? 1) > 0); if (dd && !sn.has(dd.id) && !PANTRY.some(x => x.recipe_id === id && pLocOf(x) !== 'congelador' && Number(x.units ?? 1) > 0)) { sn.add(dd.id); out.push(dd); } })); return out; }
+function frozenFor(day, skipDone) { const out = [], sn = new Set(); MEALS.forEach(([k]) => slotItems((day || {})[k]).forEach(id => { if (isNote(id) || (skipDone && (day._done || []).includes(k + ':' + id))) return; const r = RECIPES.find(x => x.id === id); if (r) { const its = []; ingLines(r, day, k).forEach(l => addIng(its, l, r.name)); its.forEach(i => { const p = PANTRY.find(p => pLocOf(p) === 'congelador' && Number(p.units ?? 1) > 0 && !p.recipe_id && fuzzy(norm(p.name), i.key)); if (p && !sn.has(p.id) && !PANTRY.some(x => pLocOf(x) !== 'congelador' && !x.recipe_id && Number(x.units ?? 1) > 0 && fuzzy(norm(x.name), i.key))) { sn.add(p.id); out.push(p); } }); } const dd = PANTRY.find(p => p.recipe_id === id && pLocOf(p) === 'congelador' && Number(p.units ?? 1) > 0); if (dd && !sn.has(dd.id) && !PANTRY.some(x => x.recipe_id === id && pLocOf(x) !== 'congelador' && Number(x.units ?? 1) > 0)) { sn.add(dd.id); out.push(dd); } })); return out; }
 function todayOpen() {
   if (WS !== ymd(mondayOf(new Date()))) return toast('Ve a esta semana para ver el modo hoy');
   const di = (new Date().getDay() + 6) % 7, day = MENU[di] || {}, now = new Date();
@@ -3675,6 +3676,39 @@ function orphanCheck(day, oldId) {
   const tups = []; MENU.forEach((d, di) => (d._tup || []).forEach(key => { if (key.endsWith(':' + oldId) && !(d._done || []).includes(key)) tups.push({ di, mk: key.split(':')[0] }); })); if (!tups.length) return;
   showUndo('La sobra de ' + cap(r.name) + ' se queda sin origen', () => { tups.forEach(({ di, mk }) => { const idx = slotItems(MENU[di][mk]).lastIndexOf(oldId); if (idx >= 0) slotSet(di, mk, idx, null); }); renderMenu(); persistWeek(); }, 'Quitar sobra');
 }
+
+/* ---- usar otro ingrediente de la despensa en un plato concreto ---- */
+const sigW = n => norm(n).split(' ').filter(w => w.length >= 4);
+const MOD = new Set(['rojo', 'roja', 'verde', 'amarillo', 'amarilla', 'naranja', 'blanco', 'blanca', 'negro', 'negra', 'congelado', 'congelada', 'congelados', 'congeladas', 'fresco', 'fresca', 'frescos', 'frescas', 'natural', 'naturales', 'entero', 'entera', 'troceado', 'troceada', 'picado', 'picada', 'rallado', 'rallada', 'laminado', 'laminada', 'filete', 'filetes', 'medallon', 'medallones', 'lomo', 'lomos', 'trozo', 'trozos', 'tacos', 'tiras', 'lonchas', 'grande', 'grandes', 'maduro', 'madura', 'cocido', 'cocida', 'cocidos', 'cocidas', 'crudo', 'cruda', 'bolsa', 'bote', 'lata', 'paquete', 'bandeja', 'limpio', 'limpia', 'pelado', 'pelada', 'pelados', 'peladas']);
+const GEN = new Set(['carne', 'queso', 'salsa', 'pasta', 'aceite', 'harina', 'caldo', 'crema', 'pescado', 'verdura', 'verduras', 'fruta', 'frutas']);
+function altsFor(key) {
+  const kw = sigW(key), kn = kw.filter(w => !MOD.has(w) && !GEN.has(w)), out = new Map();
+  PANTRY.filter(p => !p.recipe_id && Number(p.units ?? 1) > 0).forEach(p => {
+    const pn = norm(p.name); if (!kw.length || pn === key || fuzzy(pn, key)) return; const pw = sigW(pn), has = w => pw.some(x => same(x, w)), all = kw.filter(has).length;
+    if (kn.length ? kn.some(has) : all >= Math.min(2, kw.length)) out.set(p.id, { p, score: all });
+  });
+  const sb = subFor(key); if (sb && !out.has(sb.p.id)) out.set(sb.p.id, { p: sb.p, score: 0 });
+  return [...out.values()].sort((a, b) => b.score - a.score).map(x => x.p);
+}
+function ingLines(r, day, k) {
+  const ls = lines(r.ingredients), subs = ((day && day._sub) || []).filter(x => x.startsWith(k + ':' + r.id + '|')).map(x => x.split('|')); if (!subs.length) return ls;
+  return ls.map(l => { const t = []; addIng(t, l, ''); const key = t[0] && t[0].key, sb = subs.find(x => x[1] === key); if (!sb) return l; const m = ING_RE.exec(l.replace(/^[\s\-–•*·✓☐☑]+/, '').trim()); return m ? l.replace(m[3], sb[2]) : l; });
+}
+const subChips = m => m.slot && m.slot.di >= 0 && m.alts && m.alts.length ? '<div class="chips" style="margin-top:6px">' + m.alts.slice(0, 4).map(p => `<button class="chip" data-sub="${m.slot.di}|${m.slot.k}|${m.slot.id}|${esc(m.key)}|${esc(cap(p.name))}" type="button">Usar ${esc(cap(p.name))}</button>`).join('') + '</div>' : '';
+function subOpen(di, k, id) {
+  const r = RECIPES.find(x => x.id === id), d = MENU[di]; if (!r || !d) return; const cur = (d._sub || []).filter(x => x.startsWith(k + ':' + id + '|')).map(x => x.split('|')), rows = [];
+  lines(r.ingredients).forEach(l => { const t = []; addIng(t, l, ''); const it = t[0]; if (!it || isBasic(it.key)) return; const alts = altsFor(it.key), c = cur.find(x => x[1] === it.key); if (!alts.length && !c) return;
+    rows.push(`<div class="grow"><b style="display:block;font-weight:600">${esc(l)}</b>${c ? `<small>✔ Usando ${esc(c[2])}</small>` : ''}<div class="chips" style="margin-top:6px">${alts.slice(0, 4).map(p => `<button class="chip" data-so="1" data-sub="${di}|${k}|${id}|${esc(it.key)}|${esc(cap(p.name))}" type="button">Usar ${esc(cap(p.name))}</button>`).join('')}${c ? `<button class="chip" data-so="1" data-sub="${di}|${k}|${id}|${esc(it.key)}|" type="button">↩️ Original</button>` : ''}</div></div>`); });
+  openP(pHead('🔄 ' + esc(r.name), 'Cambia un ingrediente por otro que tengas en casa. La compra, el «faltan» y el descuento al cocinar usarán el nuevo.') + (rows.join('') || '<div class="empty">No hay alternativas en tu despensa para esta receta.</div>'));
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-sub],[data-subopen]'); if (!t) return;
+  if (t.dataset.subopen) { const id = slotItems(MENU[pick.day][pick.meal])[pick.idx]; $('pickModal').classList.remove('show'); return id ? subOpen(pick.day, pick.meal, id) : null; }
+  const [di, k, id, key, name] = t.dataset.sub.split('|'), d = MENU[+di]; if (!d) return; const pre = k + ':' + id + '|' + key + '|';
+  d._sub = (d._sub || []).filter(x => !x.startsWith(pre)); if (name) d._sub.push(pre + name); if (!d._sub.length) delete d._sub;
+  renderMenu(); persistWeek(); toast(name ? '🔄 Se usará ' + name : '↩️ Ingrediente original');
+  if (t.dataset.so) subOpen(+di, k, id); else missOpen('r:' + id + '|' + di + '|' + k);
+});
 </script>
 </body>
 </html>
