@@ -197,7 +197,6 @@ textarea.big{width:100%;min-height:96px;padding:12px;border:1px solid #355570;bo
 .ckctl{display:grid;grid-template-columns:1fr 1.4fr;gap:10px}.ckctl .btn{padding:16px;font-size:17px}
 .tmr{border:1px solid #f0b24a;border-radius:10px;background:#3a3016;color:#ffe3a3;padding:9px 12px;font:inherit;font-weight:700;cursor:pointer}
 .tmr.run{background:#f0b24a;color:#07192d}.tmr.fin{background:var(--danger);border-color:var(--danger);color:#fff}
-.scanvideo{width:100%;max-height:46vh;object-fit:cover;border-radius:12px;background:#000;margin-top:10px}
 .today{margin:12px 0 0;padding:12px;border:1px solid #244763;border-radius:12px;background:var(--surface);font-size:14px;line-height:1.5}
 .today .th{font-weight:700;font-size:12px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-top:6px}.today .th:first-child{margin-top:0}
 .thaw{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 10px;border-radius:9px;background:#10324a;color:#bfe3ff;font-weight:600}
@@ -312,7 +311,7 @@ header{background:#07192d}
       <div class="tools" style="margin-top:10px"><input id="pantrySearch" type="search" placeholder="Buscar en casa…" autocomplete="off"></div>
       <div class="noterow" style="margin-top:12px"><input id="quickAdd" placeholder="➕ Añadir rápido: escribe y pulsa Enter" autocomplete="off" enterkeyhint="done"><button class="btn" id="quickAddBtn" type="button">＋</button></div>
       <div class="chips" id="quickSug" style="margin:6px 0 2px"></div>
-      <div class="chips" style="margin:2px 0 8px"><button class="chip" id="pantrySort" type="button"></button><button class="chip" id="pantryCook" type="button">🍳 Cocinar con lo que tengo</button><button class="chip" id="pantryTicket" type="button">📷 Leer ticket</button><button class="chip" id="pantryScan" type="button">🔍 Escanear código</button><button class="chip" id="pantryPaste" type="button">📄 Ticket digital</button><button class="chip" id="pantryDish" type="button">🍲 Plato cocinado</button><input type="file" id="ticketFile" accept="image/*" class="hidden"></div>
+      <div class="chips" style="margin:2px 0 8px"><button class="chip" id="pantrySort" type="button"></button><button class="chip" id="pantryCook" type="button">🍳 Cocinar con lo que tengo</button><button class="chip" id="pantryTicket" type="button">📷 Leer ticket</button><button class="chip" id="pantryPaste" type="button">📄 Ticket digital</button><button class="chip" id="pantryDish" type="button">🍲 Plato cocinado</button><input type="file" id="ticketFile" accept="image/*" class="hidden"></div>
       <div id="pantryAlert"></div>
       <div class="count" id="pantryCount"></div>
       <div id="pantryList"></div>
@@ -380,6 +379,11 @@ const DEFAULT_CATS = [
 const MEALS = [['desayuno', 'Desayuno', '🥞'], ['almuerzo', 'Almuerzo', '🍎'], ['comida', 'Comida', '🍽️'], ['merienda', 'Merienda', '🥪'], ['cena', 'Cena', '🌙']];
 const DAYS = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO', 'DOMINGO'];
 const LOCK = MEALS.map(m => m[1]);
+let _mealsOn = null;
+const mealsOnGet = () => { if (_mealsOn) return _mealsOn; let a = null; try { a = JSON.parse(localStorage.getItem('pandi-meals') || 'null'); } catch (e) {} const f = Array.isArray(a) ? MEALS.map(m => m[0]).filter(k => a.includes(k)) : []; return (_mealsOn = f.length ? f : MEALS.map(m => m[0])); };
+const mealOn = k => mealsOnGet().includes(k);
+const activeMeals = () => MEALS.filter(m => mealOn(m[0]));
+const shownMeals = day => MEALS.filter(([k]) => mealOn(k) || (Array.isArray((day || {})[k]) ? day[k].length : (day || {})[k] ? 1 : 0));
 const sortCats = list => [...LOCK.map(n => list.find(c => c.name === n)).filter(Boolean), ...list.filter(c => !LOCK.includes(c.name)).sort((a, b) => cmpName(a, b))];
 const DEFAULT_GOALS = [
   { label: 'Vegetales', key: 'Verduras', target: 10, mode: 'min', icon: '🥦' }, { label: 'Fruta', key: 'Fruta', target: 7, mode: 'min', icon: '🍎' },
@@ -860,6 +864,7 @@ function renderOptions() {
     body.innerHTML = `<div class="sheet-top"><h2>⚙️ Opciones</h2><button class="btn secondary" data-act="optclose">Cerrar</button></div>
       <button class="menuitem" data-act="restore" type="button">♻️ Restaurar copia de seguridad</button>
       <div class="menuitem" style="display:block"><span>🍲 Al añadir una receta al menú</span><div class="chips" style="margin-top:6px"><button class="chip" data-act="p4mode" data-v="smart" type="button">Automático (4+ raciones = 2 días)</button><button class="chip" data-act="p4mode" data-v="ask" type="button">Preguntarme el día</button><button class="chip" data-act="p4mode" data-v="bar" type="button">Solo un botón</button></div><span style="display:block;margin-top:10px">🗓️ La 2.ª comida va…</span><div class="chips" style="margin-top:6px"><button class="chip" data-act="p4gap" data-v="1" type="button">Al día siguiente</button><button class="chip" data-act="p4gap" data-v="2" type="button">A los 2 días</button><button class="chip" data-act="p4gap" data-v="ask" type="button">Preguntarme siempre</button></div></div><input type="file" id="restoreFile" accept=".json,application/json" hidden>
+      <div class="menuitem" style="display:block"><span>🍽️ Comidas del día <small>(las que desmarques no salen en el menú)</small></span><div class="chips" style="margin-top:6px">${MEALS.map(([k, l, ic]) => `<button class="chip${mealOn(k) ? ' on' : ''}" data-act="mealtog" data-v="${k}" type="button">${ic} ${l}</button>`).join('')}</div><small style="display:block;margin-top:6px;color:var(--muted)">Se guarda en este móvil. Si una comida ya tiene recetas, sigue apareciendo.</small></div>
       <button class="menuitem" data-act="guide" type="button">💡 Guía de funciones</button>
       <button class="menuitem" data-act="errlog" type="button">🪲 Registro de errores</button>
       <div class="menuitem" style="display:block"><span>🌗 Aspecto <small>(el claro está en pruebas)</small></span><div class="chips" style="margin-top:6px"><button class="chip" data-act="theme" data-v="auto">📱 Como el móvil</button><button class="chip" data-act="theme" data-v="dark">🌙 Oscuro</button><button class="chip" data-act="theme" data-v="light">☀️ Claro</button></div></div>
@@ -1015,6 +1020,7 @@ $('optBody').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return; const n = b.dataset.name;
   ({ optclose: () => $('optModal').classList.remove('show'),
      restore: () => $('restoreFile').click(),
+     mealtog: () => { const k = b.dataset.v, cur = mealsOnGet().slice(), nx = cur.includes(k) ? cur.filter(x => x !== k) : [...cur, k]; if (!nx.length) return toast('Deja al menos una comida'); try { localStorage.setItem('pandi-meals', JSON.stringify(nx)); } catch (e) {} _mealsOn = null; renderOptions(); renderMenu(); renderStats(); },
      guide: () => guideOpen(),
      errlog: () => errOpen(),
      p4gap: () => { try { localStorage.setItem('pandi-p4gap', b.dataset.v); } catch (e) {} toast(b.dataset.v === '1' ? '🗓️ La sobra irá al día siguiente' : b.dataset.v === '2' ? '🗓️ La sobra irá a los 2 días' : '🗓️ Te preguntaré el día de la sobra'); },
@@ -1062,9 +1068,9 @@ function renderMenu() {
   const today = WS === cur ? (new Date().getDay() + 6) % 7 : -1, L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
   $('dayPills').innerHTML = MENU.map((d, i) => `<button class="pill${i === today ? ' today' : ''}${MEALS.some(([k]) => slotItems(d[k]).length) ? ' has' : ''}" data-pill="${i}" type="button">${L[i]}<b>${addDays(mon, i).getDate()}</b></button>`).join('');
   $('menuDays').innerHTML = MENU.map((day, i) => {
-    const filled = MEALS.filter(([k]) => slotItems(day[k]).length).length;
-    return `<div class="day${i === today ? ' today' : ''}" id="day-${i}"><div class="dayhead"><span class="dn">${addDays(mon, i).getDate()}</span><b>${DAYS[i]}</b>${i === today ? '<em>Hoy</em>' : ''}${missDayBadge(i, today)}<small>${filled}/5</small></div>` +
-      MEALS.map(([k, label, ic]) => {
+    const shown = shownMeals(day), filled = shown.filter(([k]) => slotItems(day[k]).length).length;
+    return `<div class="day${i === today ? ' today' : ''}" id="day-${i}"><div class="dayhead"><span class="dn">${addDays(mon, i).getDate()}</span><b>${DAYS[i]}</b>${i === today ? '<em>Hoy</em>' : ''}${missDayBadge(i, today)}<small>${filled}/${shown.length}</small></div>` +
+      shown.map(([k, label, ic]) => {
         const its = slotItems(day[k]);
         const rows = its.map((id, j) => { const note = isNote(id), r = !note && RECIPES.find(x => x.id === id);
           const ug = !note && r && !(day._done || []).includes(k + ':' + id) && !(day._tup || []).includes(k + ':' + id) ? pantryInfo(r).urgent : [];
@@ -1240,7 +1246,7 @@ function pantryInfo(r) {
   return { cov: real.length ? hit / real.length : 0, urgent, frozen };
 }
 function autoFill(menu, o = {}) {
-  const ex = o.exclude || new Set(), ban = o.ban || new Set(), locked = o.locked || new Set(), rec = o.recency || {}, mains = ['comida', 'cena'];
+  const ex = o.exclude || new Set(), ban = o.ban || new Set(), locked = o.locked || new Set(), rec = o.recency || {}, mains = ['comida', 'cena'].filter(mealOn);
   const rm = new Map(RECIPES.map(r => [r.id, r])), touched = new Set(), info = new Map(), usedP = new Set(), covs = [], usedKeys = new Map(), seasonUsed = new Set(), mon = o.month ?? new Date().getMonth();
   const used = new Set(menu.flatMap(d => MEALS.flatMap(([k]) => slotItems(d[k]).filter(x => !isNote(x)))));
   if (o.pantry !== false && PANTRY.length) RECIPES.forEach(r => info.set(r.id, pantryInfo(r)));
@@ -1280,7 +1286,7 @@ function autoFill(menu, o = {}) {
       const fq = cand.filter(r => qk(r, i)); if (fq.length) cand = fq;
       const r = choose(cand, i, k, false); if (r) { put(i, k, r, true); break; }
     } } });
-  menu.forEach((d, i) => MEALS.forEach(([k, label]) => {
+  menu.forEach((d, i) => activeMeals().forEach(([k, label]) => {
     if (slotItems(d[k]).length || locked.has(i + k)) return;
     const base0 = RECIPES.filter(r => ok(r) && catsOf(r).includes(label) && !(mains.includes(k) && isSide(r))), bq = base0.filter(r => qk(r, i)), base = bq.length ? bq : base0;
     const free = base.filter(r => !catsOf(r).some(c => capCats.has(c)));
@@ -1474,15 +1480,17 @@ function fmtQty(u) {
 const mk = (pre, ex = []) => new RegExp('\\b(?:' + pre.join('|') + ')' + (ex.length ? '|\\b(?:' + ex.join('|') + ')\\b' : ''));
 const GROUPS = [
   { icon: '🥦', name: 'Verduras y frutas', re: mk(['cebolla', 'ajo', 'tomate', 'lechuga', 'zanahoria', 'patata', 'papa', 'pimiento', 'calabac', 'berenjena', 'pepino', 'espinaca', 'champi', 'seta', 'limon', 'naranja', 'manzana', 'platano', 'fresa', 'aguacate', 'brocoli', 'coliflor', 'puerro', 'calabaza', 'judia', 'perejil', 'cilantro', 'albahaca', 'fruta', 'ensalada', 'verdura', 'apio', 'remolacha', 'maiz', 'guisante', 'uva', 'pera', 'melon', 'sandia', 'mango', 'kiwi', 'jengibre', 'rucula', 'canonigo', 'repollo', 'esparrago', 'alcachofa', 'nabo', 'rabano', 'boniato', 'cebollino', 'menta', 'tomillo', 'romero', 'lima', 'mandarina', 'pina', 'melocoton', 'ciruela', 'cereza', 'granada', 'acelga', 'escarola', 'endivia', 'hinojo'], ['col', 'coles', 'coco']) },
-  { icon: '🥩', name: 'Carne y pescado', re: mk(['pollo', 'pavo', 'ternera', 'cerdo', 'cordero', 'jamon', 'lomo', 'chuleta', 'salchicha', 'chorizo', 'bacon', 'panceta', 'carne', 'pescado', 'salmon', 'merluza', 'atun', 'bacalao', 'gamba', 'langostino', 'mejillon', 'calamar', 'sepia', 'pulpo', 'dorada', 'lubina', 'sardina', 'anchoa', 'marisco', 'filete', 'solomillo', 'hamburguesa', 'pechuga', 'muslo', 'costilla', 'morcilla', 'sobrasada', 'caballa', 'rape', 'almeja', 'trucha', 'entrecot', 'chuleton', 'secreto', 'presa', 'rabo', 'carrillera', 'albondiga', 'conejo', 'pato', 'berberecho']) },
+  { icon: '🥩', name: 'Carne', re: mk(['pollo', 'pavo', 'ternera', 'cerdo', 'cordero', 'jamon', 'lomo', 'chuleta', 'salchicha', 'chorizo', 'bacon', 'panceta', 'carne', 'filete', 'solomillo', 'hamburguesa', 'pechuga', 'muslo', 'costilla', 'morcilla', 'sobrasada', 'entrecot', 'chuleton', 'secreto', 'presa', 'rabo', 'carrillera', 'albondiga', 'conejo', 'pato']) },
   { icon: '🧀', name: 'Lácteos y huevos', re: mk(['leche', 'queso', 'yogur', 'huevo', 'nata', 'mantequilla', 'requeson', 'kefir', 'mozzarella', 'parmesano', 'cuajada', 'margarina', 'crema fresca']) },
-  { icon: '🍞', name: 'Panadería', re: mk(['tostad', 'baguette', 'bollo', 'croissant', 'brioche', 'colines', 'pita', 'wrap'], ['pan', 'panes']) },
+  { icon: '🍞', name: 'Panadería', re: mk(['tostad', 'baguette', 'bollo', 'croissant', 'brioche', 'colines', 'pita', 'wrap', 'pizza', 'masa', 'hojaldre', 'empanadilla', 'obleas'], ['pan', 'panes']) },
   { icon: '🥫', name: 'Básicos y conservas', re: mk(['arroz', 'macarron', 'espagueti', 'spaghetti', 'fideo', 'tallarin', 'lentej', 'garbanz', 'alubia', 'harina', 'azucar', 'aceite', 'vinagre', 'salsa', 'caldo', 'especia', 'pimenton', 'comino', 'oregano', 'pimienta', 'cereal', 'avena', 'cacao', 'nuez', 'nueces', 'almendra', 'avellana', 'pistacho', 'cacahuete', 'quinoa', 'cuscus', 'mostaza', 'mayonesa', 'ketchup', 'levadura', 'galleta', 'conserva', 'legumbre', 'pan rallado', 'tomate frito', 'tomate triturado', 'tomate natural', 'sirope', 'curry', 'laurel', 'canela', 'vainilla', 'mermelada', 'tahini', 'bulgur', 'polenta', 'maicena'], ['pasta', 'sal', 'miel', 'soja', 'latas?', 'botes?', 'pure']) },
   { icon: '❄️', name: 'Congelados', re: mk(['congelad', 'helado', 'hielo']) },
-  { icon: '🧴', name: 'Otros', re: /$^/ }
+  { icon: '🧴', name: 'Otros', re: /$^/ },
+  { icon: '🐟', name: 'Pescado y marisco', re: mk(['pescado', 'salmon', 'merluza', 'atun', 'bacalao', 'gamba', 'langostino', 'mejillon', 'calamar', 'sepia', 'pulpo', 'dorada', 'lubina', 'sardina', 'anchoa', 'marisco', 'caballa', 'rape', 'almeja', 'trucha', 'berberecho', 'bonito', 'rodaballo', 'lenguado', 'pescadilla', 'emperador', 'pez espada', 'abadejo', 'surimi', 'cigala', 'boqueron', 'chipiron', 'vieira', 'ostra', 'cangrejo', 'salmonete', 'jurel', 'tilapia', 'panga']) },
+  { icon: '🍷', name: 'Bebidas', re: mk(['vino', 'cerveza', 'refresco', 'zumo', 'licor', 'whisky', 'ginebra', 'vodka', 'sidra', 'champan', 'sangria', 'tonica', 'gaseosa', 'isotonic', 'bebida', 'batido', 'kombucha', 'infusion', 'descafeinado', 'limonada', 'mosto', 'vermut', 'brandy', 'conac', 'tequila', 'pepsi', 'coca.?cola', 'colacao', 'nestea', 'aquarius', 'fanta'], ['agua', 'aguas', 'cafe', 'cafes', 'cava', 'ron', 'te']) }
 ];
-const TEST_ORDER = [5, 4, 2, 1, 3, 0];
-const shopOrder = () => { const o = Array.isArray(STORE_ORDER) ? STORE_ORDER.filter(i => Number.isInteger(i) && i >= 0 && i < GROUPS.length) : []; return [...new Set([...o, ...GROUPS.map((_, i) => i)])]; };
+const TEST_ORDER = [5, 4, 8, 2, 7, 1, 3, 0];
+const shopOrder = () => { let o = Array.isArray(STORE_ORDER) ? STORE_ORDER.filter(i => Number.isInteger(i) && i >= 0 && i < GROUPS.length) : []; if (!o.length) o = [0, 1, 7, 2, 3, 4, 8, 5, 6]; else { if (!o.includes(7)) o.splice(o.includes(1) ? o.indexOf(1) + 1 : o.length, 0, 7); if (!o.includes(8)) o.splice(o.includes(4) ? o.indexOf(4) + 1 : o.length, 0, 8); } return [...new Set([...o, ...GROUPS.map((_, i) => i)])]; };
 const classify = name => { const n = norm(name); const g = TEST_ORDER.find(i => GROUPS[i].re.test(n)); return g === undefined ? 6 : g; };
 
 const shopMsg = (t, err) => { const m = $('shopMsg'); m.textContent = t; m.className = 'notice' + (err ? ' err' : ''); };
@@ -1561,7 +1569,7 @@ $('shopList').onclick = e => {
   const bu = e.target.closest('[data-buy]'); if (bu) { const ws = bu.closest('.sitem').dataset.ws || WS, w = shopWeek(ws); if (!w.n.includes(bu.dataset.buy)) w.n.push(bu.dataset.buy); renderShop(); return saveShop(ws); }
   const r = e.target.closest('.sitem'); if (r) toggleShop(r.dataset.key, r.dataset.ws || WS);
 };
-const HOME_LOC = ['frigorifico', 'frigorifico', 'frigorifico', 'despensa', 'despensa', 'congelador', 'despensa'];
+const HOME_LOC = ['frigorifico', 'frigorifico', 'frigorifico', 'despensa', 'despensa', 'congelador', 'despensa', 'frigorifico', 'despensa'];
 async function stockBought() {
   const w = shopWeek(), all = shopItems(), today = ymd(new Date());
   const rowFor = (name, qty, units) => { const c = catFor(name), loc = c.loc || HOME_LOC[classify(name)]; return { name: cap(name), quantity: c.qty || qty, units, location: loc, zone: (ZONES[loc] || []).includes(c.zone) ? c.zone : null, min_units: c.min ? parseUnits(c.min) : null, entry_date: today, expiry_date: autoExp(name, loc) || null }; };
@@ -1734,9 +1742,9 @@ $('pBody').addEventListener('click', e => {
      bellfreeze: () => bellFreeze(b.dataset.id), belldrop: () => bellDrop(b.dataset.id), bellideas: () => { closePModal(); cookIdeas(); }, cropgo: runTicketOcr, croprot: () => { crop.rot = (crop.rot + 1) % 4; drawCrop(); }, cropbw: () => { crop.bw = !crop.bw; $('cropBw').classList.toggle('on', crop.bw); },
      tparse: () => { tRaw = $('tpText').value; tItems = parseTicketText(tRaw); drawTicket('📄 Ticket digital'); }, tclip: async () => { try { $('tpText').value = await navigator.clipboard.readText(); } catch (er) { const m = $('pMsg'); m.className = 'notice err'; m.textContent = 'No he podido leer el portapapeles: pega el texto a mano.'; } },
      reparse: () => { tRaw = $('rawText').value; tItems = parseTicketText(tRaw); drawTicket(tTitle); },
-     scandirect: () => { scanCfg.direct = !scanCfg.direct; scanOpts(); }, scanloc: () => { scanCfg.loc = b.dataset.k; scanOpts(); }, rate: () => rateNow(b.dataset.id, +b.dataset.n),
+     rate: () => rateNow(b.dataset.id, +b.dataset.n),
      tplsave: saveTemplate, tplapply: () => applyTemplate(+b.dataset.i), tpldel: () => delTemplate(+b.dataset.i), lfgo: leftoversGo, lfsel: () => { const i = +b.dataset.i; lfCtx.sel.has(i) ? lfCtx.sel.delete(i) : lfCtx.sel.add(i); drawLeftovers(); },
-     scancode: () => { const c = $('scanCode').value.trim(); if (c) handleCode(c); }, scanreview: () => { stopScan(); drawTicket('🔍 Productos escaneados'); }, ordsave: ordSave,
+     ordsave: ordSave,
      ordup: () => ordMove(+b.dataset.i, -1), orddn: () => ordMove(+b.dataset.i, 1), ordreset: () => { ordDraft = GROUPS.map((_, k) => k); drawOrder(); } })[b.dataset.pa]();
 });
 
@@ -1768,7 +1776,7 @@ function renderStats() {
   ALLW[WS] = MENU;
   const wc = weekCounts(MENU), soon = PANTRY.filter(p => p.expiry_date && daysTo(p.expiry_date) <= 3).length;
   const weeksPlanned = Object.values(ALLW).filter(m => weekCounts(m).meals > 0).length;
-  let h = '<div class="scards">' + [['Comidas planificadas', `${wc.slots}/35`], ['Recetas distintas', wc.ids.size], ['Recetas guardadas', RECIPES.length],
+  let h = '<div class="scards">' + [['Comidas planificadas', `${wc.slots}/${MENU.reduce((a, d) => a + shownMeals(d).length, 0)}`], ['Recetas distintas', wc.ids.size], ['Recetas guardadas', RECIPES.length],
     ['Semanas planificadas', weeksPlanned], ['Productos en casa', PANTRY.length], ['Caducan en 3 días', soon]].map(([l, v]) => `<div class="scard"><strong>${v}</strong><span>${l}</span></div>`).join('') + '</div>';
 
   /* objetivos */
@@ -2011,70 +2019,7 @@ function parseTicketText(text) {
 }
 async function readTicket(file) { await openCrop(file); }
 
-/* escáner de código de barras (Open Food Facts) */
-let scan = null;
-const scanSupported = () => 'BarcodeDetector' in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
-function stopScan() { if (!scan) return; clearInterval(scan.timer); try { scan.stream.getTracks().forEach(t => t.stop()); } catch (e) {} scan = null; }
-function closePModal() { const was = !!scan; stopScan(); $('pModal').classList.remove('show'); if (was) loadPantry(); }
-const scanMsg = (t, err) => { const m = $('scanMsg'); if (m) { m.textContent = t; m.className = 'notice' + (err ? ' err' : ''); } };
-async function lookupOFF(code) {
-  try {
-    const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,product_name_es,quantity`), j = await r.json();
-    if (j.status !== 1) return null; const p = j.product || {}; const name = (p.product_name_es || p.product_name || '').trim();
-    return name ? { name, quantity: (p.quantity || '').trim() } : null;
-  } catch (e) { return null; }
-}
-const scanCfg = { direct: true, loc: 'auto' }; let scanLog = [];
-const codesGet = () => { try { return JSON.parse(localStorage.getItem('pandi-codes') || '{}'); } catch (e) { return {}; } };
-const codesSet = (c, v) => { try { const m = codesGet(); m[c] = v; localStorage.setItem('pandi-codes', JSON.stringify(m)); } catch (e) {} };
-async function addPantryNow(name, quantity, loc) {
-  const ex = PANTRY.find(p => norm(p.name) === norm(name));
-  if (ex) { ex.units = Number(ex.units ?? 1) + 1; await db.setUnits(ex.id, ex.units); return ex.units; }
-  const row = { name, quantity: quantity || '', units: 1, location: loc, entry_date: ymd(new Date()), expiry_date: autoExp(name, loc) || null }, made = await db.addPantry([row]); PANTRY.push((made && made[0]) || { id: 'tmp' + Date.now(), ...row }); return 1;
-}
-async function handleCode(code) {
-  scanMsg('Buscando ' + code + '…');
-  let known = codesGet()[code], info = known || await lookupOFF(code), name = info && info.name;
-  if (!name) { name = (prompt(`No conozco el código ${code}. ¿Cómo se llama el producto?`) || '').trim(); if (!name) return scanMsg('Código ' + code + ' sin nombre: lo he saltado.', true); info = { name, quantity: '' }; }
-  const nm = cap(name); if (!known) codesSet(code, { name: nm, quantity: (info && info.quantity) || '' });
-  const loc = scanCfg.loc === 'auto' ? ticketLoc(nm) : scanCfg.loc;
-  if (scanCfg.direct) {
-    try { const u = await addPantryNow(nm, info.quantity, loc); scanLog.unshift(`✓ ${nm}${u > 1 ? ' (×' + u + ')' : ''} · ${(LOCS.find(l => l[0] === loc) || ['', ''])[1]}`); scanMsg('✓ ' + nm + (u > 1 ? ' (×' + u + ')' : '') + ' añadido a la despensa'); }
-    catch (e) { return scanMsg('No se pudo añadir: ' + e.message, true); }
-  } else {
-    const ex = tItems.find(x => norm(x.name) === norm(nm)); if (ex) ex.units++; else tItems.push({ on: true, name: nm, units: 1, quantity: (info && info.quantity) || '', loc });
-    scanLog.unshift('• ' + nm); scanMsg('✓ ' + nm + (ex ? ' (×' + ex.units + ')' : '')); const b = $('btnScanReview'); if (b) b.textContent = `Revisar y añadir (${tItems.length})`;
-  }
-  if (navigator.vibrate) navigator.vibrate(80); const lg = $('scanLog'); if (lg) lg.innerHTML = scanLog.slice(0, 8).map(l => `<div class="ing">${esc(l)}</div>`).join('');
-}
-function scanOpts() {
-  const el = $('scanOpts'); if (!el) return; const chip = (on, a, l, k = '') => `<button type="button" class="chip${on ? ' on' : ''}" data-pa="${a}" ${k}>${l}</button>`;
-  el.innerHTML = chip(scanCfg.direct, 'scandirect', '⚡ Añadir directo a la despensa') + '<div style="width:100%"></div>' + chip(scanCfg.loc === 'auto', 'scanloc', '🪄 Sitio automático', 'data-k="auto"') + LOCS.map(([k, l, ic]) => chip(scanCfg.loc === k, 'scanloc', ic + ' ' + l, `data-k="${k}"`)).join('');
-  const b = $('btnScanReview'); if (b) b.classList.toggle('hidden', scanCfg.direct);
-}
-function drawScan() {
-  openP(`<div class="editbar"><div class="sheet-top"><h2>🔍 Escanear código</h2><button class="btn secondary" data-pa="close">Cerrar</button></div><div class="notice" id="scanMsg"></div></div>
-    ${scanSupported() ? '<video id="scanVideo" class="scanvideo" playsinline muted autoplay></video>' : '<div class="empty" style="margin-top:10px">Este navegador no puede leer códigos con la cámara. Puedes escribir el código debajo.</div>'}
-    <div class="chips" id="scanOpts" style="margin-top:10px"></div>
-    <div class="noterow"><input id="scanCode" inputmode="numeric" maxlength="14" placeholder="O escribe el código de barras"><button class="btn" data-pa="scancode" type="button">Buscar</button></div>
-    <button class="btn" id="btnScanReview" data-pa="scanreview" type="button" style="width:100%;margin-top:10px">Revisar y añadir (${tItems.length})</button><div id="scanLog" style="margin-top:8px"></div>`);
-  scanOpts();
-}
-async function startScan() {
-  tItems = []; tRaw = ''; scanLog = []; drawScan(); if (!scanSupported()) return;
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }), v = $('scanVideo');
-    if (!v) return stream.getTracks().forEach(t => t.stop());
-    v.srcObject = stream; await v.play();
-    const det = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
-    scan = { stream, busy: false, last: '', lastT: 0, timer: setInterval(async () => {
-      if (!scan || scan.busy || v.readyState < 2) return; scan.busy = true;
-      try { const c = await det.detect(v); if (c.length) { const code = c[0].rawValue, now = Date.now(); if (code !== scan.last || now - scan.lastT > 4000) { scan.last = code; scan.lastT = now; await handleCode(code); } } } catch (e) {}
-      if (scan) scan.busy = false; }, 350) };
-    scanMsg('Apunta al código de barras del producto.');
-  } catch (e) { scanMsg('No he podido abrir la cámara (' + e.message + '). Puedes escribir el código a mano.', true); }
-}
-$('pantryScan').onclick = startScan;
+function closePModal() { $('pModal').classList.remove('show'); }
 $('pantryPaste').onclick = openTicketPaste;
 
 /* tarjeta "Para mañana" */
@@ -2166,7 +2111,7 @@ function renderFixedView() {
     ${FIXED.length ? FIXED.map((f, i) => { const m = MEALS.find(x => x[0] === f.meal) || ['', f.meal, '']; return `<div class="catrow"><span>${m[2]} ${esc(m[1])} · ${f.days.length === 7 ? 'todos los días' : f.days.map(d => DL[d]).join(' ')}<br><small>${esc(rn(f.id))}</small></span><button class="btn secondary" data-act="fxdel" data-i="${i}">🗑️</button></div>`; }).join('')
       : '<div class="empty" style="margin:10px 0">Todavía no hay ninguna. Ejemplo: Desayuno, todos los días, "Tostada con aceite".</div>'}
     <h3>Nueva comida fija</h3>
-    <div class="chips">${MEALS.map(([k, l, ic]) => chip(fx.meal === k, 'fxmeal', ic + ' ' + l, `data-m="${k}"`)).join('')}</div>
+    <div class="chips">${activeMeals().map(([k, l, ic]) => chip(fx.meal === k, 'fxmeal', ic + ' ' + l, `data-m="${k}"`)).join('')}</div>
     <div class="chips" style="margin-top:8px">${DL.map((l, i) => chip(fx.days.has(i), 'fxday', l, `data-d="${i}"`)).join('')}${chip(fx.days.size === 7, 'fxall', 'Todos')}</div>
     <select class="sel" id="fxItem"><option value="">📝 Nota de texto (escríbela abajo)</option>${RECIPES.slice().sort((a, b) => cmpName(a, b)).map(r => `<option value="${r.id}"${fx.item === r.id ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}</select>
     <input id="fxNote" maxlength="60" placeholder="Nota (ej.: Comer fuera)" value="${esc(fx.note)}">
@@ -2947,7 +2892,7 @@ function drawAtm() {
   openP(`<div class="editbar"><div class="sheet-top"><h2>📅 Añadir al menú</h2><button class="btn secondary" data-pa="close">Cerrar</button></div><div class="notice"><b>${esc(r.name)}</b></div></div>
     <div class="field"><label>Semana</label><div class="chips">${chip(!atm.wk, 'atmwk', 'Esta semana', 0)}${chip(atm.wk === 1, 'atmwk', 'Siguiente', 1)}</div><div class="notice">${esc(wkRange(ws))}</div></div>
     <div class="field"><label>Día</label><div class="chips">${DAYS.map((d, i) => chip(atm.day === i, 'atmday', dn(i).slice(0, 3), i)).join('')}</div></div>
-    <div class="field"><label>Comida</label><div class="chips">${MEALS.map(([k, l, ic]) => chip(atm.meal === k, 'atmmeal', ic + ' ' + l, k)).join('')}</div></div>
+    <div class="field"><label>Comida</label><div class="chips">${activeMeals().map(([k, l, ic]) => chip(atm.meal === k, 'atmmeal', ic + ' ' + l, k)).join('')}</div></div>
     <button class="btn" data-pa="atmgo" style="width:100%">📌 Añadir</button>`);
 }
 async function atmGo() {
@@ -3347,14 +3292,33 @@ function renderPTools() {
   const f = forgotten().length, d = dupeGroups().length, m = minSuggest().length, oc = oftenList().length, nd = noDate().length, rc = recSuggest().length;
   box.innerHTML = '<button class="chip" data-pt="review" type="button">✅ Revisión rápida</button><button class="chip" data-pt="map" type="button">🗺️ Mapa</button>' + (f ? `<button class="chip" data-pt="forgot" type="button">🕸️ Sin tocar (${f})</button>` : '') + (d ? `<button class="chip" data-pt="dupes" type="button">🔁 Repetidos (${d})</button>` : '') + (m ? `<button class="chip" data-pt="mins" type="button">💡 Mínimos (${m})</button>` : '') + (oc ? `<button class="chip" data-pt="often" type="button">🔔 Te falta lo de siempre (${oc})</button>` : '') + (nd ? `<button class="chip" data-pt="dates" type="button">📅 Sin fecha (${nd})</button>` : '') + (rc ? `<button class="chip" data-pt="recs" type="button">🔁 Hacer recurrentes (${rc})</button>` : '');
 }
-const rvOrder = p => ['congelador', 'frigorifico', 'despensa'].indexOf(pLocOf(p));
-function rvStart() { rv = { list: PANTRY.filter(p => !p.recipe_id && Number(p.units ?? 1) > 0).sort((a, b) => rvOrder(a) - rvOrder(b) || (a.zone || '').localeCompare(b.zone || '') || cmpName(a, b)), i: 0 }; rvDraw(); }
+const rvList = loc => PANTRY.filter(p => !p.recipe_id && Number(p.units ?? 1) > 0 && pLocOf(p) === loc).sort((a, b) => zoneRank(a) - zoneRank(b) || cmpName(a, b));
+const rvDates = () => { try { return JSON.parse(localStorage.getItem('pandi-rv-loc') || '{}'); } catch (e) { return {}; } };
+function rvChoose() {
+  const dt = rvDates(), today = ymd(new Date());
+  openP(pHead('✅ Revisión rápida', 'Elige qué vas a revisar ahora: así solo repasas lo que tienes delante.') + LOCS.map(([k, l, ic]) => {
+    const n = rvList(k).length, d = dt[k], ago = d ? Math.round((new Date(today) - new Date(d)) / 864e5) : null;
+    return `<button class="btn${n ? '' : ' secondary'}" data-rvloc="${k}" type="button"${n ? '' : ' disabled'} style="width:100%;min-height:64px;font-size:1.1rem;margin-top:10px">${ic} ${l} · ${n}<br><small>${ago === null ? 'sin revisar' : ago <= 0 ? 'revisado hoy' : 'revisado hace ' + ago + (ago === 1 ? ' día' : ' días')}</small></button>`;
+  }).join(''));
+}
+function rvStart(loc) {
+  if (!loc) return rvChoose();
+  const list = rvList(loc); if (!list.length) return toast('No hay nada apuntado ahí');
+  rv = { loc, list, i: 0 }; rvDraw();
+}
 function rvBox() { let b = $('rvBox'); if (!b) { b = document.createElement('div'); b.id = 'rvBox'; b.style.cssText = 'position:fixed;inset:0;z-index:9000;background:var(--bg);color:var(--text);overflow:auto;display:none'; document.body.appendChild(b); } return b; }
 function rvDraw() {
   const b = rvBox();
-  if (!rv || rv.i >= rv.list.length) { b.style.display = 'none'; rv = null; try { localStorage.setItem('pandi-rv', ymd(new Date())); } catch (e) {} renderPantry(); return toast('✅ Revisión terminada'); }
+  if (!rv) { b.style.display = 'none'; return; }
+  if (rv.i >= rv.list.length) {
+    b.style.display = 'none'; const done = rv.loc, today = ymd(new Date()); rv = null; let m = {};
+    try { m = rvDates(); m[done] = today; localStorage.setItem('pandi-rv-loc', JSON.stringify(m)); } catch (e) {}
+    renderPantry(); toast('✅ ' + ((LOCS.find(l => l[0] === done) || ['', 'Zona'])[1]) + ' revisado');
+    if (LOCS.some(([k]) => rvList(k).length && m[k] !== today)) rvChoose();
+    return;
+  }
   const p = rv.list[rv.i], L = pLocOf(p), lab = (LOCS.find(l => l[0] === L) || ['', ''])[1], z = (ZONES[L] || []).includes(p.zone) ? p.zone : '', e = expInfo(p), n = rv.list.length, bg = 'min-height:70px;font-size:1.25rem;font-weight:700;border-radius:16px;width:100%';
-  b.innerHTML = `<div style="max-width:560px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;gap:16px;padding:calc(16px + env(safe-area-inset-top,0px)) 18px calc(18px + env(safe-area-inset-bottom,0px))"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:1.15rem;font-weight:700">✅ Revisión ${rv.i + 1} de ${n}</span><button class="btn secondary" data-rv="stop" type="button" style="min-height:48px;font-size:1.05rem">Terminar</button></div><div style="height:8px;border-radius:8px;background:var(--surface2);overflow:hidden"><div style="height:100%;width:${Math.round(rv.i / n * 100)}%;background:var(--accent)"></div></div><div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:26px 20px;text-align:center"><div style="font-size:2.1rem;font-weight:800;line-height:1.2;overflow-wrap:anywhere">${esc(cap(p.name))}</div><div style="font-size:1.25rem;color:var(--muted)">${locIcon(L)} ${esc(lab)}${z ? ' · 📍 ' + esc(z) : ''}</div><div style="font-size:1.8rem;font-weight:700">Quedan ${fmtUnits(Number(p.units ?? 1))}</div>${p.quantity ? `<div style="font-size:1.2rem">${esc(p.quantity)}</div>` : ''}${e ? `<div style="font-size:1.15rem;color:var(--muted)">${esc(e.txt)}</div>` : ''}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><button class="btn" data-rv="ok" type="button" style="${bg};grid-column:span 2">👍 Sigue</button><button class="btn secondary" data-rv="low" type="button" style="${bg}">📉 Queda poco</button><button class="btn secondary" data-rv="out" type="button" style="${bg}">❌ Se acabó</button><button class="btn secondary" data-rv="back" type="button" style="${bg}">← Atrás</button><button class="btn secondary" data-rv="skip" type="button" style="${bg}">Saltar →</button></div></div>`;
+  b.innerHTML = `<div style="max-width:560px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;gap:16px;padding:calc(16px + env(safe-area-inset-top,0px)) 18px calc(18px + env(safe-area-inset-bottom,0px))"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:1.15rem;font-weight:700">✅ ${locIcon(L)} ${esc(lab)} · ${rv.i + 1} de ${n}</span><button class="btn secondary" data-rv="stop" type="button" style="min-height:48px;font-size:1.05rem">Terminar</button></div><div style="height:8px;border-radius:8px;background:var(--surface2);overflow:hidden"><div style="height:100%;width:${Math.round(rv.i / n * 100)}%;background:var(--accent)"></div></div><div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:26px 20px;text-align:center"><div style="font-size:2.1rem;font-weight:800;line-height:1.2;overflow-wrap:anywhere">${esc(cap(p.name))}</div><div style="font-size:1.25rem;color:var(--muted)">${locIcon(L)} ${esc(lab)}${z ? ' · 📍 ' + esc(z) : ''}</div><div style="font-size:1.8rem;font-weight:700">Quedan ${fmtUnits(Number(p.units ?? 1))}</div>${p.quantity ? `<div style="font-size:1.2rem">${esc(p.quantity)}</div>` : ''}${e ? `<div style="font-size:1.15rem;color:var(--muted)">${esc(e.txt)}</div>` : ''}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><button class="btn" data-rv="ok" type="button" style="${bg};grid-column:span 2">👍 Sigue</button><button class="btn secondary" data-rv="low" type="button" style="${bg}">📉 Queda poco</button><button class="btn secondary" data-rv="out" type="button" style="${bg}">❌ Se acabó</button><button class="btn secondary" data-rv="back" type="button" style="${bg}">← Atrás</button><button class="btn secondary" data-rv="skip" type="button" style="${bg}">Saltar →</button></div></div>`;
   b.style.display = 'block'; b.scrollTop = 0;
 }
 async function rvAct(a) {
@@ -3374,10 +3338,11 @@ function dpOpen() { const g = dupeGroups(); if (!g.length) { $('pModal').classLi
 async function dpMerge(i) { const g = dupeGroups()[i]; if (!g) return; const [keep, ...rest] = g; try { const units = g.reduce((t, p) => t + Number(p.units ?? 1), 0), ex = g.map(p => p.expiry_date).filter(Boolean).sort(); await db.setUnits(keep.id, units); await db.updatePantry(keep.id, { expiry_date: ex[0] || null }); for (const p of rest) await db.deletePantry(p.id); await loadPantry(); toast('🔁 Unidos: ' + cap(keep.name)); } catch (e) { toast('No se pudo unir: ' + e.message); } dpOpen(); }
 function mnOpen() { const l = minSuggest(); if (!l.length) { $('pModal').classList.remove('show'); return toast('Sin sugerencias por ahora'); } openP(pHead('💡 Mínimos sugeridos', 'Por lo que gastas: al bajar de ese mínimo se apunta solo en la compra.') + l.map(x => `<div class="grow"><div class="grow1"><b style="flex:1">${esc(cap(x.p.name))} <small>${x.n} usos en 30 días</small></b><button class="btn secondary" data-mn="${x.p.id}|${x.min}" type="button">Mín. ${x.min}</button></div></div>`).join('')); }
 document.addEventListener('click', async e => {
-  const t = e.target.closest('[data-pt],[data-rv],[data-fg],[data-dp],[data-mn],[data-zf],[data-pzone]'); if (!t) return; const d = t.dataset;
+  const t = e.target.closest('[data-pt],[data-rv],[data-rvloc],[data-fg],[data-dp],[data-mn],[data-zf],[data-pzone]'); if (!t) return; const d = t.dataset;
   if (d.zf !== undefined) { pZone = d.zf; return renderPantry(); }
   if (d.pzone !== undefined && pEdit) { pEdit.zone = pEdit.zone === d.pzone ? '' : d.pzone; return drawZone(); }
   if (d.pt) return ({ review: rvStart, forgot: fgOpen, dupes: dpOpen, mins: mnOpen, map: mapOpen, often: ofOpen, dates: ddOpen, recs: rcOpen })[d.pt]();
+  if (d.rvloc) { $('pModal').classList.remove('show'); return rvStart(d.rvloc); }
   if (d.rv && rv) return rvAct(d.rv);
   if (d.dp !== undefined) return dpMerge(+d.dp);
   if (d.fg) { const [a, id] = d.fg.split('|'), p = PANTRY.find(x => x.id === id); if (!p) return; try { if (a === 'keep') noteUse(p, true); else { logWaste(p, 'del'); await db.deletePantry(id); await loadPantry(); } } catch (er) { toast('No se pudo: ' + er.message); } return fgOpen(); }
@@ -3615,6 +3580,7 @@ document.addEventListener('click', async e => {
 function scrollToDay(el) { const bots = ['.weeknav', '#dayPills'].map(q => { const n = document.querySelector(q); return n ? n.getBoundingClientRect().bottom : 0; }); window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - Math.max(...bots, 100) - 8), behavior: 'smooth' }); }
 
 /* ---- orden, nivel, compras, bajo mínimo, idea anti-desperdicio ---- */
+const rvOrder = p => ['congelador', 'frigorifico', 'despensa'].indexOf(pLocOf(p));
 const zoneRank = p => rvOrder(p) * 100 + (((ZONES[pLocOf(p)] || []).indexOf(p.zone) + 1) || 99);
 const lowRatio = p => { const u = Number(p.units ?? 1), m = minOf(p) ?? tgtOf(p); return u <= 0 ? -1 : m ? u / m : 100 + u; };
 function noteBuy(name) { const c = CATALOG[norm(name)] = CATALOG[norm(name)] || { n: name }, t = ymd(new Date()); c.buy = [...new Set([...(c.buy || []), t])].slice(-12); saveCatalogSoon(); }
@@ -3719,7 +3685,7 @@ document.addEventListener('click', e => {
 });
 
 /* ---- ayer sin marcar, mover, guía y registro de errores ---- */
-const rvMsg = () => { let d = ''; try { d = localStorage.getItem('pandi-rv') || ''; } catch (e) {} return !d || d < ymd(addDays(new Date(), -6)) ? '<br>✅ Toca cuadrar la despensa (2 min con la revisión rápida)' : ''; };
+const rvMsg = () => { const m = rvDates(), lim = ymd(addDays(new Date(), -6)); return LOCS.some(([k]) => rvList(k).length && (!m[k] || m[k] < lim)) ? '<br>✅ Toca cuadrar la despensa (2 min con la revisión rápida)' : ''; };
 function renderYesterday() {
   let b = $('ydCard'); if (!b) { b = document.createElement('div'); b.id = 'ydCard'; b.className = 'today hidden'; $('cookedCard').before(b); }
   const now = new Date(), cur = ymd(mondayOf(now)), td = (now.getDay() + 6) % 7; if (WS !== cur || td < 1 || !Array.isArray(MENU)) { b.classList.add('hidden'); return; }
@@ -3739,7 +3705,7 @@ function moveItem(di, k, id, tdi, tk) {
 let mv = null;
 function moveDraw() {
   const r = RECIPES.find(x => x.id === mv.id); if (!r) return;
-  openP(pHead('📅 Mover ' + esc(r.name), 'Elige la comida y el día. Si tiene sobra marcada, se mueve con ella.') + `<div class="chips" style="margin:8px 0">${MEALS.map(([k, l, ic]) => `<button class="chip${mv.tk === k ? ' on' : ''}" data-mvk="${k}" type="button">${ic} ${esc(l)}</button>`).join('')}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${DAYS.map((n, d) => `<button class="btn secondary" data-mvd="${d}" type="button" style="min-height:52px">${esc(n)} ${addDays(parseYmd(WS), d).getDate()}</button>`).join('')}</div>`);
+  openP(pHead('📅 Mover ' + esc(r.name), 'Elige la comida y el día. Si tiene sobra marcada, se mueve con ella.') + `<div class="chips" style="margin:8px 0">${activeMeals().map(([k, l, ic]) => `<button class="chip${mv.tk === k ? ' on' : ''}" data-mvk="${k}" type="button">${ic} ${esc(l)}</button>`).join('')}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${DAYS.map((n, d) => `<button class="btn secondary" data-mvd="${d}" type="button" style="min-height:52px">${esc(n)} ${addDays(parseYmd(WS), d).getDate()}</button>`).join('')}</div>`);
 }
 const GUIDE = [['📍', 'Hoy', 'Pantalla con lo que toca cocinar hoy, lo que sacar del congelador y lo que falta.', 'today'], ['🍲', 'Para 4 y sobras', 'Al añadir una receta de 4+ raciones, la 2.ª comida se coloca sola otro día. Se ajusta en Opciones.', ''], ['🔄', 'Cambiar un ingrediente', 'En una receta del menú, o desde el aviso «faltan»: usa otro producto que tengas (pavo en vez de vacuno).', ''], ['📅', 'Mover a otro día', 'En una receta del menú: la cambia de día o comida y arrastra su sobra.', ''], ['📋', '¿Cocinaste esto?', 'Tarjeta del menú con lo de días anteriores sin marcar.', ''], ['🛍️', 'Modo súper', 'La compra a pantalla completa, por secciones.', 'super'], ['🗺️', 'Mapa', 'Congelador, frigorífico y despensa dibujados, con lo que hay en cada zona.', 'map'], ['✅', 'Revisión rápida', 'Repasa la despensa producto a producto en un par de minutos.', 'review'], ['📅', 'Sin fecha', 'Pon la caducidad a los productos que no la tienen.', 'dates'], ['📦', 'Lotes y 📭 Abrir', 'Mismo producto con fechas distintas (gasta el más antiguo) y caducidad tras abrir.', ''], ['🔁', 'Recurrentes y lo de siempre', 'Productos que entran solos en la compra y avisos de lo que te falta.', ''], ['📉', 'Apuntar lo bajo mínimo', 'Botón en la Compra que añade de golpe todo lo que está bajo mínimo.', 'low'], ['🥕', 'Con lo que tengo', 'En Recetas: ordena por lo que puedes cocinar sin comprar (con sustitutos).', 'recipes'], ['🪲', 'Registro de errores', 'Copia los fallos de la app para enviármelos.', 'errlog']];
 function guideOpen() { openP(pHead('💡 Guía de funciones', 'Toca «Ir» para abrir las que tienen botón.') + GUIDE.map(g => `<div class="grow"><div class="grow1" style="flex-wrap:wrap"><b style="flex:1;min-width:200px">${g[0]} ${esc(g[1])}<br><small style="font-weight:400">${esc(g[2])}</small></b>${g[3] ? `<button class="btn secondary" data-gd="${g[3]}" type="button">Ir</button>` : ''}</div></div>`).join('')); }
