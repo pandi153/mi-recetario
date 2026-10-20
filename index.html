@@ -293,7 +293,7 @@ header{background:#07192d}
     <section class="tab" id="tab-recipes">
       <div class="sheet-top"><h2>Recetas</h2><button class="btn" id="btnNewRecipe" type="button">＋ Nueva</button></div>
       <div class="tools"><input id="recipeSearch" type="search" placeholder="Buscar por nombre, ingrediente o categoría…" autocomplete="off"></div>
-      <div class="chips" style="margin:2px 0 8px"><button class="chip" id="favFilter" type="button">⭐ Favoritas</button><button class="chip" id="quickFilter" type="button">⚡ ≤ 30 min</button><button class="chip" id="seasonFilter" type="button">🍂 Solo de temporada</button><button class="chip" id="haveFilter" type="button">🥕 Con lo que tengo</button><button class="chip" id="sortBtn" type="button">↕️ A–Z</button></div>
+      <div class="chips" style="margin:2px 0 8px"><button class="chip" id="favFilter" type="button">⭐ Favoritas</button><button class="chip" id="quickFilter" type="button">⚡ ≤ 30 min</button><button class="chip" id="seasonFilter" type="button">🍂 Solo de temporada</button><button class="chip" id="fixFilter" data-fix="1" type="button">🧩 Por completar</button><button class="chip" id="haveFilter" type="button">🥕 Con lo que tengo</button><button class="chip" id="sortBtn" type="button">↕️ A–Z</button></div>
       <div class="count" id="recipeCount"></div>
       <div id="recipeList"></div>
     </section>
@@ -1073,7 +1073,7 @@ function renderMenu() {
         return `<div class="srow m-${k}${its.length ? ' has' : ''}"><div class="slab">${ic} ${label}</div><div class="sitems">${rows}<button class="madd" data-day="${i}" data-meal="${k}" data-idx="-1" type="button" aria-label="Añadir">${its.length ? '＋' : '＋ Añadir'}</button></div></div>`;
       }).join('') + '</div>';
   }).join('');
-  renderShop(); renderStats(); renderToday(); renderSunday(); renderCooked(); renderMissBar(); renderMorning(); renderYesterday();
+  renderShop(); renderStats(); renderToday(); renderSunday(); renderCooked(); renderMissBar(); renderMorning(); renderYesterday(); renderPrep();
 }
 async function persistWeek() {
   const ws = WS, m = JSON.parse(JSON.stringify(MENU));
@@ -1101,7 +1101,7 @@ function openPicker(day, meal, idx) {
     <input id="pickSearch" type="search" placeholder="Buscar receta…" autocomplete="off">
     <button class="btn secondary" data-pact="newrec" type="button" style="width:100%;margin-top:8px">＋ Crear una receta nueva</button>
     ${cur ? `<div class="row">${!curNote && RECIPES.some(r => r.id === cur) ? '<button class="btn secondary" data-pact="view">Ver receta</button>' : ''}<button class="btn danger" data-pact="remove">Quitar</button></div>` : ''}</div>
-    ${cur && !curNote && RECIPES.some(r => r.id === cur) ? `<div class="row" style="margin:10px 0 0"><button class="btn secondary" data-pact="cooked">${(MENU[day]._done || []).includes(meal + ':' + cur) ? '↩️ Quitar ✓' : '✅ Cocinado'}</button><button class="btn" data-pact="cook">👩‍🍳 Cocinar</button></div><button class="btn secondary" data-pact="leftovers" type="button" style="width:100%;margin-top:8px">🔁 Sobras para otra comida</button><div class="row" style="margin:8px 0 0"><button class="btn secondary" data-pact="lock">${(MENU[day]._lock || []).includes(meal + ':' + cur) ? '🔓 Soltar' : '🔒 Fijar'}</button><button class="btn secondary" data-pact="x2">${(MENU[pick.day]._x2 || []).includes(pick.meal + ':' + cur) ? '✅ Para 4 · quitar ×2' : '🍲 Para 4 (2 comidas)'}</button><button class="btn secondary" data-mvopen="1">📅 Mover a otro día</button><button class="btn secondary" data-subopen="1">🔄 Cambiar un ingrediente</button></div>${dishOf(cur).length ? `<button class="btn secondary" data-pact="tup" style="width:100%;margin-top:8px">${(MENU[day]._tup || []).includes(meal + ':' + cur) ? '🍲 Usando una ración que tengo ✓' : '🍲 Usar una ración que ya tengo (' + fmtNum(dishOf(cur).reduce((a, q) => a + Number(q.units ?? 1), 0)) + ')'}</button>` : ''}` : ''}
+    ${cur && !curNote && RECIPES.some(r => r.id === cur) ? `<div class="row" style="margin:10px 0 0"><button class="btn secondary" data-pact="cooked">${(MENU[day]._done || []).includes(meal + ':' + cur) ? '↩️ Quitar ✓' : '✅ Cocinado'}</button><button class="btn" data-pact="cook">👩‍🍳 Cocinar</button></div><button class="btn secondary" data-pact="leftovers" type="button" style="width:100%;margin-top:8px">🔁 Sobras para otra comida</button><div class="row" style="margin:8px 0 0"><button class="btn secondary" data-pact="lock">${(MENU[day]._lock || []).includes(meal + ':' + cur) ? '🔓 Soltar' : '🔒 Fijar'}</button><button class="btn secondary" data-pact="x2">${(MENU[pick.day]._x2 || []).includes(pick.meal + ':' + cur) ? '✅ Para 4 · quitar ×2' : '🍲 Para 4 (2 comidas)'}</button><button class="btn secondary" data-cpopen="1">📋 Copiar a otros días</button><button class="btn secondary" data-mvopen="1">📅 Mover a otro día</button><button class="btn secondary" data-subopen="1">🔄 Cambiar un ingrediente</button></div>${dishOf(cur).length ? `<button class="btn secondary" data-pact="tup" style="width:100%;margin-top:8px">${(MENU[day]._tup || []).includes(meal + ':' + cur) ? '🍲 Usando una ración que tengo ✓' : '🍲 Usar una ración que ya tengo (' + fmtNum(dishOf(cur).reduce((a, q) => a + Number(q.units ?? 1), 0)) + ')'}</button>` : ''}` : ''}
     <div class="noterow"><input id="pickNote" maxlength="60" placeholder="Nota: comer fuera, sobras…" value="${curNote ? esc(cur.slice(1)) : ''}"><button class="btn" data-pact="note" type="button">Poner</button></div>
     <div class="chips" style="margin-bottom:6px"><button class="chip" data-pact="quick" data-text="Comer fuera" type="button">🍴 Comer fuera</button><button class="chip" data-pact="quick" data-text="Sobras" type="button">🥡 Sobras</button><button class="chip" data-pact="quick" data-text="Ayuno" type="button">⏭️ Saltar</button></div>
     <div id="pickList"></div>`;
@@ -1432,8 +1432,8 @@ const UNITS = { kg: ['g', 1000], kilo: ['g', 1000], kilos: ['g', 1000], g: ['g',
   l: ['ml', 1000], lt: ['ml', 1000], litro: ['ml', 1000], litros: ['ml', 1000], ml: ['ml', 1], cl: ['ml', 10], dl: ['ml', 100] };
 const UNIT_SING = { cucharadas: 'cucharada', cda: 'cucharada', cdas: 'cucharada', cucharaditas: 'cucharadita', cdta: 'cucharadita', cdtas: 'cucharadita', cdita: 'cucharadita', cditas: 'cucharadita',
   tazas: 'taza', vasos: 'vaso', latas: 'lata', dientes: 'diente', lonchas: 'loncha', rebanadas: 'rebanada', pizcas: 'pizca', punados: 'punado', ramas: 'rama', ramitas: 'rama', rama: 'rama',
-  hojas: 'hoja', botes: 'bote', bolsas: 'bolsa', bolsitas: 'bolsita', bandejas: 'bandeja', tarros: 'tarro', briks: 'brik', cajas: 'caja', tarrinas: 'tarrina', botellas: 'botella', paquetes: 'paquete', sobres: 'sobre', uds: 'ud', unidades: 'ud', unidad: 'ud' };
-const ING_RE = /^(?:(\d+\/\d+|\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?|[½¼¾])\s*(?:(kg|kilos?|gramos?|grs?|g|litros?|lt|l|ml|cl|dl|cucharaditas?|cucharadas?|cdtas?|cditas?|cdas?|tazas?|vasos?|latas?|dientes?|lonchas?|rebanadas?|pizcas?|pu[nñ]ados?|ramas?|ramitas?|hojas?|botes?|bolsas?|bolsitas?|bandejas?|tarros?|briks?|cajas?|tarrinas?|botellas?|paquetes?|sobres?|uds?|unidades?)(?![a-záéíóúñ])\.?\s*)?)?(?:(?:de|del)\s+)?(.+)$/i;
+  hojas: 'hoja', botes: 'bote', bolsas: 'bolsa', bolsitas: 'bolsita', bandejas: 'bandeja', tarros: 'tarro', briks: 'brik', cajas: 'caja', tarrinas: 'tarrina', botellas: 'botella', chorritos: 'chorrito', puñados: 'puñado', punados: 'puñado', manojos: 'manojo', ramitas: 'ramita', ramas: 'rama', lonchas: 'loncha', rodajas: 'rodaja', rebanadas: 'rebanada', vasos: 'vaso', tazas: 'taza', trozos: 'trozo', filetes: 'filete', paquetes: 'paquete', sobres: 'sobre', uds: 'ud', unidades: 'ud', unidad: 'ud' };
+const ING_RE = /^(?:(\d+\/\d+|\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?|[½¼¾])\s*(?:(kg|kilos?|gramos?|grs?|g|litros?|lt|l|ml|cl|dl|cucharaditas?|cucharadas?|cdtas?|cditas?|cdas?|tazas?|vasos?|latas?|dientes?|lonchas?|rebanadas?|pizcas?|pu[nñ]ados?|ramas?|ramitas?|hojas?|botes?|bolsas?|bolsitas?|bandejas?|tarros?|briks?|cajas?|tarrinas?|botellas?|chorritos?|pu[nñ]ados?|manojos?|ramitas?|ramas?|lonchas?|rodajas?|rebanadas?|vasos?|tazas?|trozos?|filetes?|paquetes?|sobres?|uds?|unidades?)(?![a-záéíóúñ])\.?\s*)?)?(?:(?:de|del)\s+)?(.+)$/i;
 const same = (a, b) => a === b || a + 's' === b || b + 's' === a || a + 'es' === b || b + 'es' === a;
 const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
 function parseQty(q) {
@@ -1817,6 +1817,8 @@ function renderStats() {
   h += '<div class="ssec">😴 Hace tiempo que no las haces<small>para variar</small></div>' + (old.length ? old.map(r => item(r, last[r.id] ? 'Última vez: ' + fdate(last[r.id]) : 'Nunca la has puesto en el menú')).join('') : '<div class="empty">Estás rotando todas tus recetas. 👏</div>');
   const lim = ymd(addDays(new Date(), -30)), wl = WASTE.filter(x => x.d >= lim), okn = wl.filter(x => x.k === 'ok').length, bin = wl.filter(x => x.k === 'bin'), tot = okn + bin.length, thr = {}; bin.forEach(x => thr[x.n] = (thr[x.n] || 0) + 1);
   h += '<div class="ssec">🗑️ Caducidades<small>últimos 30 días</small></div>' + (tot ? `<div class="notice">✅ Gastados a tiempo: ${okn} · 🗑️ Tirados: ${bin.length} (${Math.round(okn / tot * 100)}% aprovechado)${bin.length ? '<br>Lo que más tiras: ' + esc(Object.entries(thr).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([n, c]) => cap(n) + (c > 1 ? ' ×' + c : '')).join(', ')) : ''}</div>` : '<div class="empty">Aún no hay datos. Se apunta solo cuando gastas un producto con fecha (−1 hasta 0) o lo tiras con la campana.</div>');
+  const ah = ahorroStats(), ahN = ah.reduce((t, x) => t + x.n, 0), ahM = ah.reduce((t, x) => t + x.min, 0);
+  h += '<div class="ssec">🍲 Cocinar una vez, comer dos<small>últimas 4 semanas</small></div>' + (ahN ? `<div class="notice">Has comido <b>${ahN}</b> comida${ahN === 1 ? '' : 's'} sin cocinar de nuevo${ahM ? ' · ≈ <b>' + fmtMin(ahM) + '</b> de cocina ahorrados' : ''}<br><small>${ah.map(x => esc(fdate(x.ws)) + ': ' + x.n).join(' · ')}</small></div>` : '<div class="empty">Aún no hay datos: se cuenta cuando marcas como cocinada una sobra («🍲 sobra»).</div>');
   box.innerHTML = h;
 }
 $('statsBody').addEventListener('click', e => {
@@ -2285,7 +2287,7 @@ $('cookView').addEventListener('click', e => {
   if (a === 'close') return closeCook();
   if (a === 'prev' && ck.i > 0) { ck.i--; renderCook(); }
   if (a === 'next') { if (ck.i < ck.steps.length - 1) { ck.i++; renderCook(); } else closeCook(true); }
-  if (a === 'ing') openP(`<div class="editbar"><div class="sheet-top"><h2>🥕 Ingredientes</h2><button class="btn secondary" data-pa="close">Cerrar</button></div></div>` + (lines(ck.r.ingredients).map(x => `<div class="ing">${esc(x)}</div>`).join('') || '<div class="notice">Sin ingredientes.</div>'));
+  if (a === 'ing') openP(`<div class="editbar"><div class="sheet-top"><h2>🥕 Ingredientes</h2><button class="btn secondary" data-pa="close">Cerrar</button></div></div>` + (scaledLines(ck.r).map(x => `<div class="ing">${esc(x)}</div>`).join('') || '<div class="notice">Sin ingredientes.</div>'));
   if (a === 'miss') { const ls = lines(ck.r.ingredients); cartCtx = { lines: ls }; openP(`<div class="editbar"><div class="sheet-top"><h2>🛒 ¿Qué te falta?</h2><div class="btns"><button class="btn secondary" data-pa="close">Cancelar</button><button class="btn" data-pa="cartadd">Apuntar</button></div></div><div class="notice">Marca lo que te falta y lo apunto en la compra.</div></div>` + (ls.map((l, i) => `<div class="grow" data-l="${i}"><div class="grow1"><input type="checkbox" data-f="on"><b style="flex:1;font-weight:600">${esc(l)}</b></div></div>`).join('') || '<div class="notice">Sin ingredientes.</div>')); }
   if (a === 'tstart') { try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume && audioCtx.resume(); } catch (er) {}
     ckTimers.push({ id: Date.now().toString(36) + ckTimers.length, label: b.dataset.label, end: Date.now() + (+b.dataset.sec) * 1000, fin: false }); if (!ckTick) ckTick = setInterval(tick, 1000); tick(); }
@@ -3544,7 +3546,7 @@ document.addEventListener('change', async e => { const t = e.target.closest('[da
 
 /* ---- pantalla de hoy, modo súper, historial, mañana, copia ---- */
 const byName = (a, b) => cmpName(a, b);
-const hoyChip = () => WS === ymd(mondayOf(new Date())) ? '<button class="chip" data-th="open" type="button">📍 Hoy</button> ' : '';
+const hoyChip = () => (WS === ymd(mondayOf(new Date())) ? '<button class="chip" data-th="open" type="button">📍 Hoy</button> ' : '') + '<button class="chip" data-cpsrc="1" type="button">📋 Copiar día</button> ';
 const fullBox = id => { let b = $(id); if (!b) { b = document.createElement('div'); b.id = id; b.style.cssText = 'position:fixed;inset:0;z-index:9000;background:var(--bg);color:var(--text);overflow:auto;display:none'; document.body.appendChild(b); } return b; };
 const fullWrap = (title, body, key) => `<div style="max-width:620px;margin:0 auto;padding:calc(14px + env(safe-area-inset-top,0px)) 16px calc(28px + env(safe-area-inset-bottom,0px))"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="font-size:1.35rem;font-weight:800">${title}</span><button class="btn secondary" data-fx="${key}" type="button" style="min-height:48px">Cerrar</button></div>${body}</div>`;
 function frozenFor(day, skipDone) { const out = [], sn = new Set(); MEALS.forEach(([k]) => slotItems((day || {})[k]).forEach(id => { if (isNote(id) || (skipDone && (day._done || []).includes(k + ':' + id))) return; const r = RECIPES.find(x => x.id === id); if (r) { const its = []; ingLines(r, day, k).forEach(l => addIng(its, l, r.name)); its.forEach(i => { const p = PANTRY.find(p => pLocOf(p) === 'congelador' && Number(p.units ?? 1) > 0 && !p.recipe_id && fuzzy(norm(p.name), i.key)); if (p && !sn.has(p.id) && !PANTRY.some(x => pLocOf(x) !== 'congelador' && !x.recipe_id && Number(x.units ?? 1) > 0 && fuzzy(norm(x.name), i.key))) { sn.add(p.id); out.push(p); } }); } const dd = PANTRY.find(p => p.recipe_id === id && pLocOf(p) === 'congelador' && Number(p.units ?? 1) > 0); if (dd && !sn.has(dd.id) && !PANTRY.some(x => x.recipe_id === id && pLocOf(x) !== 'congelador' && Number(x.units ?? 1) > 0)) { sn.add(dd.id); out.push(dd); } })); return out; }
@@ -3573,7 +3575,7 @@ function histHtml(id) {
   const last = h[h.length - 1], ago = -daysTo(last), gap = h.length > 1 ? Math.round((parseYmd(last) - parseYmd(h[0])) / 864e5 / (h.length - 1)) : 0;
   return `<div class="notice" style="margin-top:14px"><b>🍳 Historial</b><br>Cocinada ${h.length} ${h.length === 1 ? 'vez' : 'veces'} · última: ${esc(fdate(last))} (${ago <= 0 ? 'hoy' : 'hace ' + ago + ' d'})${gap ? ` · cada ~${gap} días de media` : ''}<br><small>${h.slice(-5).reverse().map(d => esc(fdate(d))).join(' · ')}</small>${r.rating ? `<br>Tu nota: ${'★'.repeat(r.rating)}` : ''}</div>`;
 }
-const _sr = showRecipe; showRecipe = function (id) { _sr.apply(this, arguments); try { $('recipeBody').insertAdjacentHTML('beforeend', histHtml(id)); } catch (e) {} };
+const _sr = showRecipe; showRecipe = function (id) { delete SCALE[id]; _sr.apply(this, arguments); try { $('recipeBody').insertAdjacentHTML('beforeend', histHtml(id) + '<div id="scaleBox">' + scaleBlock(id) + '</div>' + prepBlock(id)); } catch (e) {} };
 function renderMorning() {
   let b = $('morningCard'); if (!b) { b = document.createElement('div'); b.id = 'morningCard'; b.className = 'today hidden'; $('cookedCard').before(b); }
   const now = new Date(), key = 'pandi-mo-' + ymd(now); let off = false; try { off = !!localStorage.getItem(key); } catch (e) {}
@@ -3755,6 +3757,68 @@ document.addEventListener('click', async e => {
   if (d.errcopy) { let l = []; try { l = JSON.parse(localStorage.getItem('pandi-errlog') || '[]'); } catch (er) {} const txt = l.join('\n'); try { await navigator.clipboard.writeText(txt); toast('📋 Copiado'); } catch (er) { prompt('Copia este texto:', txt); } return; }
   if (d.errclr) { try { localStorage.removeItem('pandi-errlog'); } catch (er) {} return errOpen(); }
 });
+
+/* ---- copia local, por completar, ahorro, escalar, antelación, copiar, gestos ---- */
+let lockT = null, cp = null; const SCALE = {}, SNAP_KEY = 'pandi-snap';
+function saveSnap() { clearTimeout(saveSnap.t); saveSnap.t = setTimeout(() => { try { const strip = r => (r.image_url && String(r.image_url).startsWith('data:')) ? { ...r, image_url: null } : r; localStorage.setItem(SNAP_KEY, JSON.stringify({ t: Date.now(), ws: WS, recipes: RECIPES.map(strip), pantry: PANTRY, menu: MENU, shop: SHOP, catalog: CATALOG, waste: WASTE })); } catch (e) {} }, 800); }
+function lockUI(msg) {
+  let o = $('lockBar'); if (!o) { o = document.createElement('div'); o.id = 'lockBar'; o.style.cssText = 'position:fixed;inset:0;z-index:8500;background:transparent;touch-action:pan-y'; document.body.appendChild(o); const bn = document.createElement('div'); bn.id = 'lockBanner'; bn.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:8600;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:20px;padding:8px 16px;font-size:.9rem;box-shadow:0 4px 16px rgba(0,0,0,.35);display:none'; document.body.appendChild(bn); }
+  o.style.display = 'block'; $('lockBanner').style.display = 'block'; $('lockBanner').textContent = msg; clearTimeout(lockT); lockT = setTimeout(() => unlockUI(false), 7000);
+}
+function unlockUI(ok) { clearTimeout(lockT); const o = $('lockBar'), b = $('lockBanner'); if (o) o.style.display = 'none'; if (!b) return; if (ok) b.style.display = 'none'; else { b.textContent = navigator.onLine ? '⚠️ No se pudo actualizar' : '📴 Sin conexión · mostrando lo último guardado'; b.style.display = 'block'; setTimeout(() => { b.style.display = 'none'; }, 4000); } }
+function loadSnap() {
+  let sn = null; try { sn = JSON.parse(localStorage.getItem(SNAP_KEY) || 'null'); } catch (e) {}
+  if (!sn || Date.now() - sn.t > 14 * 864e5 || !Object.keys(localStorage).some(k => /^sb-.*-auth-token$/.test(k))) return;
+  try { if (sn.recipes) RECIPES = sn.recipes; if (sn.pantry) PANTRY = sn.pantry; if (sn.shop) SHOP = sn.shop; if (sn.catalog) CATALOG = sn.catalog; if (Array.isArray(sn.waste)) WASTE = sn.waste; if (sn.ws === WS && Array.isArray(sn.menu)) MENU = sn.menu; } catch (e) { return; }
+  lockUI('↻ Actualizando…'); try { renderRecipes(); renderPantry(); renderMenu(); renderShop(); } catch (e) {}
+}
+{ const _a = loadRecipes; loadRecipes = async function () { const r = await _a.apply(this, arguments); saveSnap(); return r; };
+  const _b = loadPantry; loadPantry = async function () { const r = await _b.apply(this, arguments); saveSnap(); return r; };
+  const _c = loadWeek; loadWeek = async function () { const r = await _c.apply(this, arguments); saveSnap(); unlockUI(navigator.onLine); return r; };
+  const _d = loadExtras; loadExtras = async function () { const r = await _d.apply(this, arguments); saveSnap(); return r; }; }
+window.addEventListener('online', () => { try { loadRecipes().then(loadWeek); loadPantry(); loadExtras(); } catch (e) {} });
+const SUSP = ['pizca', 'punado', 'chorrito', 'manojo', 'ramita', 'rama', 'trozo', 'loncha', 'rodaja', 'filete', 'rebanada', 'vaso', 'taza', 'cucharada', 'cucharadita', 'puno'];
+function fixIssues(r) {
+  const out = [], ls = lines(r.ingredients); if (!ls.length) out.push('sin ingredientes'); if (!(+r.servings > 0)) out.push('sin raciones'); if (!String(r.steps || '').trim()) out.push('sin pasos'); if (!String(r.time || '').trim()) out.push('sin tiempo');
+  const bad = ls.filter(l => { const t = []; addIng(t, l, ''); const k = t[0] && t[0].key; return k && SUSP.some(w => k === w || k.startsWith(w + ' ')); }); if (bad.length) out.push(bad.length + (bad.length > 1 ? ' ingredientes mal leídos: ' : ' ingrediente mal leído: ') + bad.slice(0, 2).join(' / ')); return out;
+}
+const fixList = () => RECIPES.map(r => ({ r, p: fixIssues(r) })).filter(x => x.p.length);
+function fixOpen() { const l = fixList(); openP(pHead('🧩 Recetas por completar', l.length ? 'Corregir esto mejora la compra, el «faltan» y las caducidades.' : 'Todas las recetas están completas 🎉') + l.map(x => `<div class="grow"><div class="grow1" style="flex-wrap:wrap"><b style="flex:1;min-width:180px">${esc(x.r.name)}<br><small style="font-weight:400">${esc(x.p.join(' · '))}</small></b><button class="btn secondary" data-fixedit="${x.r.id}" type="button">Editar</button></div></div>`).join('')); }
+{ const _rr = renderRecipes; renderRecipes = function () { _rr.apply(this, arguments); const n = fixList().length, b = $('fixFilter'); if (b) b.textContent = n ? `🧩 Por completar (${n})` : '🧩 Por completar'; }; }
+const fmtMin = m => m >= 60 ? Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + (m % 60) + ' min' : '') : m + ' min';
+function ahorroStats() { const rows = []; Object.entries({ ...ALLW, [WS]: MENU }).forEach(([ws, m]) => { let n = 0, min = 0; (m || []).forEach(d => (d._tup || []).forEach(key => { if ((d._done || []).includes(key)) { n++; const r = RECIPES.find(x => x.id === key.slice(key.indexOf(':') + 1)); min += (r && timeMins(r.time)) || 0; } })); rows.push({ ws, n, min }); }); rows.sort((a, b) => a.ws < b.ws ? 1 : -1); return rows.slice(0, 4); }
+function scaleLine(l, f) { const m = ING_RE.exec(l.trim()); if (!m || !m[1]) return l; const n = parseQty(m[1]) * f; return isNaN(n) ? l : l.replace(m[1], fmtNum(n)); }
+function scaledLines(r) { const f = SCALE[r.id] ? SCALE[r.id] / (+r.servings || 4) : 1; return f === 1 ? lines(r.ingredients) : lines(r.ingredients).map(l => scaleLine(l, f)); }
+function scaleBlock(id) { const r = RECIPES.find(x => x.id === id); if (!r) return ''; const base = +r.servings || 4, cur = SCALE[id] || base, opts = [...new Set([2, 4, 6, 8, base])].sort((a, b) => a - b); return `<div class="notice" style="margin-top:14px"><b>📏 Cantidades para…</b><div class="chips" style="margin:8px 0">${opts.map(n => `<button class="chip${n === cur ? ' on' : ''}" data-sc="${id}|${n}" type="button">${n}</button>`).join('')}</div>${cur !== base ? scaledLines(r).map(x => `<div class="ing">${esc(x)}</div>`).join('') : '<small>Receta original (' + base + ' raciones). Elige otro número para recalcular.</small>'}</div>`; }
+function prepBlock(id) { const pr = (CATALOG['rec:' + id] || {}).prep || ''; return `<div class="notice" style="margin-top:12px"><b>⏰ Preparar con antelación</b><div style="display:flex;gap:8px;margin-top:8px"><input id="prepTxt" type="text" value="${esc(pr)}" placeholder="Ej.: poner las lentejas en remojo" style="flex:1"><button class="btn secondary" data-prepsave="${id}" type="button">Guardar</button></div></div>`; }
+function renderPrep() {
+  let b = $('prepCard'); if (!b) { b = document.createElement('div'); b.id = 'prepCard'; b.className = 'today hidden'; $('cookedCard').before(b); }
+  const now = new Date(), td = (now.getDay() + 6) % 7; if (WS !== ymd(mondayOf(now)) || td >= 6 || !Array.isArray(MENU) || !MENU[td + 1]) { b.classList.add('hidden'); return; }
+  const items = []; MEALS.forEach(([k]) => slotItems(MENU[td + 1][k]).forEach(id => { const r = !isNote(id) && RECIPES.find(x => x.id === id), pr = r && (CATALOG['rec:' + id] || {}).prep; if (pr && !(MENU[td + 1]._tup || []).includes(k + ':' + id)) items.push({ n: r.name, pr }); }));
+  if (!items.length) { b.classList.add('hidden'); return; } b.innerHTML = '<div class="th">⏰ Prepara hoy para mañana</div>' + items.map(x => `<div>${esc(x.n)}: ${esc(x.pr)}</div>`).join(''); b.classList.remove('hidden');
+}
+function cpDraw() { const r = cp.id && RECIPES.find(x => x.id === cp.id); openP(pHead(cp.id && r ? '📋 Copiar ' + esc(r.name) : '📋 Copiar el ' + DAYS[cp.src].toLowerCase(), 'Marca los días donde copiarlo' + (cp.id ? ' (misma comida)' : '') + '.') + `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${DAYS.map((n, d) => d === cp.src ? '' : `<button class="btn${cp.sel.includes(d) ? '' : ' secondary'}" data-cpd="${d}" type="button" style="min-height:52px">${cp.sel.includes(d) ? '✅ ' : ''}${esc(n)}</button>`).join('')}</div><button class="btn" data-cpgo="1" type="button" style="width:100%;min-height:56px;margin-top:12px">Copiar</button>`); }
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-fix],[data-fixedit],[data-sc],[data-prepsave],[data-cpsrc],[data-cpsel],[data-cpopen],[data-cpd],[data-cpgo],[data-gd]'); if (!t) return; const d = t.dataset;
+  if (d.gd === 'fixes') { showTab('recipes'); return fixOpen(); }
+  if (d.fix) return fixOpen();
+  if (d.fixedit) { $('pModal').classList.remove('show'); return editRecipe(d.fixedit); }
+  if (d.sc) { const [id, n] = d.sc.split('|'); SCALE[id] = +n; const b = $('scaleBox'); if (b) b.innerHTML = scaleBlock(id); return; }
+  if (d.prepsave) { const k = 'rec:' + d.prepsave; CATALOG[k] = { ...(CATALOG[k] || {}), prep: $('prepTxt').value.trim() }; saveCatalogSoon(); renderPrep(); return toast('⏰ Guardado'); }
+  if (d.cpsrc) { openP(pHead('📋 Copiar un día', '¿Qué día quieres copiar?') + `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${DAYS.map((n, i) => `<button class="btn secondary" data-cpsel="${i}" type="button" style="min-height:52px">${esc(n)}</button>`).join('')}</div>`); return; }
+  if (d.cpsel !== undefined) { cp = { src: +d.cpsel, k: null, id: null, sel: [] }; return cpDraw(); }
+  if (d.cpopen) { const id = slotItems(MENU[pick.day][pick.meal])[pick.idx]; $('pickModal').classList.remove('show'); if (id) { cp = { src: pick.day, k: pick.meal, id, sel: [] }; cpDraw(); } return; }
+  if (d.cpd !== undefined && cp) { const n = +d.cpd; cp.sel = cp.sel.includes(n) ? cp.sel.filter(x => x !== n) : [...cp.sel, n]; return cpDraw(); }
+  if (d.cpgo && cp) { if (!cp.sel.length) return toast('Marca algún día'); let n = 0; cp.sel.forEach(di => { if (cp.id) { if (!slotItems(MENU[di][cp.k]).includes(cp.id)) { slotSet(di, cp.k, -1, cp.id); n++; } } else MEALS.forEach(([k]) => slotItems(MENU[cp.src][k]).forEach(id => { if (!slotItems(MENU[di][k]).includes(id)) { slotSet(di, k, -1, id); n++; } })); }); $('pModal').classList.remove('show'); cp = null; renderMenu(); persistWeek(); return toast('📋 Copiado: ' + n + (n === 1 ? ' elemento' : ' elementos')); }
+});
+GUIDE.push(['↔️', 'Gestos en la despensa', 'Desliza un producto a la izquierda para restar 1 y a la derecha para sumar 1.', ''], ['📏', 'Escalar raciones', 'En una receta, «Cantidades para…» recalcula los ingredientes (también en el modo cocina).', ''], ['⏰', 'Preparar con antelación', 'En una receta: apunta qué preparar la víspera (remojo, marinar). Sale la víspera en el menú.', ''], ['📋', 'Copiar día o comida', 'En el menú: «Copiar día», o «Copiar a otros días» en una receta.', ''], ['🧩', 'Recetas por completar', 'En Recetas: las que tienen datos incompletos o ingredientes mal escritos.', 'fixes']);
+(function () {
+  const L = $('pantryList'); let sx = 0, sy = 0, sid = null, moved = 0;
+  L.addEventListener('touchstart', e => { const c = e.target.closest('.pcard'); if (!c || e.touches.length !== 1) { sid = null; return; } sx = e.touches[0].clientX; sy = e.touches[0].clientY; sid = c.dataset.id; }, { passive: true });
+  L.addEventListener('touchend', e => { if (!sid) return; const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy, id = sid; sid = null; if (Math.abs(dx) > 70 && Math.abs(dx) > 2.5 * Math.abs(dy)) { moved = Date.now(); adjUnits(id, dx < 0 ? -1 : 1); } }, { passive: true });
+  L.addEventListener('click', e => { if (Date.now() - moved < 400) { e.stopPropagation(); e.preventDefault(); } }, true);
+})();
+loadSnap();
 </script>
 </body>
 </html>
