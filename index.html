@@ -87,6 +87,13 @@ nav button span svg{width:23px;height:23px;vertical-align:-4px}
 .editbar{position:sticky;top:0;z-index:3;background:var(--surface);margin:-18px -18px 0;padding:14px 18px 8px;border-bottom:1px solid var(--border)}
 .editbar .sheet-top h2{font-size:18px}.editbar .btns{display:flex;gap:8px}.editbar .btn{padding:9px 14px}
 .menuitem{display:flex;align-items:center;gap:12px;width:100%;text-align:left;margin:8px 0;padding:14px;border:1px solid #355570;border-radius:11px;background:var(--surface2);color:var(--text);font:inherit;font-weight:600;cursor:pointer}
+.ogrp{margin:10px 0;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
+.ogrp>summary{list-style:none;display:flex;align-items:center;gap:12px;padding:16px 14px;font-weight:700;font-size:1.05rem;cursor:pointer}
+.ogrp>summary::-webkit-details-marker{display:none}
+.ogrp>summary small{display:block;color:var(--muted);font-weight:400;font-size:12px;margin-top:2px}
+.ogrp>summary::after{content:'›';margin-left:auto;font-size:1.6rem;line-height:1;transition:transform .15s}
+.ogrp[open]>summary::after{transform:rotate(90deg)}
+.ogin{padding:0 10px 8px}
 .menuitem small{display:block;color:var(--muted);font-weight:400;font-size:12px}
 .catrow{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)}
 .catrow>span{flex:1;font-size:15px}.catrow small{color:var(--muted)}
@@ -856,41 +863,52 @@ async function runDiagnosis() {
 }
 
 /* ---- Opciones (⚙️): categorías y exportar ---- */
-let optView = 'main', editingCat = null;
+let optView = 'main', editingCat = null, optOpenG = '';
+const og = (id, ic, t, sub, inner) => `<details class="ogrp" data-g="${id}"${optOpenG === id ? ' open' : ''}><summary><span>${ic}</span><span>${t}<small>${sub}</small></span></summary><div class="ogin">${inner}</div></details>`;
 const optMsg = (t, ok) => { const m = $('optMsg'); if (m) { m.textContent = t; m.className = 'notice' + (ok ? '' : ' err'); } };
 function renderOptions() {
   const body = $('optBody');
   if (optView === 'main') {
     body.innerHTML = `<div class="sheet-top"><h2>⚙️ Opciones</h2><button class="btn secondary" data-act="optclose">Cerrar</button></div>
-      <button class="menuitem" data-act="restore" type="button">♻️ Restaurar copia de seguridad</button>
-      <div class="menuitem" style="display:block"><span>🍲 Al añadir una receta al menú</span><div class="chips" style="margin-top:6px"><button class="chip" data-act="p4mode" data-v="smart" type="button">Automático (4+ raciones = 2 días)</button><button class="chip" data-act="p4mode" data-v="ask" type="button">Preguntarme el día</button><button class="chip" data-act="p4mode" data-v="bar" type="button">Solo un botón</button></div><span style="display:block;margin-top:10px">🗓️ La 2.ª comida va…</span><div class="chips" style="margin-top:6px"><button class="chip" data-act="p4gap" data-v="1" type="button">Al día siguiente</button><button class="chip" data-act="p4gap" data-v="2" type="button">A los 2 días</button><button class="chip" data-act="p4gap" data-v="ask" type="button">Preguntarme siempre</button></div></div><input type="file" id="restoreFile" accept=".json,application/json" hidden>
-      <div class="menuitem" style="display:block"><span>🍽️ Comidas del día <small>(las que desmarques no salen en el menú)</small></span><div class="chips" style="margin-top:6px">${MEALS.map(([k, l, ic]) => `<button class="chip${mealOn(k) ? ' on' : ''}" data-act="mealtog" data-v="${k}" type="button">${ic} ${l}</button>`).join('')}</div><small style="display:block;margin-top:6px;color:var(--muted)">Se guarda en este móvil. Si una comida ya tiene recetas, sigue apareciendo.</small></div>
-      <button class="menuitem" data-act="guide" type="button">💡 Guía de funciones</button>
-      <button class="menuitem" data-act="errlog" type="button">🪲 Registro de errores</button>
-      <div class="menuitem" style="display:block"><span>🌗 Aspecto <small>(el claro está en pruebas)</small></span><div class="chips" style="margin-top:6px"><button class="chip" data-act="theme" data-v="auto">📱 Como el móvil</button><button class="chip" data-act="theme" data-v="dark">🌙 Oscuro</button><button class="chip" data-act="theme" data-v="light">☀️ Claro</button></div></div>
-      <button class="menuitem" data-act="optcats"><span>🏷️</span><span>Categorías<small>Crear, renombrar, cambiar icono o borrar</small></span></button>
-      <button class="menuitem" data-act="optfixed"><span>📌</span><span>Comidas fijas<small>Ej.: el mismo desayuno todos los días</small></span></button>
-      <button class="menuitem" data-act="optshelf"><span>⏳</span><span>Duración de los alimentos<small>Cambia los días de cada tipo y sitio</small></span></button>
-      <button class="menuitem" data-act="optexp"><span>📅</span><span>Calcular caducidad de lo que no la tiene<small>Según el tipo de producto y dónde está</small></span></button>
-      <button class="menuitem" data-act="optestimate"><span>✨</span><span>Estimar tiempo en recetas sin tiempo<small>Aproximado, según ingredientes y pasos</small></span></button>
-      <button class="menuitem" data-act="optdupes"><span>👯</span><span>Buscar recetas duplicadas<small>Parejas que se parecen mucho</small></span></button>
-      <button class="menuitem" data-act="opttag"><span>🪄</span><span>Etiquetar recetas sin categorías<small>Las deduzco del título y los ingredientes</small></span></button>
-      <button class="menuitem" data-act="optseasons"><span>🍂</span><span>Ingredientes de temporada<small>Añade o quita lo que es de cada estación</small></span></button>
-      <button class="menuitem" data-act="optemoji"><span>😀</span><span>Poner emoji a los títulos<small>Automático, según el nombre de la receta</small></span></button>
-      <button class="menuitem" data-act="optbasics"><span>🚫</span><span>Ingredientes básicos<small>Agua, sal, aceite…: no se apuntan en compra ni despensa</small></span></button>
-      <button class="menuitem" data-act="optcsv"><span>📥</span><span>Descargar recetas (CSV)<small>Copia de seguridad para abrir en Excel</small></span></button>
-      <button class="menuitem" data-act="optimport"><span>📤</span><span>Importar recetas (CSV)<small>Añade las de un archivo descargado antes</small></span></button>
-      <input type="file" id="csvFile" accept=".csv,text/csv" class="hidden">
-      <button class="menuitem" data-act="optmenus"><span>🗓️</span><span>Descargar menús (CSV)<small>Una fila por semana, día y comida</small></span></button>
-      <button class="menuitem" data-act="optmenusimp"><span>📥</span><span>Importar menús (CSV)<small>Añade menús desde un archivo descargado</small></span></button>
-      <input type="file" id="menusFile" accept=".csv,text/csv" class="hidden">
-      <button class="menuitem" data-act="optbackup"><span>💾</span><span>Copia de seguridad completa<small>Recetas, menús, categorías y despensa en un archivo</small></span></button>
-      <button class="menuitem" data-act="optrestore"><span>♻️</span><span>Restaurar copia de seguridad<small>Añade lo que falte desde un archivo .json</small></span></button>
-      <input type="file" id="bkFile" accept=".json,application/json" class="hidden">
-      <button class="menuitem" data-act="optinstall"><span>📲</span><span>Instalar como app<small>Icono en tu pantalla de inicio</small></span></button>
-      <button class="menuitem" data-act="optpass"><span>🔑</span><span>Cambiar contraseña</span></button>
-      <button class="menuitem" data-act="optcloud"><span>☁️</span><span>Estado de la nube<small>Comprobar que todo está conectado</small></span></button>
-      <button class="menuitem" data-act="optsignout"><span>🚪</span><span>Cerrar sesión<small>${esc((db.user && db.user.email) || '')}</small></span></button>
+      ${og('menu', '🍽️', 'Menú y comidas', 'Comidas del día, segunda ración, comidas fijas', `
+<div class="menuitem" style="display:block"><span>🍲 Al añadir una receta al menú</span><div class="chips" style="margin-top:6px"><button class="chip" data-act="p4mode" data-v="smart" type="button">Automático (4+ raciones = 2 días)</button><button class="chip" data-act="p4mode" data-v="ask" type="button">Preguntarme el día</button><button class="chip" data-act="p4mode" data-v="bar" type="button">Solo un botón</button></div><span style="display:block;margin-top:10px">🗓️ La 2.ª comida va…</span><div class="chips" style="margin-top:6px"><button class="chip" data-act="p4gap" data-v="1" type="button">Al día siguiente</button><button class="chip" data-act="p4gap" data-v="2" type="button">A los 2 días</button><button class="chip" data-act="p4gap" data-v="ask" type="button">Preguntarme siempre</button></div></div>
+<div class="menuitem" style="display:block"><span>🍽️ Comidas del día <small>(las que desmarques no salen en el menú)</small></span><div class="chips" style="margin-top:6px">${MEALS.map(([k, l, ic]) => `<button class="chip${mealOn(k) ? ' on' : ''}" data-act="mealtog" data-v="${k}" type="button">${ic} ${l}</button>`).join('')}</div><small style="display:block;margin-top:6px;color:var(--muted)">Se guarda en este móvil. Si una comida ya tiene recetas, sigue apareciendo.</small></div>
+<button class="menuitem" data-act="optfixed"><span>📌</span><span>Comidas fijas<small>Ej.: el mismo desayuno todos los días</small></span></button>
+      `)}
+      ${og('recipes', '📖', 'Recetas', 'Categorías, temporada, emojis, duplicadas…', `
+<button class="menuitem" data-act="optcats"><span>🏷️</span><span>Categorías<small>Crear, renombrar, cambiar icono o borrar</small></span></button>
+<button class="menuitem" data-act="optestimate"><span>✨</span><span>Estimar tiempo en recetas sin tiempo<small>Aproximado, según ingredientes y pasos</small></span></button>
+<button class="menuitem" data-act="optdupes"><span>👯</span><span>Buscar recetas duplicadas<small>Parejas que se parecen mucho</small></span></button>
+<button class="menuitem" data-act="opttag"><span>🪄</span><span>Etiquetar recetas sin categorías<small>Las deduzco del título y los ingredientes</small></span></button>
+<button class="menuitem" data-act="optseasons"><span>🍂</span><span>Ingredientes de temporada<small>Añade o quita lo que es de cada estación</small></span></button>
+<button class="menuitem" data-act="optemoji"><span>😀</span><span>Poner emoji a los títulos<small>Automático, según el nombre de la receta</small></span></button>
+      `)}
+      ${og('pantry', '🥫', 'Despensa y compra', 'Duración, caducidades e ingredientes básicos', `
+<button class="menuitem" data-act="optshelf"><span>⏳</span><span>Duración de los alimentos<small>Cambia los días de cada tipo y sitio</small></span></button>
+<button class="menuitem" data-act="optexp"><span>📅</span><span>Calcular caducidad de lo que no la tiene<small>Según el tipo de producto y dónde está</small></span></button>
+<button class="menuitem" data-act="optbasics"><span>🚫</span><span>Ingredientes básicos<small>Agua, sal, aceite…: no se apuntan en compra ni despensa</small></span></button>
+      `)}
+      ${og('data', '💾', 'Copias y datos', 'Copia de seguridad, CSV de recetas y menús', `
+<button class="menuitem" data-act="restore" type="button">♻️ Restaurar copia de seguridad</button>
+<button class="menuitem" data-act="optbackup"><span>💾</span><span>Copia de seguridad completa<small>Recetas, menús, categorías y despensa en un archivo</small></span></button>
+<button class="menuitem" data-act="optrestore"><span>♻️</span><span>Restaurar copia de seguridad<small>Añade lo que falte desde un archivo .json</small></span></button>
+<button class="menuitem" data-act="optcsv"><span>📥</span><span>Descargar recetas (CSV)<small>Copia de seguridad para abrir en Excel</small></span></button>
+<button class="menuitem" data-act="optimport"><span>📤</span><span>Importar recetas (CSV)<small>Añade las de un archivo descargado antes</small></span></button>
+<button class="menuitem" data-act="optmenus"><span>🗓️</span><span>Descargar menús (CSV)<small>Una fila por semana, día y comida</small></span></button>
+<button class="menuitem" data-act="optmenusimp"><span>📥</span><span>Importar menús (CSV)<small>Añade menús desde un archivo descargado</small></span></button>
+      `)}
+      ${og('app', '🎨', 'Aspecto y ayuda', 'Modo claro/oscuro, instalar, guía, errores', `
+<div class="menuitem" style="display:block"><span>🌗 Aspecto <small>(el claro está en pruebas)</small></span><div class="chips" style="margin-top:6px"><button class="chip" data-act="theme" data-v="auto">📱 Como el móvil</button><button class="chip" data-act="theme" data-v="dark">🌙 Oscuro</button><button class="chip" data-act="theme" data-v="light">☀️ Claro</button></div></div>
+<button class="menuitem" data-act="optinstall"><span>📲</span><span>Instalar como app<small>Icono en tu pantalla de inicio</small></span></button>
+<button class="menuitem" data-act="guide" type="button">💡 Guía de funciones</button>
+<button class="menuitem" data-act="errlog" type="button">🪲 Registro de errores</button>
+      `)}
+      ${og('acct', '👤', 'Cuenta', 'Contraseña, estado de la nube, cerrar sesión', `
+<button class="menuitem" data-act="optpass"><span>🔑</span><span>Cambiar contraseña</span></button>
+<button class="menuitem" data-act="optcloud"><span>☁️</span><span>Estado de la nube<small>Comprobar que todo está conectado</small></span></button>
+<button class="menuitem" data-act="optsignout"><span>🚪</span><span>Cerrar sesión<small>${esc((db.user && db.user.email) || '')}</small></span></button>
+      `)}
+      <input hidden type="file" id="restoreFile" accept=".json,application/json"><input hidden type="file" id="csvFile" accept=".csv,text/csv" ><input hidden type="file" id="menusFile" accept=".csv,text/csv" ><input hidden type="file" id="bkFile" accept=".json,application/json" >
       <div class="notice" id="optMsg"></div>`;
     return;
   }
@@ -1015,7 +1033,8 @@ async function importCsv(file) {
   } catch (e) { optMsg('No se pudo importar: ' + e.message); }
 }
 $('optBody').addEventListener('change', e => { if (e.target.id === 'csvFile' && e.target.files[0]) importCsv(e.target.files[0]); if (e.target.id === 'menusFile' && e.target.files[0]) { const f = e.target.files[0]; e.target.value = ''; importMenusCsv(f); } if (e.target.id === 'bkFile' && e.target.files[0]) { const f = e.target.files[0]; e.target.value = ''; restoreFile(f); } });
-$('optBtn').onclick = () => { optView = 'main'; editingCat = null; renderOptions(); $('optModal').classList.add('show'); };
+$('optBtn').onclick = () => { optView = 'main'; editingCat = null; optOpenG = ''; renderOptions(); $('optModal').classList.add('show'); };
+$('optBody').addEventListener('toggle', e => { const d = e.target; if (!d.classList || !d.classList.contains('ogrp')) return; if (d.open) { optOpenG = d.dataset.g; $('optBody').querySelectorAll('details.ogrp[open]').forEach(x => { if (x !== d) x.open = false; }); } else if (optOpenG === d.dataset.g) optOpenG = ''; }, true);
 $('optBody').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return; const n = b.dataset.name;
   ({ optclose: () => $('optModal').classList.remove('show'),
