@@ -35,14 +35,22 @@
   "shortcuts": [
     {
       "name": "Compra",
+      "short_name": "Compra",
       "url": "./?tab=shop"
     },
     {
+      "name": "Modo súper",
+      "short_name": "Súper",
+      "url": "./?tab=super"
+    },
+    {
       "name": "Menú",
+      "short_name": "Menú",
       "url": "./?tab=menu"
     },
     {
       "name": "Nueva receta",
+      "short_name": "Nueva",
       "url": "./?new=1"
     }
   ]
