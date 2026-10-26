@@ -1061,7 +1061,7 @@ $('optBody').addEventListener('click', e => {
      restore: () => $('restoreFile').click(),
      mealtog: () => { const k = b.dataset.v, cur = mealsOnGet().slice(), nx = cur.includes(k) ? cur.filter(x => x !== k) : [...cur, k]; if (!nx.length) return toast('Deja al menos una comida'); try { localStorage.setItem('pandi-meals', JSON.stringify(nx)); } catch (e) {} _mealsOn = null; renderOptions(); renderMenu(); renderStats(); },
      guide: () => guideOpen(),
-     pushon: pushActOn, pushoff: pushActOff, pushtest: pushActTest, pushtog: () => pushActTog(b.dataset.v), pushhour: () => pushActHour(b.dataset.k, +b.dataset.v), autotog: () => autoTog(b.dataset.v), histopen: () => histOpen(), routereset: () => routeReset(), fontsz: () => fsSet(+b.dataset.v), autohour: () => autoHour(+b.dataset.v),
+     pushon: pushActOn, pushoff: pushActOff, pushtest: pushActTest, pushtog: () => pushActTog(b.dataset.v), pushhour: () => pushActHour(b.dataset.k, +b.dataset.v), autotog: () => autoTog(b.dataset.v), histopen: () => histOpen(), usepri: () => autoUse(+b.dataset.v), routereset: () => routeReset(), fontsz: () => fsSet(+b.dataset.v), autohour: () => autoHour(+b.dataset.v),
      errlog: () => errOpen(),
      p4gap: () => { try { localStorage.setItem('pandi-p4gap', b.dataset.v); } catch (e) {} toast(b.dataset.v === '1' ? '🗓️ La sobra irá al día siguiente' : b.dataset.v === '2' ? '🗓️ La sobra irá a los 2 días' : '🗓️ Te preguntaré el día de la sobra'); },
      p4mode: () => { try { localStorage.setItem('pandi-p4', b.dataset.v); } catch (e) {} toast(b.dataset.v === 'smart' ? '🍲 Las recetas de 4+ raciones se repiten solas al día siguiente' : b.dataset.v === 'ask' ? '🍲 Te preguntaré el día al añadir cada receta' : '🍲 Solo saldrá el botón Para 2 comidas'); },
@@ -1142,6 +1142,7 @@ function goWeek(ws) { wantScroll = ws === ymd(mondayOf(new Date())); WS = ws; ME
 /* selector de receta */
 let pick = null;
 function openPicker(day, meal, idx) {
+  UC.clear();
   pick = { day, meal, idx }; const [, label, ic] = MEALS.find(m => m[0] === meal), cur = idx >= 0 ? slotItems(MENU[day][meal])[idx] : null, curNote = cur && isNote(cur);
   $('pickBody').innerHTML = `<div class="editbar"><div class="sheet-top"><h2>${ic} ${DAYS[day]} · ${label}</h2><button class="btn secondary" data-pact="close">Cerrar</button></div>
     <div class="notice">${idx >= 0 ? 'Elige otra receta para cambiar esta' : 'Elige una receta para añadir a esta comida'}</div>
@@ -1158,8 +1159,8 @@ function renderPickList() {
   const [, label, ic] = MEALS.find(m => m[0] === pick.meal), curs = new Set(slotItems(MENU[pick.day][pick.meal]));
   const q = norm($('pickSearch').value).split(/\s+/).filter(Boolean);
   const all = RECIPES.filter(r => q.every(w => norm([r.name, r.ingredients, (r.categories || []).join(' '), tagsOf(r).join(' ')].join(' ')).includes(w))).sort((a, b) => cmpName(a, b));
-  const match = all.filter(r => (r.categories || []).includes(label)), other = all.filter(r => !match.includes(r));
-  const item = r => `<button class="pick${curs.has(r.id) ? ' sel' : ''}" data-id="${r.id}" type="button"><span class="pthumb">${r.image_url ? `<img src="${esc(r.image_url)}" alt="" loading="lazy">` : '🥘'}</span><span><b>${esc(r.name)}</b>${rateInline(r)}<small>${esc((r.categories || []).slice(0, 3).join(' · '))}${dishTag(r.id)}${seasonTag(r)}</small></span></button>`;
+  const match = all.filter(r => (r.categories || []).includes(label)), other = all.filter(r => !match.includes(r)); if (autoCfg().use >= 2 && PANTRY.length) { match.sort(byUse); other.sort(byUse); }
+  const item = r => `<button class="pick${curs.has(r.id) ? ' sel' : ''}" data-id="${r.id}" type="button"><span class="pthumb">${r.image_url ? `<img src="${esc(r.image_url)}" alt="" loading="lazy">` : '🥘'}</span><span><b>${esc(r.name)}</b>${rateInline(r)}<small>${esc((r.categories || []).slice(0, 3).join(' · '))}${dishTag(r.id)}${seasonTag(r)}${autoCfg().use >= 2 ? useTag(r) : ''}</small></span></button>`;
   $('pickList').innerHTML = (match.length ? `<h3>${ic} Recomendadas para ${esc(label)}</h3>${match.map(item).join('')}` : '') +
     (other.length ? `<h3>${match.length ? 'Otras recetas' : 'Recetas'}</h3>${other.map(item).join('')}` : '') ||
     `<div class="empty">${RECIPES.length ? 'No hay recetas con esa búsqueda.' : 'Todavía no tienes recetas. Créalas en la pestaña Recetas.'}</div>`;
@@ -1300,7 +1301,7 @@ function autoFill(menu, o = {}) {
   const weight = (r, i, k, cnt) => {
     let w = 1 + (r.favorite ? 0.6 : 0) + (r.rating >= 4 ? 0.6 : 0) - (r.rating && r.rating <= 2 ? 0.7 : 0);
     for (const g of GOALS) { if (!catsOf(r).includes(g.key)) continue; const c = cnt[g.key] || 0; if (g.mode === 'min' && c < gT(g)) w += 2.5; if (g.mode === 'max' && c >= gT(g)) return 0; }
-    const f = info.get(r.id), pw = o.style === 'empty' ? 2.5 : o.style === 'pantry' ? 2 : o.style === 'waste' ? 1.5 : 1, uw = o.style === 'waste' || o.style === 'empty' ? 3 : 1; if (f) { w += pw * (3 * f.cov + Math.min(4 * uw, f.urgent.length * 2 * uw) + Math.min(1.5, f.frozen * 0.5)); }
+    const f = info.get(r.id), pw = Math.max(o.style === 'empty' ? 2.5 : o.style === 'pantry' ? 2 : o.style === 'waste' ? 1.5 : 1, useLvl().p), uw = Math.max(o.style === 'waste' || o.style === 'empty' ? 3 : 1, useLvl().u); if (f) { w += pw * (3 * f.cov + Math.min(4 * uw, f.urgent.length * 2 * uw) + Math.min(1.5, f.frozen * 0.5)); }
     const ov = ingKeys(r).filter(x => usedKeys.has(x)).length; w += (o.style === 'min' || o.style === 'empty' ? 2.6 : 0.3) * Math.min(4, ov) * 0.6;
     if (o.season !== false) { const sh = seasonHits(r, mon); w += Math.max(-2, Math.min(3, sh.inn.length - 0.7 * sh.out.length)) * 0.5; if (sh.out.length) w *= 0.1; }
     if (o.like) { const lc = catsOf(o.like); if (catsOf(r).some(c => lc.includes(c) && !MEALS.some(m => m[1] === c))) w *= 1.6; }
@@ -1309,6 +1310,7 @@ function autoFill(menu, o = {}) {
     const c = catsOf(r), tm = timeMins(r.time), light = c.some(x => LIGHT.includes(x)), heavy = c.some(x => HEAVY.includes(x));
     if (k === 'cena' && light) w *= 1.5; if (k === 'comida' && heavy) w *= 1.3; if (k === 'cena' && heavy && !light) w *= 0.7;
     if (i < 5 && tm !== null && tm > 60) w *= 0.5; if (i >= 5 && tm !== null && tm > 45) w *= 1.25;
+    if (f && useLvl().min && f.cov < 0.4) w *= 0.25;
     return Math.max(w, 0);
   };
   const choose = (cand, i, k, goals) => {
@@ -1733,7 +1735,7 @@ async function delPantryItem() {
   try { logWaste(p, 'del'); const bk = pRow(p); await db.deletePantry(p.id); showUndo('Eliminado: ' + cap(p.name), async () => { await db.addPantry([bk]); await loadPantry(); }); $('pModal').classList.remove('show'); await loadPantry(); }
   catch (e) { const m = $('pMsg'); m.className = 'notice err'; m.textContent = 'No se pudo eliminar: ' + e.message; }
 }
-function cookIdeas() {
+function cookIdeasOld() {
   if (!PANTRY.length) return openP('<div class="sheet-top"><h2>🍳 Cocinar con lo que tengo</h2><button class="btn secondary" data-pa="close">Cerrar</button></div><div class="empty" style="margin-top:12px">Apunta primero lo que tienes en casa y te propongo recetas.</div>');
   const have = PANTRY.filter(p => !p.recipe_id && Number(p.units ?? 1) > 0).map(p => ({ k: norm(p.name), n: p.name, d: p.expiry_date ? daysTo(p.expiry_date) : null })), BASIC = ['sal', 'agua', 'aceite', 'pimienta', 'azucar'];
   const res = RECIPES.map(r => {
@@ -3668,7 +3670,7 @@ const buyGap = c => { const b = (c && c.buy) || []; return b.length < 3 ? null :
 const buyGapTxt = n => { const g = buyGap(catOf(n)); return g ? ` · lo compras cada ~${g} días` : ''; };
 const recSuggest = () => Object.entries(CATALOG).map(([k, c]) => ({ k, c, g: buyGap(c) })).filter(x => x.c.n && !x.c.rec && x.g && ((x.g >= 5 && x.g <= 9) || (x.g >= 12 && x.g <= 16))).map(x => ({ ...x, rec: x.g <= 9 ? 1 : 2 }));
 function rcOpen() { const l = recSuggest(); if (!l.length) { $('pModal').classList.remove('show'); return toast('Sin sugerencias por ahora'); } openP(pHead('🔁 Hacer recurrentes', 'Por cada cuánto los compras. Si aceptas, entran solos en la lista de esa semana.') + l.map(x => `<div class="grow"><div class="grow1"><b style="flex:1">${esc(cap(x.c.n))} <small>cada ~${x.g} días</small></b><button class="btn secondary" data-rc="${esc(x.k)}|${x.rec}" type="button">${x.rec === 1 ? 'Cada semana' : 'Cada 2 semanas'}</button></div></div>`).join('')); }
-function wasteIdea() { const di = (new Date().getDay() + 6) % 7, today = new Set(MEALS.flatMap(([k]) => slotItems((MENU[di] || {})[k]))); return RECIPES.filter(r => !today.has(r.id)).map(r => ({ r, f: pantryInfo(r) })).filter(x => x.f.urgent.length).sort((a, b) => b.f.urgent.length - a.f.urgent.length || b.f.cov - a.f.cov)[0] || null; }
+function wasteIdea() { const di = (new Date().getDay() + 6) % 7, today = new Set(MEALS.flatMap(([k]) => slotItems((MENU[di] || {})[k]))); return RECIPES.filter(r => !today.has(r.id)).map(r => ({ r, f: pantryInfo(r) })).filter(x => x.f.urgent.length && x.f.cov >= 0.5).sort((a, b) => b.f.urgent.length - a.f.urgent.length || b.f.cov - a.f.cov)[0] || null; }
 function lvlOpen(id) { const p = PANTRY.find(x => x.id === id); if (!p) return; const b = 'width:100%;min-height:64px;font-size:1.2rem;font-weight:700;margin:6px 0'; openP(pHead('📊 ' + cap(p.name), 'Cuánto queda ahora, a ojo.') + [['🟢 Lleno', 1], ['🟡 Medio', 0.5], ['🟠 Poco', 0.25], ['🔴 Acabado', 0]].map(([t, v]) => `<button class="btn secondary" data-lvlset="${p.id}|${v}" type="button" style="${b}">${t}</button>`).join('')); }
 document.addEventListener('click', async e => {
   const t = e.target.closest('[data-lvl],[data-lvlset],[data-rc],[data-low]'); if (!t) return; const d = t.dataset;
@@ -3788,9 +3790,9 @@ function moveDraw() {
   const r = RECIPES.find(x => x.id === mv.id); if (!r) return;
   openP(pHead('📅 Mover ' + esc(r.name), 'Elige la comida y el día. Si tiene sobra marcada, se mueve con ella.') + `<div class="chips" style="margin:8px 0">${activeMeals().map(([k, l, ic]) => `<button class="chip${mv.tk === k ? ' on' : ''}" data-mvk="${k}" type="button">${ic} ${esc(l)}</button>`).join('')}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${DAYS.map((n, d) => `<button class="btn secondary" data-mvd="${d}" type="button" style="min-height:52px">${esc(n)} ${addDays(parseYmd(WS), d).getDate()}</button>`).join('')}</div>`);
 }
-const GUIDE = [['📍', 'Hoy', 'Pantalla con lo que toca cocinar hoy, lo que sacar del congelador y lo que falta.', 'today'], ['🍲', 'Para 4 y sobras', 'Al añadir una receta de 4+ raciones, la 2.ª comida se coloca sola otro día. Se ajusta en Opciones.', ''], ['🔄', 'Cambiar un ingrediente', 'En una receta del menú, o desde el aviso «faltan»: usa otro producto que tengas (pavo en vez de vacuno).', ''], ['📅', 'Mover a otro día', 'En una receta del menú: la cambia de día o comida y arrastra su sobra.', ''], ['📋', '¿Cocinaste esto?', 'Tarjeta del menú con lo de días anteriores sin marcar.', ''], ['🛍️', 'Modo súper', 'La compra a pantalla completa, por secciones.', 'super'], ['🗺️', 'Mapa', 'Congelador, frigorífico y despensa dibujados, con lo que hay en cada zona.', 'map'], ['✅', 'Revisión rápida', 'Repasa la despensa producto a producto en un par de minutos.', 'review'], ['📅', 'Sin fecha', 'Pon la caducidad a los productos que no la tienen.', 'dates'], ['📦', 'Lotes y 📭 Abrir', 'Mismo producto con fechas distintas (gasta el más antiguo) y caducidad tras abrir.', ''], ['🔁', 'Recurrentes y lo de siempre', 'Productos que entran solos en la compra y avisos de lo que te falta.', ''], ['📉', 'Apuntar lo bajo mínimo', 'Botón en la Compra que añade de golpe todo lo que está bajo mínimo.', 'low'], ['🥕', 'Con lo que tengo', 'En Recetas: ordena por lo que puedes cocinar sin comprar (con sustitutos).', 'recipes'], ['🧑‍🍳', 'Sesión de cocina', 'Elige 2-3 recetas del menú y te ordena los pasos para cocinarlas a la vez (horno, fuegos, tiempos) y te dice qué sobra para congelar.', 'sess'], ['🥬', 'Empezado, por gastar', 'Lo que te queda a medias (½ cebolla…) sale en la tarjeta de la mañana, con recetas para gastarlo.', 'part'], ['❄️', 'Congelados viejos', 'Lo que lleva 2 meses o más en el congelador sale en la tarjeta de la mañana y en Despensa, con recetas para gastarlo.', 'oldfrz'], ['🏷️', 'Etiquetas de recetas', 'En cada receta puedes marcarla como Rápida, Batch, De domingo… Se filtra en Recetas, se busca por ellas y se puede usar en «Vaciar despensa».', 'tags'], ['🍽️', 'Sin comprar nada', 'En Recetas: las que puedes hacer ahora con lo que tienes en casa, y las que solo necesitan una cosa.', 'nobuy'], ['🧊', 'Mi congelador', 'En Despensa: busca lo que tienes congelado, planifica los platos cocinados en el menú, sácalos o apunta que te has comido una ración. Los platos cocinados no pasan de 1 mes.', 'frz'], ['🛒', 'Compra: súper, precios y repaso', 'En Compra: asigna cada producto a un súper y filtra la lista, apunta precios para ver el total aproximado y haz un repaso rápido antes de ir. Los tickets que leas actualizan los precios.', 'shop'], ['🕘', 'Historial automático', 'Lo que la app ha hecho sola (descuentos, sobras, menú propuesto…) con botón para deshacerlo. En Opciones → Automatismos.', 'hist'], ['⚡', 'Automatismos', 'Descuento sin preguntar en recetas habituales, menú propuesto el domingo, aviso «¿cocinaste?» con botones y resumen semanal. Se ajustan en Opciones.', 'auto'], ['🔔', 'Avisos en el móvil', 'Te avisa de sacar algo del congelador y de lo que caduca, con la app cerrada. Se activa en Opciones.', 'push'], ['🪲', 'Registro de errores', 'Copia los fallos de la app para enviármelos.', 'errlog']];
+const GUIDE = [['📍', 'Hoy', 'Pantalla con lo que toca cocinar hoy, lo que sacar del congelador y lo que falta.', 'today'], ['🍲', 'Para 4 y sobras', 'Al añadir una receta de 4+ raciones, la 2.ª comida se coloca sola otro día. Se ajusta en Opciones.', ''], ['🔄', 'Cambiar un ingrediente', 'En una receta del menú, o desde el aviso «faltan»: usa otro producto que tengas (pavo en vez de vacuno).', ''], ['📅', 'Mover a otro día', 'En una receta del menú: la cambia de día o comida y arrastra su sobra.', ''], ['📋', '¿Cocinaste esto?', 'Tarjeta del menú con lo de días anteriores sin marcar.', ''], ['🛍️', 'Modo súper', 'La compra a pantalla completa, por secciones.', 'super'], ['🗺️', 'Mapa', 'Congelador, frigorífico y despensa dibujados, con lo que hay en cada zona.', 'map'], ['✅', 'Revisión rápida', 'Repasa la despensa producto a producto en un par de minutos.', 'review'], ['📅', 'Sin fecha', 'Pon la caducidad a los productos que no la tienen.', 'dates'], ['📦', 'Lotes y 📭 Abrir', 'Mismo producto con fechas distintas (gasta el más antiguo) y caducidad tras abrir.', ''], ['🔁', 'Recurrentes y lo de siempre', 'Productos que entran solos en la compra y avisos de lo que te falta.', ''], ['📉', 'Apuntar lo bajo mínimo', 'Botón en la Compra que añade de golpe todo lo que está bajo mínimo.', 'low'], ['🥕', 'Con lo que tengo', 'En Recetas: ordena por lo que puedes cocinar sin comprar (con sustitutos).', 'recipes'], ['🧑‍🍳', 'Sesión de cocina', 'Elige 2-3 recetas del menú y te ordena los pasos para cocinarlas a la vez (horno, fuegos, tiempos) y te dice qué sobra para congelar.', 'sess'], ['🥬', 'Empezado, por gastar', 'Lo que te queda a medias (½ cebolla…) sale en la tarjeta de la mañana, con recetas para gastarlo.', 'part'], ['❄️', 'Congelados viejos', 'Lo que lleva 2 meses o más en el congelador sale en la tarjeta de la mañana y en Despensa, con recetas para gastarlo.', 'oldfrz'], ['🏷️', 'Etiquetas de recetas', 'En cada receta puedes marcarla como Rápida, Batch, De domingo… Se filtra en Recetas, se busca por ellas y se puede usar en «Vaciar despensa».', 'tags'], ['🍽️', 'Sin comprar nada', 'En Recetas: las que puedes hacer ahora con lo que tienes en casa, y las que solo necesitan una cosa.', 'nobuy'], ['🧺', 'Prioridad a lo que tengo', 'En ⚙️ Opciones → ⚡ Automatismos eliges cuánto pesa lo que ya tienes en casa al rellenar huecos, crear menús y recomendar recetas. En «Alta» o «Máxima», las que no obligan a comprar salen primero.', 'auto'], ['🧊', 'Mi congelador', 'En Despensa: busca lo que tienes congelado, planifica los platos cocinados en el menú, sácalos o apunta que te has comido una ración. Los platos cocinados no pasan de 1 mes.', 'frz'], ['🛒', 'Compra: súper, precios y repaso', 'En Compra: asigna cada producto a un súper y filtra la lista, apunta precios para ver el total aproximado y haz un repaso rápido antes de ir. Los tickets que leas actualizan los precios.', 'shop'], ['🕘', 'Historial automático', 'Lo que la app ha hecho sola (descuentos, sobras, menú propuesto…) con botón para deshacerlo. En Opciones → Automatismos.', 'hist'], ['⚡', 'Automatismos', 'Descuento sin preguntar en recetas habituales, menú propuesto el domingo, aviso «¿cocinaste?» con botones y resumen semanal. Se ajustan en Opciones.', 'auto'], ['🔔', 'Avisos en el móvil', 'Te avisa de sacar algo del congelador y de lo que caduca, con la app cerrada. Se activa en Opciones.', 'push'], ['🪲', 'Registro de errores', 'Copia los fallos de la app para enviármelos.', 'errlog']];
 function guideOpen() { openP(pHead('💡 Guía de funciones', 'Toca «Ir» para abrir las que tienen botón.') + GUIDE.map(g => `<div class="grow"><div class="grow1" style="flex-wrap:wrap"><b style="flex:1;min-width:200px">${g[0]} ${esc(g[1])}<br><small style="font-weight:400">${esc(g[2])}</small></b>${g[3] ? `<button class="btn secondary" data-gd="${g[3]}" type="button">Ir</button>` : ''}</div></div>`).join('')); }
-const APP_V = 'v49';
+const APP_V = 'v50';
 function errReport() { let l = []; try { l = JSON.parse(localStorage.getItem('pandi-errlog') || '[]'); } catch (e) {} return ['Pandi ' + APP_V + ' · ' + new Date().toLocaleString('es-ES'), navigator.userAgent, screen.width + 'x' + screen.height + ' · ' + (navigator.onLine ? 'online' : 'sin conexión') + (typeof OFFLINE !== 'undefined' && OFFLINE ? ' (copia local)' : ''), 'Recetas ' + RECIPES.length + ' · Despensa ' + PANTRY.length, 'Errores: ' + (l.length ? '\n' + l.join('\n') : 'ninguno')].join('\n'); }
 function errOpen() { let l = []; try { l = JSON.parse(localStorage.getItem('pandi-errlog') || '[]'); } catch (e) {} openP(pHead('🪲 Registro de errores', 'Pulsa «Copiar informe» y pégalo en el chat: lleva la versión, el móvil y los últimos fallos.') + (l.length ? `<div class="notice" style="font-size:.8rem;word-break:break-word">${l.slice().reverse().map(esc).join('<br><br>')}</div>` : '<div class="notice">No hay errores registrados 🎉</div>') + `<div class="chips" style="margin-top:10px"><button class="btn" data-errcopy="1" type="button" style="flex:1;min-height:52px">📋 Copiar informe</button>${l.length ? '<button class="btn secondary" data-errclr="1" type="button" style="flex:1;min-height:52px">Borrar</button>' : ''}</div>`); }
 document.addEventListener('click', async e => {
@@ -4211,7 +4213,7 @@ $('pBody').addEventListener('input', e => {
 });
 
 /* ============ v34 · automatismos ============ */
-const autoCfg = () => ({ disc: true, draft: true, cook: true, cookH: 21, sum: true, tup: true, bk: true, shop: true, route: true, ...(CATALOG['cfg:auto'] || {}) });
+const autoCfg = () => ({ disc: true, draft: true, cook: true, cookH: 21, sum: true, tup: true, bk: true, shop: true, route: true, use: 2, ...(CATALOG['cfg:auto'] || {}) });
 const autoOk = id => (CATALOG['auto:' + id] || {}).ok || 0;
 function autoNote(id, clean) { const k = 'auto:' + id, c = CATALOG[k] || { ok: 0 }; c.ok = clean ? Math.min(9, c.ok + 1) : 0; CATALOG[k] = c; saveCatalogSoon(); }
 const round2 = n => Math.round(n * 100) / 100;
@@ -4300,7 +4302,7 @@ function autoDraw() {
     `<div class="chips" style="margin-top:6px">${chip(c.draft, 'autotog', 'draft', '🗓️ Proponer el menú del domingo')}</div>` +
     `<div class="chips" style="margin-top:6px">${chip(c.cook, 'autotog', 'cook', '🍳 Aviso «¿cocinaste?»')}${[20, 21, 22].map(h => chip(c.cook && c.cookH === h, 'autohour', h, h + ':00')).join('')}</div>` +
     `<div class="chips" style="margin-top:6px">${chip(c.tup, 'autotog', 'tup', '🍲 Contar las sobras solas (sin preguntar)')}</div>` + `<div class="chips" style="margin-top:6px">${chip(c.shop, 'autotog', 'shop', '🛒 Apuntar solo en la compra lo que se acaba al cocinar')}</div>` + `<div class="chips" style="margin-top:6px">${chip(c.sum, 'autotog', 'sum', '📊 Resumen del domingo (aviso)')}</div>` + `<div class="chips" style="margin-top:6px">${chip(c.bk, 'autotog', 'bk', '💾 Aviso de copia de seguridad (a los 30 días)')}</div>` +
-    `<div class="chips" style="margin-top:6px">${chip(c.route, 'autotog', 'route', '🧭 Aprender mi ruta en el súper')}<button class="chip" data-act="routereset" type="button">↺ Olvidar mi ruta</button></div>` + '<div class="chips" style="margin-top:10px"><button class="chip" data-act="histopen" type="button">🕘 Ver lo que ha hecho la app</button></div><small style="display:block;margin-top:8px;color:var(--muted)">Descontar sin preguntar se activa en una receta tras cocinarla 3 veces sin tocar nada, y siempre puedes deshacerlo. Los avisos necesitan tener activados los avisos del móvil.</small>';
+    `<div class="chips" style="margin-top:6px"><b style="align-self:center;margin-right:4px">🧺 Prioridad a lo que tengo</b>${[['Normal', 1], ['Alta', 2], ['Máxima', 3]].map(([l, v]) => chip((c.use || 2) === v, 'usepri', v, l)).join('')}</div>` + `<div class="chips" style="margin-top:6px">${chip(c.route, 'autotog', 'route', '🧭 Aprender mi ruta en el súper')}<button class="chip" data-act="routereset" type="button">↺ Olvidar mi ruta</button></div>` + '<div class="chips" style="margin-top:10px"><button class="chip" data-act="histopen" type="button">🕘 Ver lo que ha hecho la app</button></div><small style="display:block;margin-top:8px;color:var(--muted)">Descontar sin preguntar se activa en una receta tras cocinarla 3 veces sin tocar nada, y siempre puedes deshacerlo. Los avisos necesitan tener activados los avisos del móvil.</small>';
 }
 const autoSave = c => { CATALOG['cfg:auto'] = c; saveCatalogSoon(); autoDraw(); pushSyncSoon(); };
 const autoTog = k => { const c = autoCfg(); c[k] = !c[k]; autoSave(c); };
@@ -4683,17 +4685,17 @@ renderRecipes();
 
 /* ---- Recetas que puedes hacer sin comprar nada ---- */
 let NB = { meal: 'Cena', tag: '' };
-function noBuyOpen() { NB.meal = new Date().getHours() >= 15 ? 'Cena' : 'Comida'; noBuyDraw(); }
+function noBuyOpen() { NB.title = ''; NB.meal = new Date().getHours() >= 15 ? 'Cena' : 'Comida'; noBuyDraw(); }
 function noBuyDraw() {
   const rows = RECIPES.filter(r => (!NB.meal || (r.categories || []).includes(NB.meal)) && (!NB.tag || tagsOf(r).includes(NB.tag))).map(r => ({ r, ml: missingLines(r), inf: pantryInfo(r) }));
-  const srt = (a, b) => b.inf.urgent.length - a.inf.urgent.length || (b.r.rating || 0) - (a.r.rating || 0) || cmpName(a.r, b.r);
-  const full = rows.filter(x => !x.ml.length).sort(srt), almost = rows.filter(x => x.ml.length === 1).sort(srt).slice(0, 8), chip = (on, a, l) => `<button type="button" class="chip${on ? ' on' : ''}" data-nb="${a}">${l}</button>`;
-  const card = (x, miss) => `<div class="grow"><div class="grow1" style="flex-wrap:wrap"><b style="flex:1;min-width:150px">${esc(x.r.name)}<br><small style="font-weight:400">⏱️ ${esc(x.r.time || '—')}${x.inf.urgent.length ? ' · ⏳ gasta ' + esc(x.inf.urgent.slice(0, 3).join(', ')) : ''}${miss ? ' · 🛒 falta ' + esc(cap(x.ml[0].key)) : ''}${tagsOf(x.r).length ? ' · ' + esc(tagsOf(x.r).join(' ')) : ''}</small></b><button class="btn secondary" data-nb="view|${x.r.id}" type="button">👀</button><button class="btn" data-nb="add|${x.r.id}" type="button">📅 Poner</button></div></div>`;
-  openP(pHead('🍽️ Sin comprar nada', 'Recetas que puedes hacer ahora con lo que tienes en casa. Primero las que gastan lo que caduca o lo que ya has empezado.') +
+  const srt = (a, b) => (b.inf.urgent.length * 3 + Math.min(2, b.inf.frozen || 0)) - (a.inf.urgent.length * 3 + Math.min(2, a.inf.frozen || 0)) || (b.r.rating || 0) - (a.r.rating || 0) || cmpName(a.r, b.r);
+  const full = rows.filter(x => !x.ml.length).sort(srt), almost = rows.filter(x => x.ml.length === 1).sort(srt).slice(0, 8), two = rows.filter(x => x.ml.length === 2).sort(srt).slice(0, 6), chip = (on, a, l) => `<button type="button" class="chip${on ? ' on' : ''}" data-nb="${a}">${l}</button>`;
+  const card = (x, miss) => `<div class="grow"><div class="grow1" style="flex-wrap:wrap"><b style="flex:1;min-width:150px">${esc(x.r.name)}<br><small style="font-weight:400">⏱️ ${esc(x.r.time || '—')}${x.inf.urgent.length ? ' · ⏳ gasta ' + esc(x.inf.urgent.slice(0, 3).join(', ')) : ''}${x.inf.frozen ? ' · 🧊 gasta congelado' : ''}${miss ? ' · 🛒 falta ' + esc(x.ml.map(m => cap(m.key)).join(', ')) : ''}${tagsOf(x.r).length ? ' · ' + esc(tagsOf(x.r).join(' ')) : ''}</small></b><button class="btn secondary" data-nb="view|${x.r.id}" type="button">👀</button><button class="btn" data-nb="add|${x.r.id}" type="button">📅 Poner</button></div></div>`;
+  openP(pHead(NB.title || '🍽️ Sin comprar nada', 'Recetas que puedes hacer ahora con lo que tienes en casa. Primero las que gastan lo que caduca o lo que ya has empezado.') +
     `<div class="chips" style="margin:8px 0">${chip(NB.meal === 'Cena', 'meal|Cena', '🌙 Cena')}${chip(NB.meal === 'Comida', 'meal|Comida', '🍽️ Comida')}${chip(!NB.meal, 'meal|', 'Todas')}</div>` +
     (usedTags().length ? `<div class="chips" style="margin:6px 0">${usedTags().map(([t], i) => chip(NB.tag === t, 'tag|' + i, esc(t))).join('')}</div>` : '') +
     `<div class="notice" style="margin:8px 0">${full.length} receta${full.length === 1 ? '' : 's'} sin comprar nada</div>` + (full.length ? full.slice(0, 20).map(x => card(x, false)).join('') : '<div class="empty" style="margin:8px 0">Ninguna completa con esos filtros.</div>') +
-    (almost.length ? '<h3 style="margin:14px 0 6px">Casi: solo falta una cosa</h3>' + almost.map(x => card(x, true)).join('') : ''));
+    (almost.length ? '<h3 style="margin:14px 0 6px">Casi: solo falta una cosa</h3>' + almost.map(x => card(x, true)).join('') : '') + (two.length ? '<h3 style="margin:14px 0 6px">Faltan dos cosas</h3>' + two.map(x => card(x, true)).join('') : ''));
 }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-nb]'); if (!b) return; const [a, v] = b.dataset.nb.split('|');
@@ -4777,6 +4779,26 @@ document.addEventListener('click', async e => {
     }
   } catch (er) { toast('No se pudo: ' + er.message); }
 });
+
+/* ============ v50 · prioridad a lo que tengo ============ */
+const USE_LVL = { 1: { p: 1, u: 1, min: false }, 2: { p: 2, u: 1.8, min: false }, 3: { p: 3.5, u: 3, min: true } };
+const useLvl = () => USE_LVL[autoCfg().use || 2] || USE_LVL[2];
+const UC = new Map();
+function useOf(r) { let v = UC.get(r.id); if (!v) { UC.set(r.id, v = { f: pantryInfo(r), ml: missingLines(r) }); } return v; }
+function useTag(r) {
+  if (!PANTRY.length) return ''; const { f, ml } = useOf(r), t = [];
+  t.push(!ml.length ? '✅ todo en casa' : '🛒 faltan ' + ml.length);
+  if (f.urgent.length) t.push('⏳ gasta ' + f.urgent.slice(0, 2).join(', '));
+  return ' · ' + t.join(' · ');
+}
+const byUse = (a, b) => { const A = useOf(a), B = useOf(b); return (A.ml.length ? 1 : 0) - (B.ml.length ? 1 : 0) || (B.f.urgent.length - A.f.urgent.length) || A.ml.length - B.ml.length || cmpName(a, b); };
+function cookIdeas() {
+  if (!PANTRY.length) return cookIdeasOld();
+  NB.meal = ''; NB.tag = ''; NB.title = '🍳 Cocinar con lo que tengo'; noBuyDraw();
+}
+const autoUse = v => { const c = autoCfg(); c.use = v; autoSave(c); };
+{ const _lp3 = loadPantry; loadPantry = async function () { UC.clear(); const r = await _lp3.apply(this, arguments); UC.clear(); return r; };
+  const _lr = loadRecipes; loadRecipes = async function () { UC.clear(); return _lr.apply(this, arguments); }; }
 
 loadSnap();
 </script>
