@@ -377,7 +377,7 @@ html[data-theme=light] .pill.today{background:#cfe6ff!important;border-color:#2f
 html[data-theme=light] .pill.today b{color:#0b2a4a!important}
 html[data-theme=light] .day.today{background:#e1efff!important;border-color:#2f78c4!important}
 @media(prefers-color-scheme:light){html[data-theme=auto] .pill.today{background:#cfe6ff!important;border-color:#2f78c4!important;color:#0b2a4a!important}html[data-theme=auto] .pill.today b{color:#0b2a4a!important}html[data-theme=auto] .day.today{background:#e1efff!important;border-color:#2f78c4!important}}
-.goalstrip .chip{font-size:16px;padding:6px 14px}
+.goalstrip{display:flex;flex-wrap:wrap;gap:6px}.goalstrip .chip{font-size:15px;padding:6px 10px;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -5441,8 +5441,8 @@ skinApply();
 // v59 · equilibrio de la semana siempre visible en el menú (toca para abrir Estadísticas)
 function renderGoalStrip() {
   const el = $('goalStrip'); if (!el) return; if (!GOALS.length || !Array.isArray(MENU)) { el.innerHTML = ''; return; }
-  const KEEP = ['Legumbres', 'Carne roja', 'Pescado blanco'], wc = weekCounts(MENU).cats;
-  el.innerHTML = GOALS.filter(g => KEEP.includes(g.key)).map(g => { const c = wc[g.key] || 0, ok = goalOk(g, c), ic = g.icon || (DEFAULT_GOALS.find(x => x.key === g.key) || {}).icon || '•'; return `<button class="chip${ok ? ' on' : ' bad'}" data-v59="stats" type="button" title="${esc(g.label)}" aria-label="${esc(g.label)} ${c} de ${gT(g)}">${ic} ${c}/${gT(g)}${ok ? ' ✔' : ''}</button>`; }).join('');
+  const wc = weekCounts(MENU).cats;
+  el.innerHTML = GOALS.map(g => { const c = wc[g.key] || 0, ok = goalOk(g, c), ic = g.icon || (DEFAULT_GOALS.find(x => x.key === g.key) || {}).icon || '•'; return `<button class="chip${ok ? ' on' : ' bad'}" data-v59="stats" type="button" title="${esc(g.label)}" aria-label="${esc(g.label)} ${c} de ${gT(g)}">${ic} ${c}/${gT(g)}${ok ? ' ✔' : ''}</button>`; }).join('');
 }
 { const _rm = renderMenu; renderMenu = function () { _rm.apply(this, arguments); try { renderGoalStrip(); } catch (e) {} }; }
 document.addEventListener('click', e => { const b = e.target.closest('[data-v59]'); if (b) { e.stopPropagation(); showTab('stats'); } }, true);
