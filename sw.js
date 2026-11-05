@@ -1,7 +1,7 @@
-// Service worker de Pandi recetas: red primero; si no hay conexión, copia guardada.
+// Service worker de Pandi recetas: red primero con límite de espera; si no hay conexión (o va muy lenta), copia guardada.
 // Guarda también las librerías externas (jsdelivr) para que la app abra sin cobertura.
-const V = 'pandi-v113';
-self.addEventListener('install', e => { self.skipWaiting(); });
+const V = 'pandi-v114';
+self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(V).then(c => c.addAll(['./', './index.html'])).catch(() => {})); });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
@@ -9,10 +9,15 @@ self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
   const mine = u.origin === location.origin, lib = u.hostname === 'cdn.jsdelivr.net';
   if (e.request.method !== 'GET' || (!mine && !lib)) return;
-  e.respondWith(
-    fetch(e.request).then(r => { const c = r.clone(); caches.open(V).then(ca => ca.put(e.request, c)).catch(() => {}); return r; })
-      .catch(() => caches.match(e.request).then(m => m || (mine ? caches.match('./index.html') : Response.error())))
-  );
+  if (mine && u.searchParams.has('ping')) return;
+  const net = fetch(e.request).then(r => { const c = r.clone(); caches.open(V).then(ca => ca.put(e.request, c)).catch(() => {}); return r; });
+  const fallback = () => caches.match(e.request).then(m => m || (mine ? caches.match('./index.html') : null));
+  e.waitUntil(net.catch(() => {}));
+  e.respondWith(new Promise(res => {
+    let done = false; const fin = r => { if (!done) { done = true; res(r); } };
+    const t = setTimeout(() => fallback().then(m => { if (m) fin(m); }), 3500);
+    net.then(r => { clearTimeout(t); fin(r); }).catch(() => { clearTimeout(t); fallback().then(m => fin(m || Response.error())); });
+  }));
 });
 
 // Avisos push (los envía la función «push» de Supabase)
