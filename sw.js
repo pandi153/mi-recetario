@@ -1,6 +1,6 @@
 // Service worker de Pandi recetas: red primero con límite de espera; si no hay conexión (o va muy lenta), copia guardada.
 // Guarda también las librerías externas (jsdelivr) para que la app abra sin cobertura.
-const V = 'pandi-v119';
+const V = 'pandi-v120';
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(V).then(c => c.addAll(['./', './index.html'])).catch(() => {})); });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim()));
