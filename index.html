@@ -461,7 +461,7 @@ html[data-look=modern] .chip[data-su=open]{background:var(--accent);color:var(--
 .thumb{position:relative}.tstars{display:block;position:absolute;left:0;right:0;bottom:0;text-align:center;padding:2px 0;font-size:10px;letter-spacing:1px;line-height:1.2;color:#ffc94d;background:rgba(8,14,28,.78);pointer-events:none}#recipeList.rgrid .tstars{font-size:13px;padding:3px 0}
 #recFiltBar{display:flex;align-items:center;gap:7px}
 #shopBoth,#tab-shop .weeknav{display:none!important}
-#shopShare,#shopStock,#shopOrder,#shopUncheck,#shopGroup,#shopOpts [data-split],#tab-shop [data-su="open"]{display:none!important}
+#shopShare,#shopStock,#shopOrder,#shopUncheck,#shopGroup,#shopOpts [data-split],#tab-shop [data-su="open"],#shopOpts [data-low]{display:none!important}
 #shopOptBtn{flex:none;min-width:38px;height:36px;border-radius:12px;padding:0 6px;font-size:20px;font-weight:800;line-height:1}
 #shopStores .stall{display:flex;flex-wrap:wrap;gap:8px;flex-basis:100%;width:100%}
 #shopAddBox{margin:4px 0 8px}#shopAddBox .shopkeep{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2px 8px 2px 14px}
@@ -1900,7 +1900,7 @@ function renderShop() {
   if (shopGrouped && !SHOP_RECENT) shopOrder().forEach(gi => { const g = GROUPS[gi], li = todo.filter(i => classify(i.name) === gi); if (li.length) html += `<h3 class="sgroup">${g.icon} ${g.name} (${li.length})</h3>` + li.map(row).join(''); });
   else html = todo.map(row).join('');
   if (!todo.length) html = '<div class="empty">¡Todo comprado! 🎉</div>';
-  if (dn.length) html += `<h3 class="sgroup">✔ Comprado (${dn.length})</h3>` + dn.map(row).join('');
+  if (dn.length && !SHOP_PEND) html += `<h3 class="sgroup">✔ Comprado (${dn.length})</h3>` + dn.map(row).join('');
   { const wq = shopWeek(), td = ymd(new Date()), nh = wq.h.filter(k => wq.hd[k] === td).length; if (nh) html += `<button class="chip" data-restore="1" type="button" style="margin:12px 0 4px">↩️ Recuperar ${nh} quitado${nh > 1 ? 's' : ''}</button>`; }
   $('shopList').innerHTML = html;
 }
@@ -1940,6 +1940,7 @@ $('shopList').onclick = e => {
   const r = e.target.closest('.sitem'); if (r) { if (e.target.closest('.box')) return toggleShop(r.dataset.key, r.dataset.ws || SWK()); shopSheet(r.dataset.key, r.dataset.ws || SWK()); }
 };
 function shopHide(key, ws) { const w = shopWeek(ws); if (!w.h.includes(key)) w.h.push(key); w.hd[key] = ymd(new Date()); saveShop(ws); renderShop(); toast('Quitado de la lista'); }
+let SHOP_PEND = false; try { SHOP_PEND = localStorage.getItem('pandi-shoppend') === '1'; } catch (e) {}
 let SHOP_RECENT = false; try { SHOP_RECENT = localStorage.getItem('pandi-shoprecent') === '1'; } catch (e) {}
 let SHS = null;
 function shopSheet(key, ws) {
@@ -4207,7 +4208,7 @@ function moveDraw() {
 }
 const GUIDE = [['📍', 'Hoy', 'Pantalla con lo que toca cocinar hoy, lo que sacar del congelador y lo que falta.', 'today'], ['🍲', 'Para 4 y sobras', 'Al añadir una receta de 4+ raciones, la 2.ª comida se coloca sola otro día. Se ajusta en Opciones.', ''], ['🔄', 'Cambiar un ingrediente', 'En una receta del menú, o desde el aviso «faltan»: usa otro producto que tengas (pavo en vez de vacuno).', ''], ['📅', 'Mover a otro día', 'En una receta del menú: la cambia de día o comida y arrastra su sobra.', ''], ['📋', '¿Cocinaste esto?', 'Tarjeta del menú con lo de días anteriores sin marcar.', ''], ['🛍️', 'Modo súper', 'La compra a pantalla completa, por secciones.', 'super'], ['🗺️', 'Mapa', 'Congelador, frigorífico y despensa dibujados, con lo que hay en cada zona.', 'map'], ['✅', 'Revisión rápida', 'Repasa la despensa producto a producto en un par de minutos.', 'review'], ['📅', 'Sin fecha', 'Pon la caducidad a los productos que no la tienen.', 'dates'], ['📦', 'Lotes y 📭 Abrir', 'Mismo producto con fechas distintas (gasta el más antiguo) y caducidad tras abrir.', ''], ['🔁', 'Recurrentes y lo de siempre', 'Productos que entran solos en la compra y avisos de lo que te falta.', ''], ['📉', 'Apuntar lo bajo mínimo', 'Botón en la Compra que añade de golpe todo lo que está bajo mínimo.', 'low'], ['🥕', 'Con lo que tengo', 'En Recetas: ordena por lo que puedes cocinar sin comprar (con sustitutos).', 'recipes'], ['🧑‍🍳', 'Sesión de cocina', 'Elige 2-3 recetas del menú y te ordena los pasos para cocinarlas a la vez (horno, fuegos, tiempos) y te dice qué sobra para congelar.', 'sess'], ['🥬', 'Empezado, por gastar', 'Lo que te queda a medias (½ cebolla…) sale en la tarjeta de la mañana, con recetas para gastarlo.', 'part'], ['❄️', 'Congelados viejos', 'Lo que lleva 2 meses o más en el congelador sale en la tarjeta de la mañana y en Despensa, con recetas para gastarlo.', 'oldfrz'], ['🏷️', 'Etiquetas de recetas', 'En cada receta puedes marcarla como Rápida, Batch, De domingo… Se filtra en Recetas, se busca por ellas y se puede usar en «Vaciar despensa».', 'tags'], ['🍽️', 'Sin comprar nada', 'En Recetas: las que puedes hacer ahora con lo que tienes en casa, y las que solo necesitan una cosa.', 'nobuy'], ['🧺', 'Prioridad a lo que tengo', 'En ⚙️ Opciones → ⚡ Automatismos eliges cuánto pesa lo que ya tienes en casa al rellenar huecos, crear menús y recomendar recetas. En «Alta» o «Máxima», las que no obligan a comprar salen primero.', 'auto'], ['🧊', 'Mi congelador', 'En Despensa: busca lo que tienes congelado, planifica los platos cocinados en el menú, sácalos o apunta que te has comido una ración. Los platos cocinados no pasan de 1 mes.', 'frz'], ['🛒', 'Compra: súper, precios y repaso', 'En Compra: asigna cada producto a un súper y filtra la lista, apunta precios para ver el total aproximado y haz un repaso rápido antes de ir. Los tickets que leas actualizan los precios.', 'shop'], ['🕘', 'Historial automático', 'Lo que la app ha hecho sola (descuentos, sobras, menú propuesto…) con botón para deshacerlo. En Opciones → Automatismos.', 'hist'], ['⚡', 'Automatismos', 'Descuento sin preguntar en recetas habituales, menú propuesto el domingo, aviso «¿cocinaste?» con botones y resumen semanal. Se ajustan en Opciones.', 'auto'], ['🔔', 'Avisos en el móvil', 'Te avisa de sacar algo del congelador y de lo que caduca, con la app cerrada. Se activa en Opciones.', 'push'], ['🪲', 'Registro de errores', 'Copia los fallos de la app para enviármelos.', 'errlog']];
 function guideOpen() { openP(pHead('💡 Guía de funciones', 'Toca «Ir» para abrir las que tienen botón.') + GUIDE.map(g => `<div class="grow"><div class="grow1" style="flex-wrap:wrap"><b style="flex:1;min-width:200px">${g[0]} ${esc(g[1])}<br><small style="font-weight:400">${esc(g[2])}</small></b>${g[3] ? `<button class="btn secondary" data-gd="${g[3]}" type="button">Ir</button>` : ''}</div></div>`).join('')); }
-const APP_V = 'v133';
+const APP_V = 'v135';
 function errReport() { let l = []; try { l = JSON.parse(localStorage.getItem('pandi-errlog') || '[]'); } catch (e) {} return ['Pandi ' + APP_V + ' · ' + new Date().toLocaleString('es-ES'), navigator.userAgent, screen.width + 'x' + screen.height + ' · ' + (navigator.onLine ? 'online' : 'sin conexión') + (typeof OFFLINE !== 'undefined' && OFFLINE ? ' (copia local)' : ''), 'Recetas ' + RECIPES.length + ' · Despensa ' + PANTRY.length, 'Errores: ' + (l.length ? '\n' + l.join('\n') : 'ninguno')].join('\n'); }
 function errOpen() { let l = []; try { l = JSON.parse(localStorage.getItem('pandi-errlog') || '[]'); } catch (e) {} openP(pHead('🪲 Registro de errores', 'Pulsa «Copiar informe» y pégalo en el chat: lleva la versión, el móvil y los últimos fallos.') + (l.length ? `<div class="notice" style="font-size:.8rem;word-break:break-word">${l.slice().reverse().map(esc).join('<br><br>')}</div>` : '<div class="notice">No hay errores registrados 🎉</div>') + `<div class="chips" style="margin-top:10px"><button class="btn" data-errcopy="1" type="button" style="flex:1;min-height:52px">📋 Copiar informe</button>${l.length ? '<button class="btn secondary" data-errclr="1" type="button" style="flex:1;min-height:52px">Borrar</button>' : ''}</div>`); }
 document.addEventListener('click', async e => {
@@ -4937,7 +4938,7 @@ function storeDraw() {
   const box = $('shopStores'); if (!box) return; const l = storesList();
   const all = l.length ? ['', ...l].map(s => `<button class="chip${SHOP_STORE === s ? ' on' : ''}" data-st="pick|${esc(s)}" type="button">${s ? esc(storeLab(s)) : '🛒 Todos'}</button>`).join('') + '<button class="chip" data-st="assign" type="button">🏷️ Asignar</button><button class="chip" data-st="edit" type="button" aria-label="Editar supermercados">✎</button>' : '<button class="chip" data-st="add" type="button">🏪 Añadir supermercado</button>';
   const cur = SHOP_STORE ? storeLab(SHOP_STORE) : '🛒 Todos';
-  box.innerHTML = `<button class="chip${SHOP_ST_OPEN ? ' on' : ''}" data-st="toggle" type="button" aria-label="Supermercados" title="Supermercados">☰</button><button class="chip on" data-st="toggle" type="button">${esc(cur)}</button>` + `<button class="chip${SHOP_RECENT ? ' on' : ''}" data-st="recent" type="button">${SHOP_RECENT ? '🕒 Recientes' : '↕️ Por sección'}</button>` + (SHOP_ST_OPEN ? `<div class="stall">${all}</div>` : '');
+  box.innerHTML = `<button class="chip${SHOP_ST_OPEN ? ' on' : ''}" data-st="toggle" type="button" aria-label="Supermercados" title="Supermercados">☰</button>${SHOP_STORE ? `<button class="chip on" data-st="toggle" type="button">${esc(cur)}</button>` : ''}` + `<button class="chip${SHOP_PEND ? ' on' : ''}" data-st="pend" type="button" aria-pressed="${SHOP_PEND}">⏳ Pendientes</button>` + (SHOP_ST_OPEN ? `<div class="stall">${all}<button class="chip${SHOP_RECENT ? ' on' : ''}" data-st="recent" type="button">${SHOP_RECENT ? '🕒 Recientes' : '↕️ Por sección'}</button></div>` : '');
 }
 function totalDraw() {
   const t = $('shopTotal'); if (!t) return; const items = shopItems().filter(i => !i.done && !i.home); let sum = 0, n = 0;
@@ -4966,6 +4967,7 @@ document.addEventListener('click', e => {
   if (a === 'toggle') { SHOP_ST_OPEN = !SHOP_ST_OPEN; return storeDraw(); }
   if (a === 'pick') { SHOP_ST_OPEN = false; SHOP_STORE = x || ''; try { localStorage.setItem('pandi-store', SHOP_STORE); } catch (er) {} renderShop(); if ($('superBox') && $('superBox').style.display === 'block') superDraw(); return; }
   if (a === 'assign') return storeAssignOpen();
+  if (a === 'pend') { SHOP_PEND = !SHOP_PEND; try { localStorage.setItem('pandi-shoppend', SHOP_PEND ? '1' : '0'); } catch (er) {} storeDraw(); return renderShop(); }
   if (a === 'recent') { SHOP_RECENT = !SHOP_RECENT; try { localStorage.setItem('pandi-shoprecent', SHOP_RECENT ? '1' : '0'); } catch (er) {} storeDraw(); return renderShop(); }
   if (a === 'edit') { STORE_PAL = -1; return storeEditOpen(); }
   if (a === 'col') { STORE_PAL = STORE_PAL === +x ? -1 : +x; return storeEditOpen(); }
@@ -5984,7 +5986,7 @@ skinApply();
 // v72 · Compra: opciones plegadas
 (function () {
   const row = $('shopBoth') && $('shopBoth').parentNode; if (!row) return;
-  const keep = [row.querySelector('[data-su=open]'), $('shopAuto')];
+  const keep = [row.querySelector('[data-su=open]')];
   const box = document.createElement('div'); box.className = 'chips'; box.id = 'shopOpts'; box.style.margin = '0 0 6px';
   [...row.children].forEach(c => { if (!keep.includes(c)) box.appendChild(c); });
   const tg = document.createElement('button'); tg.type = 'button'; tg.className = 'chip'; tg.id = 'shopOptBtn';
@@ -6499,6 +6501,8 @@ function tableMenu() {
 { const _rm4 = renderMenu; renderMenu = function () { _rm4.apply(this, arguments); try { tableMenu(); } catch (e) {} }; }
 { const _sa3 = skinApply; skinApply = function () { _sa3.apply(this, arguments); try { if (Array.isArray(MENU)) renderMenu(); } catch (e) {} }; }
 
+// v135 · compra: botón «Pendientes» (oculta lo tachado); el orden pasa dentro del ☰
+// v134 · compra: «Apuntado por la app» dentro de Opciones; sin «bajo mínimo»; sin chip «Todos» plegado
 // v133 · compra: sin Modo súper; Opciones como icono ⋯ dentro de la línea de añadir
 // v132 · compra: menos botones en Opciones; supermercados plegados bajo ☰
 // v131 · compra: añadir tipo Keep (línea + supermercado, seguido)
