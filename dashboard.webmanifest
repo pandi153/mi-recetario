@@ -1,0 +1,18 @@
+{
+  "id": "pandi-dashboard",
+  "name": "Pandi Dashboard",
+  "short_name": "Dashboard",
+  "description": "Panel familiar para la tablet de la cocina",
+  "start_url": "dashboard.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#f6efe3",
+  "theme_color": "#f6efe3",
+  "lang": "es",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
