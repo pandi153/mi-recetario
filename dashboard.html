@@ -315,7 +315,19 @@ $('cnow').onclick = () => { c7Start = startOfToday(); renderCols(); };
 /* --- eventos de Google a través de la función "calendario" de Supabase --- */
 async function fetchEvents(from, to) {
   const { data, error } = await sb.functions.invoke('quick-action', { body: { from: ymd(from), to: ymd(to) } });
-  if (error || !data || !Array.isArray(data.events)) throw new Error((data && data.error) || (error && error.message) || 'sin respuesta');
+  if (error) {
+    let msg = error.message || 'error';
+    try {
+      const c = error.context;
+      if (c && typeof c.text === 'function') {
+        const t = await c.text();
+        try { const j = JSON.parse(t); msg = j.error || j.message || t; } catch (e) { msg = t || msg; }
+        if (c.status) msg = '(' + c.status + ') ' + msg;
+      }
+    } catch (e) {}
+    throw new Error(msg);
+  }
+  if (!data || !Array.isArray(data.events)) throw new Error((data && data.error) || 'sin respuesta');
   return data.events;
 }
 const evOnDay = (evs, d) => { const k = ymd(d); return evs.filter(e => e.allDay ? (e.start <= k && k < (e.end || '9')) : ymd(new Date(e.start)) === k).sort((a, b) => a.allDay === b.allDay ? String(a.start).localeCompare(String(b.start)) : (a.allDay ? -1 : 1)); };
@@ -327,8 +339,8 @@ function c7Error(err) {
   const w = $('calwrap');
   if (EVOK()) { w.innerHTML = `<div class="setup"><div class="muted">No se pudieron cargar los eventos. Reintentando…</div></div>`; setTimeout(() => { if (calMode === '7D') renderCols(); }, 60000); return; }
   document.body.classList.remove('c7');
-  w.innerHTML = `<div class="setup"><b style="font-size:18px">Falta activar la función del calendario</b>
-    <div class="muted">Para ver los eventos como tarjetas hay que crear la función “calendario” en Supabase (el archivo calendario.ts y los pasos vienen en el zip).</div>
+  w.innerHTML = `<div class="setup"><b style="font-size:18px">No se pudieron cargar los eventos</b>
+    <div class="muted">No se han podido leer los eventos. Mira el detalle de abajo: dice qué le falta a la función de Supabase.</div>
     <div class="muted">Detalle: ${esc(err && err.message || err)}</div>
     <button class="go" id="usegoogle" type="button">Usar el calendario de Google mientras tanto</button></div>`;
   $('usegoogle').onclick = () => { calMode = 'WEEK'; lsSet('dash-calmode', 'WEEK'); renderCal(false); };
