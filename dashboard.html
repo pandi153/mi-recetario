@@ -7,51 +7,112 @@
 <title>Pandi · Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-:root{--bg:#07192d;--surface:#0d2740;--surface2:#102d48;--text:#f3f7fb;--muted:#9eb1c5;--accent:#a7df3f;--border:#294965;--today:#1d4f86}
+:root{--bg:#07192d;--surface:#0d2740;--surface2:#102d48;--text:#f3f7fb;--muted:#9eb1c5;--accent:#a7df3f;--border:#294965;--today:#1d4f86;--warn:#f0b24a;--bad:#ff7b7b;--ok:#6fd48b}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
 button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
-#app{display:grid;grid-template-columns:92px 1fr 38%;height:100%;gap:10px;padding:10px}
+a{color:inherit;text-decoration:none}
+#app{display:grid;grid-template-columns:88px 1fr;height:100%;gap:10px;padding:10px}
 /* columna de botones */
 #rail{display:flex;flex-direction:column;gap:10px}
-#rail a,#rail button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:16px;text-decoration:none;color:var(--text);font-size:13px;font-weight:600}
-#rail a span,#rail button span{font-size:30px;line-height:1}
+#rail a,#rail button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:16px;font-size:13px;font-weight:600}
+#rail a span,#rail button span{font-size:28px;line-height:1}
 #rail a:active,#rail button:active{background:var(--surface2)}
-#rail .small{flex:.6;font-size:11px;color:var(--muted)}
-#rail .small span{font-size:20px}
-/* paneles */
-.panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;min-height:0}
-.phead{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);font-weight:700;font-size:17px;gap:8px}
-.phead small{color:var(--muted);font-weight:500;font-size:13px}
-.nav{display:flex;gap:6px;align-items:center}
-.nav button{width:38px;height:38px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);font-size:18px}
-.nav button.txt{width:auto;padding:0 12px;font-size:14px}
+#rail .small{flex:.55;font-size:11px;color:var(--muted)}
+#rail .small span{font-size:18px}
+/* rejilla principal */
+#main{display:grid;grid-template-rows:auto 1fr;gap:10px;min-height:0;min-width:0}
+#top{display:grid;grid-template-columns:.8fr 1.35fr 1fr;gap:10px;height:clamp(150px,25vh,230px)}
+#bottom{display:grid;grid-template-columns:1.45fr 1fr;gap:10px;min-height:0}
+#side{display:grid;grid-template-rows:1fr auto;gap:10px;min-height:0;min-width:0}
+#side2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card,.panel{background:var(--surface);border:1px solid var(--border);border-radius:18px;min-width:0}
+.card{padding:12px 16px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.panel{overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.ctitle{font-size:12px;letter-spacing:.12em;font-weight:800;color:var(--muted);text-transform:uppercase;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:6px}
+.ctitle b{font-weight:800;color:var(--text);font-size:13px;letter-spacing:0}
+/* reloj */
+#clockcard{background:linear-gradient(135deg,#1c2a5c,#2e3d86);justify-content:center;border-color:#3b4b9a}
+#time{font-size:clamp(46px,11vh,104px);font-weight:700;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+#date{margin-top:6px;font-size:clamp(15px,2.6vh,22px);color:#d3dbff}
+#date b{font-weight:700;color:#fff}
+/* tiempo */
+#wcard{justify-content:center;cursor:pointer}
+.wnow{display:flex;align-items:center;gap:14px}
+.wico{font-size:clamp(44px,9vh,80px);line-height:1}
+.wtemp{font-size:clamp(34px,7vh,60px);font-weight:700;line-height:1}
+.wsub{font-size:13px;color:var(--muted);margin-top:4px}
+.wdays{display:flex;gap:6px;margin-top:8px}
+.wd{flex:1;background:var(--surface2);border-radius:12px;padding:5px 2px;text-align:center;font-size:12px;line-height:1.25}
+.wd i{font-style:normal;display:block;font-size:20px}
+.wd small{color:var(--muted)}
+.wset{display:flex;flex-direction:column;gap:8px;font-size:14px}
+.wset input{padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:inherit}
+.wset button{background:var(--accent);color:#10200a;padding:10px;border-radius:10px;font-weight:700}
+/* hoy se come */
+#todaycard{background:linear-gradient(135deg,#1c7a4a,#27a064);border-color:#37b878;color:#fff}
+#todaycard .ctitle,#todaycard .ctitle b{color:#dff7e8}
+#todaybody{overflow:auto;display:flex;flex-direction:column;gap:6px}
+.tm{display:flex;gap:10px;align-items:flex-start;line-height:1.2}
+.tm i{font-style:normal;font-size:20px;width:26px;text-align:center;flex:none}
+.tm small{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#cdeedb}
+.tm span{font-size:clamp(15px,2.6vh,21px);font-weight:700}
+.tm em{font-style:italic;font-weight:600}
+.tm.minor span{font-size:14px;font-weight:600}
+/* calendario */
+.phead{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border);font-weight:700;font-size:15px;gap:8px}
+.seg{display:flex;gap:4px}
+.seg button{padding:6px 12px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);font-size:13px}
+.seg button.on{background:var(--accent);color:#10200a;border-color:var(--accent);font-weight:700}
 #calwrap{flex:1;min-height:0;background:#fff}
 #calwrap iframe{width:100%;height:100%;border:0;display:block}
-.setup{padding:22px;display:flex;flex-direction:column;gap:12px;font-size:15px;line-height:1.4;color:var(--text);background:var(--surface);height:100%;overflow:auto}
+.setup{padding:22px;display:flex;flex-direction:column;gap:12px;font-size:15px;line-height:1.4;background:var(--surface);height:100%;overflow:auto}
 .setup input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:inherit}
 .setup .go{background:var(--accent);color:#10200a;padding:12px;border-radius:10px;font-weight:700}
 .setup ol{padding-left:20px;color:var(--muted);font-size:14px}
-/* menú */
-#menubody{flex:1;overflow:auto;padding:8px;display:flex;flex-direction:column;gap:6px}
-.day{border:1px solid var(--border);border-radius:12px;padding:8px 10px;background:var(--surface2)}
+/* menú de la semana */
+.nav{display:flex;gap:6px;align-items:center}
+.nav button{width:34px;height:34px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);font-size:17px}
+.nav button.txt{width:auto;padding:0 10px;font-size:13px}
+#weekbody{flex:1;overflow:auto;padding:6px;display:flex;flex-direction:column;gap:5px}
+.day{display:grid;grid-template-columns:44px 1fr;gap:8px;border:1px solid var(--border);border-radius:12px;padding:6px 8px;background:var(--surface2);align-items:center}
 .day.today{background:var(--today);border-color:#4b8fd6}
-.day.past{opacity:.55}
-.dname{font-size:12px;letter-spacing:.06em;font-weight:800;color:var(--muted);margin-bottom:4px;display:flex;justify-content:space-between}
-.day.today .dname{color:#d6e9ff}
-.meal{display:flex;gap:8px;font-size:14px;line-height:1.3;padding:2px 0}
-.meal i{font-style:normal;width:22px;flex:none;text-align:center}
-.meal b{font-weight:600}
-.meal em{font-style:normal;color:var(--muted)}
-.empty{color:var(--muted);font-size:13px;padding:2px 0}
-/* login / mensajes */
+.day.past{opacity:.5}
+.dn{text-align:center;font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--muted);line-height:1.1}
+.dn b{display:block;font-size:20px;color:var(--text);letter-spacing:0}
+.day.today .dn,.day.today .dn b{color:#fff}
+.dm{min-width:0;font-size:13px;line-height:1.35}
+.dm div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dm i{font-style:normal;margin-right:6px}
+.dm em{font-style:italic;color:var(--muted)}
+.none{color:var(--muted)}
+/* caducidad y compra */
+.row{display:flex;justify-content:space-between;gap:8px;font-size:14px;line-height:1.5}
+.row span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{font-size:11px;font-weight:800;padding:1px 8px;border-radius:999px;flex:none;align-self:center}
+.badge.bad{background:#ff7b7b30;color:var(--bad)}
+.badge.warn{background:#f0b24a30;color:var(--warn)}
+.big{font-size:clamp(22px,4vh,34px);font-weight:700;line-height:1.1}
+.ok{color:var(--ok);font-size:14px;margin-top:4px}
+.muted{color:var(--muted);font-size:13px}
+/* login */
 #login{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:10}
 #login form{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;width:min(380px,90vw);display:flex;flex-direction:column;gap:12px}
 #login input{padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:inherit}
 #login button{background:var(--accent);color:#10200a;padding:12px;border-radius:10px;font-weight:700}
 #msg{color:#e0707e;font-size:14px;min-height:18px}
-#clock{font-variant-numeric:tabular-nums}
-@media (max-width:900px){#app{grid-template-columns:70px 1fr}#menupanel{display:none}}
+/* pantallas estrechas (móvil): todo en una columna con scroll */
+@media (max-width:900px){
+  html,body{overflow:auto}
+  #app{display:block;height:auto;min-height:100%}
+  #rail{flex-direction:row;height:64px;margin-bottom:10px}
+  #rail .small{display:none}
+  #rail a{flex-direction:row;justify-content:center;font-size:12px}
+  #main,#top,#bottom,#side,#side2{display:flex;flex-direction:column;gap:10px;height:auto}
+  #top>*{min-height:130px}
+  #calpanel{height:480px}
+  #weekpanel{height:420px}
+}
 </style>
 </head>
 <body>
@@ -65,18 +126,39 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
     <button class="small" id="calcfg" type="button"><span>⚙️</span>Calendario</button>
   </nav>
 
-  <section class="panel">
-    <div class="phead"><span>🗓️ Calendario Familia</span><small id="clock"></small></div>
-    <div id="calwrap"></div>
-  </section>
+  <main id="main">
+    <section id="top">
+      <div class="card" id="clockcard"><div id="time">--:--</div><div id="date"></div></div>
+      <div class="card" id="wcard"></div>
+      <a class="card" id="todaycard" href="index.html?tab=menu">
+        <div class="ctitle"><span>Hoy se come</span></div>
+        <div id="todaybody"><div class="muted">Cargando…</div></div>
+      </a>
+    </section>
 
-  <section class="panel" id="menupanel">
-    <div class="phead">
-      <span>🍽️ Menú <small id="weeklabel"></small></span>
-      <div class="nav"><button id="prev" type="button">‹</button><button id="thisw" class="txt" type="button">Hoy</button><button id="next" type="button">›</button></div>
-    </div>
-    <div id="menubody"><div class="empty">Cargando…</div></div>
-  </section>
+    <section id="bottom">
+      <div class="panel" id="calpanel">
+        <div class="phead"><span>🗓️ Calendario Familia</span>
+          <div class="seg" id="calseg"><button data-m="WEEK" type="button">Semana</button><button data-m="AGENDA" type="button">Agenda</button><button data-m="MONTH" type="button">Mes</button></div>
+        </div>
+        <div id="calwrap"></div>
+      </div>
+
+      <aside id="side">
+        <div class="panel" id="weekpanel">
+          <div class="phead">
+            <span>🍽️ Menú <small id="weeklabel" class="muted"></small></span>
+            <div class="nav"><button id="prev" type="button">‹</button><button id="thisw" class="txt" type="button">Hoy</button><button id="next" type="button">›</button></div>
+          </div>
+          <div id="weekbody"><div class="muted" style="padding:8px">Cargando…</div></div>
+        </div>
+        <div id="side2">
+          <a class="card" id="expcard" href="index.html?tab=pantry"></a>
+          <a class="card" id="shopcard" href="index.html?tab=shop"></a>
+        </div>
+      </aside>
+    </section>
+  </main>
 </div>
 
 <div id="login">
@@ -96,127 +178,205 @@ const SUPABASE_KEY = 'sb_publishable_LPRAkNBsVLKUZLDfAMD6dQ_kaMErp_2';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
 
 const MEALS = [['desayuno','Desayuno','🥞'],['almuerzo','Almuerzo','🍎'],['comida','Comida','🍽️'],['merienda','Merienda','🥪'],['cena','Cena','🌙']];
-const DAYS = ['LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','SÁBADO','DOMINGO'];
+const DAYS = ['LUN','MAR','MIÉ','JUE','VIE','SÁB','DOM'];
+const LOCICON = { congelador: '❄️', frigorifico: '🧊', despensa: '🥫' };
 const ymd = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+const parseYmd = t => { const [y, m, d] = t.split('-').map(Number); return new Date(y, m-1, d); };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const mondayOf = d => addDays(new Date(d.getFullYear(), d.getMonth(), d.getDate()), -((d.getDay()+6)%7));
+const daysTo = s => { const t = new Date(); return Math.round((parseYmd(s) - new Date(t.getFullYear(), t.getMonth(), t.getDate())) / 86400000); };
 const slotItems = v => Array.isArray(v) ? v : (v ? [v] : []);
 const isNote = x => String(x).startsWith('~');
+const cap = s => { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); };
 
-let user = null, RECIPES = new Map(), weekStart = mondayOf(new Date()), MENU = [];
+let user = null, RECIPES = new Map(), PANTRY = [], SHOP = {}, WEEKS = {}, weekStart = mondayOf(new Date());
 
-/* ===== 2. Calendario de Google ===== */
+/* ===== 2. Reloj ===== */
+function tick() {
+  const n = new Date();
+  $('time').textContent = n.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  $('date').innerHTML = `<b>${cap(n.toLocaleDateString('es-ES', { weekday: 'long' }))}</b> ${n.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}`;
+}
+tick(); setInterval(tick, 10000);
+
+/* ===== 3. Tiempo (Open-Meteo, sin claves) ===== */
+const WMO = c => c === 0 ? '☀️' : c === 1 ? '🌤️' : c === 2 ? '⛅' : c === 3 ? '☁️' : (c === 45 || c === 48) ? '🌫️' : (c >= 51 && c <= 57) ? '🌦️' : (c >= 61 && c <= 67) ? '🌧️' : (c >= 71 && c <= 77) ? '❄️' : (c >= 80 && c <= 82) ? '🌦️' : (c === 85 || c === 86) ? '🌨️' : c >= 95 ? '⛈️' : '🌡️';
+let wEdit = false;
+function cityGet() { try { return JSON.parse(lsGet('dash-city', 'null')); } catch (e) { return null; } }
+function weatherSetup(msg) {
+  $('wcard').innerHTML = `<div class="wset"><div class="ctitle"><span>Tiempo</span></div>
+    <input id="cityin" placeholder="Tu ciudad (ej. Valencia)" value="${esc((cityGet() || {}).name || '')}">
+    <button id="citygo" type="button">Buscar</button><div class="muted" id="citymsg">${esc(msg || '')}</div></div>`;
+  $('citygo').onclick = async e => {
+    e.stopPropagation(); const q = $('cityin').value.trim(); if (!q) return; $('citymsg').textContent = 'Buscando…';
+    try {
+      const r = await (await fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&language=es&name=' + encodeURIComponent(q))).json();
+      const c = r.results && r.results[0]; if (!c) { $('citymsg').textContent = 'No encuentro esa ciudad. Prueba con otro nombre.'; return; }
+      lsSet('dash-city', JSON.stringify({ name: c.name, lat: c.latitude, lon: c.longitude })); wEdit = false; loadWeather();
+    } catch (err) { $('citymsg').textContent = 'Sin conexión. Inténtalo de nuevo.'; }
+  };
+  $('cityin').onclick = e => e.stopPropagation();
+}
+async function loadWeather() {
+  const c = cityGet(); if (!c || wEdit) return weatherSetup(c ? '' : 'Pon tu ciudad para ver el tiempo.');
+  try {
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=6`;
+    const w = await (await fetch(u)).json(), d = w.daily;
+    const days = [1, 2, 3, 4, 5].filter(i => d.time[i]).map(i => `<div class="wd"><small>${cap(parseYmd(d.time[i]).toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', ''))}</small><i>${WMO(d.weather_code[i])}</i>${Math.round(d.temperature_2m_max[i])}° <small>${Math.round(d.temperature_2m_min[i])}°</small></div>`).join('');
+    $('wcard').innerHTML = `<div class="ctitle"><span>📍 ${esc(c.name)}</span><span class="muted">toca para cambiar</span></div>
+      <div class="wnow"><div class="wico">${WMO(w.current.weather_code)}</div>
+      <div><div class="wtemp">${Math.round(w.current.temperature_2m)}°</div><div class="wsub">${Math.round(d.temperature_2m_min[0])}° / ${Math.round(d.temperature_2m_max[0])}° · 💧 ${d.precipitation_probability_max[0] ?? 0}%</div></div></div>
+      <div class="wdays">${days}</div>`;
+  } catch (e) { $('wcard').innerHTML = `<div class="ctitle"><span>Tiempo</span></div><div class="muted">No se pudo cargar el tiempo. Reintentando…</div>`; }
+}
+$('wcard').addEventListener('click', e => { if (e.target.closest('.wset')) return; wEdit = true; weatherSetup(''); });
+
+/* ===== 4. Calendario de Google ===== */
 const CAL_KEY = 'dash-cal';
+let calMode = lsGet('dash-calmode', 'WEEK');
 function calUrl(raw) {
   raw = (raw || '').trim(); if (!raw) return '';
   const m = raw.match(/src="([^"]+)"/); if (m) raw = m[1].replace(/&amp;/g, '&');
-  if (/^https?:\/\//.test(raw)) {
-    const u = new URL(raw);
-    ['showTitle','showPrint','showTabs','showCalendars','showTz'].forEach(k => u.searchParams.set(k, '0'));
-    u.searchParams.set('hl', 'es'); u.searchParams.set('wkst', '2');
-    if (!u.searchParams.get('mode')) u.searchParams.set('mode', 'WEEK');
-    return u.toString();
-  }
-  // solo un ID o correo del calendario
-  return 'https://calendar.google.com/calendar/embed?src=' + encodeURIComponent(raw) +
-    '&ctz=' + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone) +
-    '&mode=WEEK&hl=es&wkst=2&showTitle=0&showPrint=0&showTabs=0&showCalendars=0&showTz=0';
+  let u;
+  if (/^https?:\/\//.test(raw)) u = new URL(raw);
+  else u = new URL('https://calendar.google.com/calendar/embed?src=' + encodeURIComponent(raw));
+  ['showTitle','showPrint','showTabs','showCalendars','showTz'].forEach(k => u.searchParams.set(k, '0'));
+  u.searchParams.set('hl', 'es'); u.searchParams.set('wkst', '2'); u.searchParams.set('mode', calMode);
+  if (!u.searchParams.get('ctz')) u.searchParams.set('ctz', Intl.DateTimeFormat().resolvedOptions().timeZone);
+  return u.toString();
 }
 function renderCal(edit) {
-  const saved = localStorage.getItem(CAL_KEY) || '', url = calUrl(saved), w = $('calwrap');
+  document.querySelectorAll('#calseg button').forEach(b => b.classList.toggle('on', b.dataset.m === calMode));
+  const saved = lsGet(CAL_KEY, ''), url = calUrl(saved), w = $('calwrap');
   if (url && !edit) { w.innerHTML = `<iframe src="${esc(url)}" title="Calendario"></iframe>`; return; }
   w.innerHTML = `<div class="setup">
     <b style="font-size:18px">Conectar el calendario de Google</b>
-    <ol>
-      <li>En Google Calendar (en el navegador del ordenador) → ⚙️ Configuración → pulsa tu calendario “Familia”.</li>
-      <li>Baja hasta <b>“Integrar el calendario”</b> y copia el <b>“Código de inserción”</b> (o la URL pública).</li>
-      <li>Pégalo aquí. También vale solo el ID del calendario.</li>
-    </ol>
-    <input id="calinput" placeholder="Pega aquí el código, la URL o el ID" value="${esc(saved)}">
+    <ol><li>En Google Calendar (versión de ordenador) → Configuración → tu calendario “Familia”.</li>
+    <li>Baja hasta “Integrar el calendario” y copia el <b>ID del calendario</b>.</li><li>Pégalo aquí.</li></ol>
+    <input id="calinput" placeholder="Pega aquí el ID, la URL o el código" value="${esc(saved)}">
     <button class="go" id="calsave" type="button">Guardar</button>
-    <div style="color:var(--muted);font-size:13px">Si el calendario es privado, esta tablet debe tener la sesión de Google iniciada en el navegador.</div>
-  </div>`;
-  $('calsave').onclick = () => { localStorage.setItem(CAL_KEY, $('calinput').value.trim()); renderCal(false); };
+    <div class="muted">Si el calendario es privado, la tablet debe tener la sesión de Google iniciada en el navegador.</div></div>`;
+  $('calsave').onclick = () => { lsSet(CAL_KEY, $('calinput').value.trim()); renderCal(false); };
 }
+$('calseg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; calMode = b.dataset.m; lsSet('dash-calmode', calMode); renderCal(false); });
+$('calcfg').onclick = () => renderCal(true);
 
-/* ===== 3. Sesión ===== */
-function showLogin(on) { $('login').style.display = on ? 'flex' : 'none'; }
+/* ===== 5. Sesión ===== */
 $('loginform').addEventListener('submit', async e => {
   e.preventDefault(); $('msg').textContent = 'Entrando…';
   const { error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('password').value });
   $('msg').textContent = error ? 'Correo o contraseña incorrectos.' : '';
 });
 sb.auth.onAuthStateChange((_ev, session) => {
-  if (session && (!user || user.id !== session.user.id)) { user = session.user; showLogin(false); start(); }
-  if (!session) { user = null; showLogin(true); }
+  if (session && (!user || user.id !== session.user.id)) { user = session.user; $('login').style.display = 'none'; start(); }
+  if (!session) { user = null; $('login').style.display = 'flex'; }
 });
 
-/* ===== 4. Menú de la semana ===== */
+/* ===== 6. Datos de la app ===== */
 async function loadRecipes() {
   const { data, error } = await sb.from('recipes').select('id,name');
   if (!error && data) RECIPES = new Map(data.map(r => [r.id, r.name]));
 }
-async function loadWeek() {
-  const ws = ymd(weekStart);
+async function getWeek(ws, force) {
+  if (!force && WEEKS[ws]) return WEEKS[ws];
   const { data, error } = await sb.from('weeks').select('menu').eq('week_start', ws).maybeSingle();
-  if (error) { $('menubody').innerHTML = '<div class="empty">No se pudo cargar el menú. Reintentando…</div>'; return; }
-  MENU = Array.isArray(data && data.menu) ? data.menu : [];
-  renderMenu();
+  if (error) return WEEKS[ws] || [];
+  return (WEEKS[ws] = Array.isArray(data && data.menu) ? data.menu : []);
 }
-function itemText(x) { return isNote(x) ? `<em>${esc(String(x).slice(1))}</em>` : `<b>${esc(RECIPES.get(x) || '…')}</b>`; }
-function renderMenu() {
-  const today = ymd(new Date()), mon = weekStart, sun = addDays(mon, 6);
-  const f = d => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+async function loadWeeks() {
+  const cur = ymd(mondayOf(new Date())); WEEKS = {};
+  await Promise.all([getWeek(cur, true), getWeek(ymd(weekStart), true)]);
+  renderToday(); renderWeek();
+}
+async function loadPantry() {
+  const { data, error } = await sb.from('pantry').select('*');
+  if (!error && data) PANTRY = data; renderExp();
+}
+async function loadShop() {
+  const { data, error } = await sb.from('settings').select('shopping_checked').maybeSingle();
+  if (!error) { const v = data && data.shopping_checked; SHOP = v && typeof v === 'object' && !Array.isArray(v) ? v : {}; } renderShop();
+}
+
+/* ===== 7. Widgets ===== */
+const itemHtml = x => isNote(x) ? `<em>${esc(String(x).slice(1))}</em>` : esc(RECIPES.get(x) || '…');
+
+function renderToday() {
+  const cur = ymd(mondayOf(new Date())), i = (new Date().getDay() + 6) % 7, day = ((WEEKS[cur] || [])[i]) || {};
+  const rows = MEALS.map(([k, l, ic]) => ({ k, l, ic, its: slotItems(day[k]).filter(Boolean) })).filter(m => m.its.length);
+  $('todaybody').innerHTML = rows.length
+    ? rows.map(m => `<div class="tm${(m.k === 'comida' || m.k === 'cena') ? '' : ' minor'}"><i>${m.ic}</i><div><small>${m.l}</small><span>${m.its.map(itemHtml).join(' · ')}</span></div></div>`).join('')
+    : `<div class="tm"><i>🤷</i><div><span>Nada planificado hoy</span><small>Toca para planificar</small></div></div>`;
+}
+
+function renderWeek() {
+  const today = ymd(new Date()), mon = weekStart, sun = addDays(mon, 6), menu = WEEKS[ymd(mon)] || [];
+  const f = d => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).replace('.', '');
   $('weeklabel').textContent = `${f(mon)} – ${f(sun)}`;
   let h = '';
   for (let i = 0; i < 7; i++) {
-    const date = addDays(mon, i), key = ymd(date), d = (MENU[i] && typeof MENU[i] === 'object') ? MENU[i] : {};
-    const rows = MEALS.map(([k, label, ic]) => {
-      const its = slotItems(d[k]).filter(Boolean); if (!its.length) return '';
-      return `<div class="meal"><i title="${label}">${ic}</i><span>${its.map(itemText).join(' · ')}</span></div>`;
-    }).join('');
-    const cls = key === today ? ' today' : (key < today ? ' past' : '');
-    h += `<div class="day${cls}"><div class="dname"><span>${DAYS[i]}</span><span>${date.getDate()}</span></div>${rows || '<div class="empty">—</div>'}</div>`;
+    const date = addDays(mon, i), key = ymd(date), d = (menu[i] && typeof menu[i] === 'object') ? menu[i] : {};
+    const line = ([k, , ic]) => { const its = slotItems(d[k]).filter(Boolean); return its.length ? `<div><i>${ic}</i>${its.map(itemHtml).join(' · ')}</div>` : ''; };
+    let rows = line(MEALS[2]) + line(MEALS[4]);
+    if (!rows) rows = [MEALS[0], MEALS[1], MEALS[3]].map(line).join('');
+    h += `<div class="day${key === today ? ' today' : key < today ? ' past' : ''}"><div class="dn">${DAYS[i]}<b>${date.getDate()}</b></div><div class="dm">${rows || '<div class="none">—</div>'}</div></div>`;
   }
-  $('menubody').innerHTML = h;
-  const t = $('menubody').querySelector('.day.today'); if (t) t.scrollIntoView({ block: 'nearest' });
+  $('weekbody').innerHTML = h;
+  const t = $('weekbody').querySelector('.day.today'); if (t) t.scrollIntoView({ block: 'nearest' });
 }
-$('prev').onclick = () => { weekStart = addDays(weekStart, -7); loadWeek(); };
-$('next').onclick = () => { weekStart = addDays(weekStart, 7); loadWeek(); };
-$('thisw').onclick = () => { weekStart = mondayOf(new Date()); loadWeek(); };
+$('prev').onclick = async () => { weekStart = addDays(weekStart, -7); await getWeek(ymd(weekStart), true); renderWeek(); };
+$('next').onclick = async () => { weekStart = addDays(weekStart, 7); await getWeek(ymd(weekStart), true); renderWeek(); };
+$('thisw').onclick = async () => { weekStart = mondayOf(new Date()); await getWeek(ymd(weekStart)); renderWeek(); };
 
-/* ===== 5. Arranque, tiempo real y modo tablet ===== */
+function renderExp() {
+  const list = PANTRY.filter(p => p.expiry_date && Number(p.units ?? 1) > 0).map(p => ({ p, d: daysTo(p.expiry_date) })).filter(x => x.d <= 3).sort((a, b) => a.d - b.d);
+  const bad = list.filter(x => x.d < 0).length;
+  const badge = d => d < 0 ? `<span class="badge bad">caducado</span>` : d === 0 ? `<span class="badge bad">hoy</span>` : d === 1 ? `<span class="badge warn">mañana</span>` : `<span class="badge warn">${d} días</span>`;
+  $('expcard').innerHTML = `<div class="ctitle"><span>⏰ Caduca pronto</span>${list.length ? `<b>${list.length}</b>` : ''}</div>` +
+    (list.length ? list.slice(0, 5).map(x => `<div class="row"><span>${LOCICON[x.p.location] || '🥫'} ${esc(cap(x.p.name))}</span>${badge(x.d)}</div>`).join('') + (list.length > 5 ? `<div class="muted">y ${list.length - 5} más…</div>` : '')
+      : `<div class="ok">✅ Nada caduca en los próximos 3 días</div>`);
+}
+
+function renderShop() {
+  const w = SHOP[ymd(mondayOf(new Date()))] || {}, items = (Array.isArray(w.x) ? w.x : []).filter(x => !x.d && x.t);
+  $('shopcard').innerHTML = `<div class="ctitle"><span>🛒 Compra</span></div>` +
+    (items.length ? `<div class="big">${items.length} ${items.length === 1 ? 'cosa apuntada' : 'cosas apuntadas'}</div><div class="muted" style="margin-top:4px;line-height:1.4">${items.slice(0, 5).map(x => esc(x.t)).join(' · ')}${items.length > 5 ? '…' : ''}</div>`
+      : `<div class="ok">✅ Nada apuntado a mano</div><div class="muted" style="margin-top:4px">Toca para ver la lista completa</div>`);
+}
+
+/* ===== 8. Arranque, tiempo real y modo tablet ===== */
 let started = false;
 async function start() {
   if (started) return; started = true;
-  await loadRecipes(); await loadWeek();
+  await loadRecipes();
+  await Promise.all([loadWeeks(), loadPantry(), loadShop()]);
   sb.channel('dash-' + user.id)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'weeks' }, loadWeek)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'recipes' }, async () => { await loadRecipes(); renderMenu(); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'weeks' }, loadWeeks)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'recipes' }, async () => { await loadRecipes(); renderToday(); renderWeek(); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pantry' }, loadPantry)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, loadShop)
     .subscribe();
-  setInterval(() => { loadRecipes().then(loadWeek); }, 10 * 60 * 1000);
+  setInterval(() => { loadRecipes().then(() => Promise.all([loadWeeks(), loadPantry(), loadShop()])); }, 10 * 60 * 1000);
 }
-// al cambiar de día, volver a la semana actual
+setInterval(loadWeather, 30 * 60 * 1000);
+// al cambiar de día: semana actual y todo refrescado
 let lastDay = ymd(new Date());
 setInterval(() => {
-  const n = new Date(), k = ymd(n);
-  $('clock').textContent = n.toLocaleString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
-  if (k !== lastDay) { lastDay = k; weekStart = mondayOf(n); if (user) loadWeek(); }
-}, 20000);
-$('clock').textContent = new Date().toLocaleString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  const k = ymd(new Date());
+  if (k !== lastDay) { lastDay = k; weekStart = mondayOf(new Date()); if (user) { loadWeeks(); loadPantry(); } }
+}, 30000);
 
 // pantalla siempre encendida
-let wl = null;
-async function keepAwake() { try { if ('wakeLock' in navigator) wl = await navigator.wakeLock.request('screen'); } catch (e) {} }
+async function keepAwake() { try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) {} }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
 document.addEventListener('click', keepAwake, { once: true });
 keepAwake();
-
 $('fs').onclick = () => { const el = document.documentElement; (document.fullscreenElement ? document.exitFullscreen() : (el.requestFullscreen && el.requestFullscreen())); };
-$('calcfg').onclick = () => renderCal(true);
-renderCal(false);
+
+renderCal(false); loadWeather();
 </script>
 </body>
 </html>
