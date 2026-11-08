@@ -95,6 +95,36 @@ a{color:inherit;text-decoration:none}
 .big{font-size:clamp(22px,4vh,34px);font-weight:700;line-height:1.1}
 .ok{color:var(--ok);font-size:14px;margin-top:4px}
 .muted{color:var(--muted);font-size:13px}
+/* vista de 7 días (eventos como tarjetas) */
+#next{margin-top:8px;font-size:clamp(12px,2.1vh,16px);color:#c8d2ff;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#next b{color:#fff}
+#calnav{display:none}
+body.c7 #calnav{display:flex}
+body.c7 #bottom{grid-template-columns:1fr;grid-template-rows:1fr auto}
+body.c7 #side{display:contents}
+body.c7 #weekpanel{display:none}
+body.c7 #expcard .row:nth-child(n+5),body.c7 #expcard .muted{display:none}
+.cols{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;padding:8px;height:100%;background:var(--surface)}
+.col{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:8px;display:flex;flex-direction:column;min-width:0;min-height:0}
+.col.today{background:#14385f;border-color:#4b8fd6}
+.ch{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.ch span{font-weight:700;font-size:14px;color:var(--muted)}
+.ch b{font-size:24px;line-height:1}
+.col.today .ch span{color:#ff9aa5}
+.chips{display:flex;flex-direction:column;gap:3px;margin-bottom:6px}
+.chip{border-radius:8px;padding:2px 8px;font-size:11px;font-weight:700;color:#10200a;background:#c5e07a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.evs{flex:1;overflow:auto;display:flex;flex-direction:column;gap:6px;min-height:0}
+.ev{border-left:4px solid var(--c,#6fd48b);padding:1px 0 1px 8px;line-height:1.2}
+.ev small{display:block;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.ev span{font-size:14px;font-weight:600;overflow-wrap:anywhere}
+.ev.past{opacity:.45}
+.noev{color:var(--muted);font-size:13px}
+.menubox{margin-top:6px;background:#1b4a3a;border-radius:10px;padding:6px 8px;font-size:12px;line-height:1.3;max-height:36%;overflow:hidden;flex:none}
+.col.today .menubox{background:#1f7a4a}
+.menubox div{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.menubox i{font-style:normal;margin-right:4px}
+.menubox em{font-style:italic;opacity:.85}
+.menubox .none{opacity:.6}
 /* login */
 #login{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:10}
 #login form{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;width:min(380px,90vw);display:flex;flex-direction:column;gap:12px}
@@ -112,6 +142,10 @@ a{color:inherit;text-decoration:none}
   #top>*{min-height:130px}
   #calpanel{height:480px}
   #weekpanel{height:420px}
+  body.c7 #side{display:flex}
+  body.c7 #weekpanel{display:none}
+  .cols{grid-template-columns:1fr;height:auto;overflow:auto}
+  .col{min-height:150px}
 }
 </style>
 </head>
@@ -128,7 +162,7 @@ a{color:inherit;text-decoration:none}
 
   <main id="main">
     <section id="top">
-      <div class="card" id="clockcard"><div id="time">--:--</div><div id="date"></div></div>
+      <div class="card" id="clockcard"><div id="time">--:--</div><div id="date"></div><div id="next"></div></div>
       <div class="card" id="wcard"></div>
       <a class="card" id="todaycard" href="index.html?tab=menu">
         <div class="ctitle"><span>Hoy se come</span></div>
@@ -139,7 +173,8 @@ a{color:inherit;text-decoration:none}
     <section id="bottom">
       <div class="panel" id="calpanel">
         <div class="phead"><span>🗓️ Calendario Familia</span>
-          <div class="seg" id="calseg"><button data-m="WEEK" type="button">Semana</button><button data-m="AGENDA" type="button">Agenda</button><button data-m="MONTH" type="button">Mes</button></div>
+          <div class="nav" id="calnav"><button id="cprev" type="button">‹</button><button id="cnow" class="txt" type="button">Hoy</button><button id="cnext" type="button">›</button></div>
+          <div class="seg" id="calseg"><button data-m="7D" type="button">7 días</button><button data-m="WEEK" type="button">Semana</button><button data-m="MONTH" type="button">Mes</button></div>
         </div>
         <div id="calwrap"></div>
       </div>
@@ -201,7 +236,7 @@ function tick() {
   $('time').textContent = n.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
   $('date').innerHTML = `<b>${cap(n.toLocaleDateString('es-ES', { weekday: 'long' }))}</b> ${n.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}`;
 }
-tick(); setInterval(tick, 10000);
+tick(); setInterval(() => { tick(); updateNext(); }, 10000);
 
 /* ===== 3. Tiempo (Open-Meteo, sin claves) ===== */
 const WMO = c => c === 0 ? '☀️' : c === 1 ? '🌤️' : c === 2 ? '⛅' : c === 3 ? '☁️' : (c === 45 || c === 48) ? '🌫️' : (c >= 51 && c <= 57) ? '🌦️' : (c >= 61 && c <= 67) ? '🌧️' : (c >= 71 && c <= 77) ? '❄️' : (c >= 80 && c <= 82) ? '🌦️' : (c === 85 || c === 86) ? '🌨️' : c >= 95 ? '⛈️' : '🌡️';
@@ -235,9 +270,15 @@ async function loadWeather() {
 }
 $('wcard').addEventListener('click', e => { if (e.target.closest('.wset')) return; wEdit = true; weatherSetup(''); });
 
-/* ===== 4. Calendario de Google ===== */
+/* ===== 4. Calendario ===== */
 const CAL_KEY = 'dash-cal';
-let calMode = lsGet('dash-calmode', 'WEEK');
+const EVOK = () => lsGet('dash-evok', '0') === '1';
+let calMode = lsGet('dash-calmode', EVOK() ? '7D' : 'WEEK');
+if (!['7D', 'WEEK', 'MONTH'].includes(calMode)) calMode = 'WEEK';
+let readyRes; const ready = new Promise(r => { readyRes = r; });
+const startOfToday = () => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); };
+let c7Start = startOfToday(), colTok = 0, NEXTEV = [];
+
 function calUrl(raw) {
   raw = (raw || '').trim(); if (!raw) return '';
   const m = raw.match(/src="([^"]+)"/); if (m) raw = m[1].replace(/&amp;/g, '&');
@@ -245,12 +286,15 @@ function calUrl(raw) {
   if (/^https?:\/\//.test(raw)) u = new URL(raw);
   else u = new URL('https://calendar.google.com/calendar/embed?src=' + encodeURIComponent(raw));
   ['showTitle','showPrint','showTabs','showCalendars','showTz'].forEach(k => u.searchParams.set(k, '0'));
-  u.searchParams.set('hl', 'es'); u.searchParams.set('wkst', '2'); u.searchParams.set('mode', calMode);
+  u.searchParams.set('hl', 'es'); u.searchParams.set('wkst', '2'); u.searchParams.set('mode', calMode === 'MONTH' ? 'MONTH' : 'WEEK');
   if (!u.searchParams.get('ctz')) u.searchParams.set('ctz', Intl.DateTimeFormat().resolvedOptions().timeZone);
   return u.toString();
 }
 function renderCal(edit) {
   document.querySelectorAll('#calseg button').forEach(b => b.classList.toggle('on', b.dataset.m === calMode));
+  document.body.classList.toggle('c7', calMode === '7D' && !edit);
+  if (calMode === '7D' && !edit) return renderCols();
+  colTok++;
   const saved = lsGet(CAL_KEY, ''), url = calUrl(saved), w = $('calwrap');
   if (url && !edit) { w.innerHTML = `<iframe src="${esc(url)}" title="Calendario"></iframe>`; return; }
   w.innerHTML = `<div class="setup">
@@ -264,6 +308,64 @@ function renderCal(edit) {
 }
 $('calseg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; calMode = b.dataset.m; lsSet('dash-calmode', calMode); renderCal(false); });
 $('calcfg').onclick = () => renderCal(true);
+$('cprev').onclick = () => { c7Start = addDays(c7Start, -7); renderCols(); };
+$('cnext').onclick = () => { c7Start = addDays(c7Start, 7); renderCols(); };
+$('cnow').onclick = () => { c7Start = startOfToday(); renderCols(); };
+
+/* --- eventos de Google a través de la función "calendario" de Supabase --- */
+async function fetchEvents(from, to) {
+  const { data, error } = await sb.functions.invoke('quick-action', { body: { from: ymd(from), to: ymd(to) } });
+  if (error || !data || !Array.isArray(data.events)) throw new Error((data && data.error) || (error && error.message) || 'sin respuesta');
+  return data.events;
+}
+const evOnDay = (evs, d) => { const k = ymd(d); return evs.filter(e => e.allDay ? (e.start <= k && k < (e.end || '9')) : ymd(new Date(e.start)) === k).sort((a, b) => a.allDay === b.allDay ? String(a.start).localeCompare(String(b.start)) : (a.allDay ? -1 : 1)); };
+const PAL = ['#6fd48b', '#ff8fa3', '#7db7ff', '#ffcb6b', '#c39bff', '#5fd6d0'];
+const evColor = t => { const w = String(t || '').trim().split(/\s+/).pop().toLowerCase(); let h = 0; for (const ch of w) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return PAL[h % PAL.length]; };
+const hhmm = iso => new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+function c7Error(err) {
+  const w = $('calwrap');
+  if (EVOK()) { w.innerHTML = `<div class="setup"><div class="muted">No se pudieron cargar los eventos. Reintentando…</div></div>`; setTimeout(() => { if (calMode === '7D') renderCols(); }, 60000); return; }
+  document.body.classList.remove('c7');
+  w.innerHTML = `<div class="setup"><b style="font-size:18px">Falta activar la función del calendario</b>
+    <div class="muted">Para ver los eventos como tarjetas hay que crear la función “calendario” en Supabase (el archivo calendario.ts y los pasos vienen en el zip).</div>
+    <div class="muted">Detalle: ${esc(err && err.message || err)}</div>
+    <button class="go" id="usegoogle" type="button">Usar el calendario de Google mientras tanto</button></div>`;
+  $('usegoogle').onclick = () => { calMode = 'WEEK'; lsSet('dash-calmode', 'WEEK'); renderCal(false); };
+}
+async function renderCols() {
+  const tok = ++colTok, w = $('calwrap'), days = [0, 1, 2, 3, 4, 5, 6].map(i => addDays(c7Start, i));
+  if (!w.querySelector('.cols')) w.innerHTML = `<div class="setup"><div class="muted">Cargando eventos…</div></div>`;
+  await ready;
+  let evs;
+  try { evs = await fetchEvents(days[0], days[6]); } catch (e) { if (tok === colTok) c7Error(e); return; }
+  lsSet('dash-evok', '1');
+  await Promise.all([...new Set(days.map(d => ymd(mondayOf(d))))].map(ws => getWeek(ws)));
+  if (tok !== colTok || calMode !== '7D') return;
+  const now = new Date(), today = ymd(now);
+  w.innerHTML = '<div class="cols">' + days.map(d => {
+    const k = ymd(d), isT = k === today, list = evOnDay(evs, d), allday = list.filter(e => e.allDay), timed = list.filter(e => !e.allDay);
+    const md = ((WEEKS[ymd(mondayOf(d))] || [])[(d.getDay() + 6) % 7]) || {};
+    const ml = (arr) => arr.map(([key, , ic]) => { const its = slotItems(md[key]).filter(Boolean); return its.length ? `<div><i>${ic}</i>${its.map(itemHtml).join(' · ')}</div>` : ''; }).join('');
+    const menu = ml([MEALS[2], MEALS[4]]) || ml([MEALS[0], MEALS[1], MEALS[3]]);
+    return `<div class="col${isT ? ' today' : ''}"><div class="ch"><span>${isT ? 'Hoy' : cap(d.toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', ''))}</span><b>${d.getDate()}</b></div>
+      ${allday.length ? `<div class="chips">${allday.map(e => `<div class="chip" style="background:${evColor(e.title)}">${esc(e.title)}</div>`).join('')}</div>` : ''}
+      <div class="evs">${timed.length ? timed.map(e => `<div class="ev${isT && new Date(e.end) < now ? ' past' : ''}" style="--c:${evColor(e.title)}"><small>${hhmm(e.start)}${e.end ? '–' + hhmm(e.end) : ''}</small><span>${esc(e.title)}</span></div>`).join('') : (allday.length ? '' : '<div class="noev">—</div>')}</div>
+      <div class="menubox">${menu || '<div class="none">Sin menú</div>'}</div></div>`;
+  }).join('') + '</div>';
+}
+/* próximo evento (línea bajo el reloj) */
+async function loadNext() {
+  if (!EVOK()) return;
+  try { const t = startOfToday(); NEXTEV = await fetchEvents(t, addDays(t, 7)); updateNext(); } catch (e) {}
+}
+function updateNext() {
+  const el = $('next'), now = new Date(), n = NEXTEV.filter(e => !e.allDay && new Date(e.start) > now).sort((a, b) => new Date(a.start) - new Date(b.start))[0];
+  if (!n) { el.textContent = ''; return; }
+  const min = Math.round((new Date(n.start) - now) / 60000);
+  const when = min < 60 ? `en ${min} min` : min < 1440 ? `en ${Math.floor(min / 60)} h ${min % 60} min` : cap(new Date(n.start).toLocaleDateString('es-ES', { weekday: 'long' })) + ' ' + hhmm(n.start);
+  el.innerHTML = `Próximo: <b>${esc(n.title)}</b> · ${when}`;
+}
 
 /* ===== 5. Sesión ===== */
 $('loginform').addEventListener('submit', async e => {
@@ -290,7 +392,7 @@ async function getWeek(ws, force) {
 async function loadWeeks() {
   const cur = ymd(mondayOf(new Date())); WEEKS = {};
   await Promise.all([getWeek(cur, true), getWeek(ymd(weekStart), true)]);
-  renderToday(); renderWeek();
+  renderToday(); renderWeek(); if (calMode === '7D') renderCols();
 }
 async function loadPantry() {
   const { data, error } = await sb.from('pantry').select('*');
@@ -350,8 +452,8 @@ function renderShop() {
 /* ===== 8. Arranque, tiempo real y modo tablet ===== */
 let started = false;
 async function start() {
-  if (started) return; started = true;
-  await loadRecipes();
+  if (started) return; started = true; readyRes();
+  await loadRecipes(); loadNext();
   await Promise.all([loadWeeks(), loadPantry(), loadShop()]);
   sb.channel('dash-' + user.id)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'weeks' }, loadWeeks)
@@ -359,7 +461,7 @@ async function start() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'pantry' }, loadPantry)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, loadShop)
     .subscribe();
-  setInterval(() => { loadRecipes().then(() => Promise.all([loadWeeks(), loadPantry(), loadShop()])); }, 10 * 60 * 1000);
+  setInterval(() => { loadRecipes().then(() => Promise.all([loadWeeks(), loadPantry(), loadShop()])); loadNext(); }, 10 * 60 * 1000);
 }
 setInterval(loadWeather, 30 * 60 * 1000);
 // al cambiar de día: semana actual y todo refrescado
